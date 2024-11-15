@@ -5,6 +5,7 @@ node_modules/
 lib/
 artifacts/
 hardhat.config.ts
+*.sh
 
 # Ignores development broadcast logs
 !/broadcast
