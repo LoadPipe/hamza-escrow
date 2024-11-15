@@ -240,6 +240,8 @@ contract PaymentEscrow is HasSecurityContext
 
         if (amount > 0) {
             if (tokenAddressOrZero == address(0)) {
+                console.log("paymtnt to");
+                console.logAddress(to);
                 (success,) = payable(to).call{value: amount}("");
             } 
             else {

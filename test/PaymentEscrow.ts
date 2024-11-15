@@ -27,8 +27,8 @@ describe('PaymentEscrow', function () {
         vaultAddress = a3;
         payer1 = a4;
         payer2 = a5;
-        receiver1 = a4;
-        receiver2 = a4;
+        receiver1 = a6;
+        receiver2 = a7;
 
         //deploy security context
         const SecurityContextFactory =
@@ -51,6 +51,10 @@ describe('PaymentEscrow', function () {
             .connect(admin)
             .grantRole(ARBITER_ROLE, vaultAddress);
 
+        await securityContext
+            .connect(admin)
+            .grantRole(ARBITER_ROLE, admin.address);
+
         //grant token
         await testToken.mint(nonOwner, 10000000000);
         await testToken.mint(payer1, 10000000000);
@@ -60,7 +64,7 @@ describe('PaymentEscrow', function () {
     describe('Deployment', function () {
         it('Should set the right arbiter role', async function () {
             expect(await securityContext.hasRole(ARBITER_ROLE, admin.address))
-                .to.be.false;
+                .to.be.true;
             expect(
                 await securityContext.hasRole(ARBITER_ROLE, nonOwner.address)
             ).to.be.false;
@@ -111,6 +115,8 @@ describe('PaymentEscrow', function () {
     can release a payment with both approvals
     arbiter can release a payment on behalf of payer
     not possible to release a payment for which one is not a party
+    not possible to release a payment twice
+    non-arbiter cannot release on behalf of payer
 
     REFUNDS
     arbiter can cause a partial refund
@@ -229,6 +235,7 @@ describe('PaymentEscrow', function () {
                 initialContractBalance + BigInt(amount)
             );
         });
+
         it('can place a single token payment', async function () {
             const initialContractBalance = await getBalance(
                 escrow.target,
@@ -281,6 +288,7 @@ describe('PaymentEscrow', function () {
                 initialContractBalance + BigInt(amount)
             );
         });
+
         it('can place multiple native payments', async function () {
             const initialContractBalance = await getBalance(escrow.target);
             const initialPayerBalance = await getBalance(payer1.address);
@@ -357,6 +365,7 @@ describe('PaymentEscrow', function () {
                 initialContractBalance + BigInt(amount1 + amount2)
             );
         });
+
         it('can place multiple token payments', async function () {
             const initialContractBalance = await getBalance(
                 escrow.target,
@@ -439,5 +448,326 @@ describe('PaymentEscrow', function () {
                 initialContractBalance + BigInt(amount1 + amount2)
             );
         });
+    });
+
+    describe('Release Payments', function () {
+        it('cannot release a payment with no approvals', async function () {
+            const initialContractBalance = await getBalance(
+                escrow.target,
+                true
+            );
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await testToken.connect(payer1).approve(escrow.target, amount);
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: testToken.target,
+                        payments: [
+                            {
+                                id: paymentId,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount }
+            );
+
+            //check the balance
+            const newContractBalance = await getBalance(escrow.target);
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+
+            //try to release the payment
+            await escrow.releaseEscrow(paymentId);
+
+            //ensure that nothing has been released
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            verifyPayment(payment, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: false,
+                receiverReleased: false,
+                released: false,
+                currency: testToken.target,
+            });
+
+            //check the balance
+            const finalContractBalance = await getBalance(escrow.target, true);
+            expect(finalContractBalance).to.equal(newContractBalance);
+        });
+
+        it('cannot release a payment with only payer approval', async function () {
+            const initialContractBalance = await getBalance(escrow.target);
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: ethers.ZeroAddress,
+                        payments: [
+                            {
+                                id: paymentId,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount }
+            );
+
+            //check the balance
+            const newContractBalance = await getBalance(escrow.target);
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+
+            //try to release the payment
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+
+            //ensure that nothing has been released
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            verifyPayment(payment, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: true,
+                receiverReleased: false,
+                released: false,
+                currency: ethers.ZeroAddress,
+            });
+
+            //check the balance
+            const finalContractBalance = await getBalance(escrow.target);
+            expect(finalContractBalance).to.equal(newContractBalance);
+        });
+
+        it('cannot release a payment with only receiver approval', async function () {
+            const initialContractBalance = await getBalance(escrow.target);
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: ethers.ZeroAddress,
+                        payments: [
+                            {
+                                id: paymentId,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount }
+            );
+
+            //check the balance
+            const newContractBalance = await getBalance(escrow.target);
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+
+            //try to release the payment
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+
+            //ensure that nothing has been released
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            verifyPayment(payment, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: false,
+                receiverReleased: true,
+                released: false,
+                currency: ethers.ZeroAddress,
+            });
+
+            //check the balance
+            const finalContractBalance = await getBalance(escrow.target);
+            expect(finalContractBalance).to.equal(newContractBalance);
+        });
+
+        it('can release a payment with both approvals', async function () {
+            const initialContractBalance = await getBalance(
+                escrow.target,
+                true
+            );
+            const initialReceiverBalance = await getBalance(
+                receiver1.address,
+                true
+            );
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await testToken.connect(payer1).approve(escrow.target, amount);
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: testToken.target,
+                        payments: [
+                            {
+                                id: paymentId,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount }
+            );
+
+            //check the balance
+            const newContractBalance = await getBalance(escrow.target, true);
+            const newReceiverBalance = await getBalance(
+                receiver1.address,
+                true
+            );
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+            expect(newReceiverBalance).to.equal(initialReceiverBalance);
+
+            //try to release the payment
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+
+            //ensure that nothing has been released
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            verifyPayment(payment, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: true,
+                receiverReleased: true,
+                released: true,
+                currency: testToken.target,
+            });
+
+            //check the balance
+            const finalContractBalance = await getBalance(escrow.target, true);
+            const finalReceiverBalance = await getBalance(
+                receiver1.address,
+                true
+            );
+            expect(finalContractBalance).to.equal(
+                newContractBalance - BigInt(amount)
+            );
+            expect(finalReceiverBalance).to.equal(
+                newReceiverBalance + BigInt(amount)
+            );
+        });
+
+        it.skip('arbiter can release a payment on behalf of payer', async function () {
+            const initialContractBalance = await getBalance(
+                escrow.target,
+                true
+            );
+            const initialReceiverBalance = await getBalance(
+                receiver1.address,
+                true
+            );
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await testToken.connect(payer1).approve(escrow.target, amount);
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: testToken.target,
+                        payments: [
+                            {
+                                id: paymentId,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount }
+            );
+
+            //check the balance
+            const newContractBalance = await getBalance(escrow.target, true);
+            const newReceiverBalance = await getBalance(
+                receiver1.address,
+                true
+            );
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+            expect(newReceiverBalance).to.equal(initialReceiverBalance);
+
+            //try to release the payment
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+            await escrow.connect(admin).releaseEscrowOnBehalfOfPayer(paymentId);
+
+            //ensure that nothing has been released
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            verifyPayment(payment, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: true,
+                receiverReleased: true,
+                released: true,
+                currency: testToken.target,
+            });
+
+            //check the balance
+            const finalContractBalance = await getBalance(escrow.target, true);
+            const finalReceiverBalance = await getBalance(
+                receiver1.address,
+                true
+            );
+            expect(finalContractBalance).to.equal(
+                newContractBalance - BigInt(amount)
+            );
+            expect(finalReceiverBalance).to.equal(
+                newReceiverBalance + BigInt(amount)
+            );
+        });
+
+        //not possible to release a payment for which one is not a party
+
+        //not possible to release a payment twice
+
+        //non-arbiter cannot release on behalf of payer
+    });
+
+    describe('Refund Payments', function () {
+        it('arbiter can cause a partial refund', async function () {});
+        //arbiter can cause a full refund
+        //receiver can cause a partial refund
+        it('receiver can cause a full refund', async function () {});
+        //not possible to refund a payment to which one is not a party
     });
 });
