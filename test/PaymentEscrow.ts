@@ -2,6 +2,8 @@ import { expect } from 'chai';
 import hre, { ethers } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 
+//TODO: test the coverage
+
 describe('PaymentEscrow', function () {
     let securityContext: any;
     let escrow: any;
@@ -50,7 +52,9 @@ describe('PaymentEscrow', function () {
             .grantRole(ARBITER_ROLE, vaultAddress);
 
         //grant token
-        await testToken.mint(a2, 100000000);
+        await testToken.mint(nonOwner, 10000000000);
+        await testToken.mint(payer1, 10000000000);
+        await testToken.mint(payer2, 10000000000);
     });
 
     describe('Deployment', function () {
@@ -67,24 +71,25 @@ describe('PaymentEscrow', function () {
 
     /*
     PLACE PAYMENTS
-    can place a single payment
-        TOKEN: 
+    #can place a single payment
+        #TOKEN: 
         - payment is logged in contract with right values 
         - amount leaves payer 
         - amount accrues in contract
-        NATIVE:
+        #NATIVE:
         - payment is logged in contract with right values 
         - amount leaves payer 
         - amount accrues in contract
-    can place multiple payments
-        TOKEN: 
+    #can place multiple payments
+        #TOKEN: 
         - payment is logged in contract with right values 
         - amount leaves payer 
         - amount accrues in contract
-        NATIVE:
+        #NATIVE:
         - payment is logged in contract with right values 
         - amount leaves payer 
         - amount accrues in contract
+    can place mixed token & native payments
     paid amounts accrue in contract
         NATIVE 
         - multiple payments, balance accrues 
@@ -158,6 +163,18 @@ describe('PaymentEscrow', function () {
         expect(actualPayment.id).to.equal(expectedPayment.id);
         expect(actualPayment.payer).to.equal(expectedPayment.payer);
         expect(actualPayment.receiver).to.equal(expectedPayment.receiver);
+        expect(actualPayment.amount).to.equal(expectedPayment.amount);
+        expect(actualPayment.amountRefunded).to.equal(
+            expectedPayment.amountRefunded
+        );
+        expect(actualPayment.currency).to.equal(expectedPayment.currency);
+        expect(actualPayment.receiverReleased).to.equal(
+            expectedPayment.receiverReleased
+        );
+        expect(actualPayment.payerReleased).to.equal(
+            expectedPayment.payerReleased
+        );
+        expect(actualPayment.released).to.equal(expectedPayment.released);
     }
 
     describe('Place Payments', function () {
@@ -186,7 +203,7 @@ describe('PaymentEscrow', function () {
             );
 
             //payment is logged in contract with right values
-            const payment = await escrow.getPayment(paymentId);
+            const payment = convertPayment(await escrow.getPayment(paymentId));
             verifyPayment(payment, {
                 id: paymentId,
                 payer: payer1.address,
@@ -212,8 +229,215 @@ describe('PaymentEscrow', function () {
                 initialContractBalance + BigInt(amount)
             );
         });
-        it('can place a single token payment', async function () {});
-        it('can place multiple native payments', async function () {});
-        it('can place multiple token payments', async function () {});
+        it('can place a single token payment', async function () {
+            const initialContractBalance = await getBalance(
+                escrow.target,
+                true
+            );
+            const initialPayerBalance = await getBalance(payer1.address, true);
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await testToken.connect(payer1).approve(escrow.target, amount);
+            await escrow.connect(payer1).placeMultiPayments([
+                {
+                    currency: testToken.target,
+                    payments: [
+                        {
+                            id: paymentId,
+                            receiver: receiver1.address,
+                            payer: payer1.address,
+                            amount,
+                        },
+                    ],
+                },
+            ]);
+
+            //payment is logged in contract with right values
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            verifyPayment(payment, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: false,
+                receiverReleased: false,
+                released: false,
+                currency: testToken.target,
+            });
+
+            const newContractBalance = await getBalance(escrow.target, true);
+            const newPayerBalance = await getBalance(payer1.address, true);
+
+            //amount leaves payer
+            expect(newPayerBalance).to.be.lessThanOrEqual(
+                initialPayerBalance - BigInt(amount)
+            );
+
+            //amount accrues in contract
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+        });
+        it('can place multiple native payments', async function () {
+            const initialContractBalance = await getBalance(escrow.target);
+            const initialPayerBalance = await getBalance(payer1.address);
+            const amount1 = 10000000;
+            const amount2 = 24000000;
+
+            //place the payment
+            const paymentId1 = ethers.keccak256('0x01');
+            const paymentId2 = ethers.keccak256('0x02');
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: ethers.ZeroAddress,
+                        payments: [
+                            {
+                                id: paymentId1,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount: amount1,
+                            },
+                            {
+                                id: paymentId2,
+                                receiver: receiver2.address,
+                                payer: payer1.address,
+                                amount: amount2,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount1 + amount2 }
+            );
+
+            //payment is logged in contract with right values
+            const payment1 = convertPayment(
+                await escrow.getPayment(paymentId1)
+            );
+            const payment2 = convertPayment(
+                await escrow.getPayment(paymentId2)
+            );
+
+            verifyPayment(payment1, {
+                id: paymentId1,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount: amount1,
+                amountRefunded: 0,
+                payerReleased: false,
+                receiverReleased: false,
+                released: false,
+                currency: ethers.ZeroAddress,
+            });
+            verifyPayment(payment2, {
+                id: paymentId2,
+                payer: payer1.address,
+                receiver: receiver2.address,
+                amount: amount2,
+                amountRefunded: 0,
+                payerReleased: false,
+                receiverReleased: false,
+                released: false,
+                currency: ethers.ZeroAddress,
+            });
+
+            const newContractBalance = await getBalance(escrow.target);
+            const newPayerBalance = await getBalance(payer1.address);
+
+            //amount leaves payer
+            expect(newPayerBalance).to.be.lessThanOrEqual(
+                initialPayerBalance - BigInt(amount1 + amount2)
+            );
+
+            //amount accrues in contract
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount1 + amount2)
+            );
+        });
+        it('can place multiple token payments', async function () {
+            const initialContractBalance = await getBalance(
+                escrow.target,
+                true
+            );
+            const initialPayerBalance = await getBalance(payer1.address, true);
+            const amount1 = 10000000;
+            const amount2 = 24000000;
+
+            //place the payment
+            const paymentId1 = ethers.keccak256('0x01');
+            const paymentId2 = ethers.keccak256('0x02');
+            await testToken
+                .connect(payer1)
+                .approve(escrow.target, amount1 + amount2);
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: testToken.target,
+                        payments: [
+                            {
+                                id: paymentId1,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount: amount1,
+                            },
+                            {
+                                id: paymentId2,
+                                receiver: receiver2.address,
+                                payer: payer1.address,
+                                amount: amount2,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount1 + amount2 }
+            );
+
+            //payment is logged in contract with right values
+            const payment1 = convertPayment(
+                await escrow.getPayment(paymentId1)
+            );
+            const payment2 = convertPayment(
+                await escrow.getPayment(paymentId2)
+            );
+
+            verifyPayment(payment1, {
+                id: paymentId1,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount: amount1,
+                amountRefunded: 0,
+                payerReleased: false,
+                receiverReleased: false,
+                released: false,
+                currency: testToken.target,
+            });
+            verifyPayment(payment2, {
+                id: paymentId2,
+                payer: payer1.address,
+                receiver: receiver2.address,
+                amount: amount2,
+                amountRefunded: 0,
+                payerReleased: false,
+                receiverReleased: false,
+                released: false,
+                currency: testToken.target,
+            });
+
+            const newContractBalance = await getBalance(escrow.target, true);
+            const newPayerBalance = await getBalance(payer1.address, true);
+
+            //amount leaves payer
+            expect(newPayerBalance).to.be.lessThanOrEqual(
+                initialPayerBalance - BigInt(amount1 + amount2)
+            );
+
+            //amount accrues in contract
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount1 + amount2)
+            );
+        });
     });
 });

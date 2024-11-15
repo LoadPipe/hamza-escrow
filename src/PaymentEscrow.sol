@@ -141,7 +141,7 @@ contract PaymentEscrow is HasSecurityContext
 
             //add payments to internal map, emit events for each individual payment
             for(uint256 n=0; n<multiPayment.payments.length; n++) {
-                PaymentInput memory paymentInput = multiPayment.payments[i];
+                PaymentInput memory paymentInput = multiPayment.payments[n];
 
                 //add payment to mapping 
                 Payment storage payment = payments[paymentInput.id];
