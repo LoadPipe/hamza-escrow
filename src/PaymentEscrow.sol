@@ -3,8 +3,11 @@ pragma solidity ^0.8.7;
 
 import "./HasSecurityContext.sol"; 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "hardhat/console.sol";
 
 //TODO: support for refunds 
+//TODO: support for % royalty
+//TODO: make upgradeable 
 
 /* Encapsulates information about an incoming payment
 */
@@ -19,8 +22,8 @@ struct PaymentInput
 struct Payment 
 {
     bytes32 id;
-    address receiver;
     address payer;
+    address receiver;
     uint256 amount;
     uint256 amountRefunded;
     bool payerReleased;
@@ -112,6 +115,57 @@ contract PaymentEscrow is HasSecurityContext
             emit VaultAddressChanged(_vaultAddress, msg.sender);
         }
     }
+    
+    /**
+     * Allows multiple payments to be processed. 
+     * 
+     * @param multiPayments Array of payment definitions
+     */
+    function placeMultiPayments(MultiPaymentInput[] calldata multiPayments) public payable {
+        for(uint256 i=0; i<multiPayments.length; i++) {
+            MultiPaymentInput memory multiPayment = multiPayments[i];
+            address currency = multiPayment.currency; 
+            uint256 amount = _getPaymentTotal(multiPayment);
+
+            if (currency == address(0)) {
+                //check that the amount matches
+                if (msg.value < amount)
+                    revert("InsufficientAmount");
+            } 
+            else {
+                //transfer to self 
+                IERC20 token = IERC20(currency);
+                if (!token.transferFrom(msg.sender, address(this), amount))
+                    revert('TokenPaymentFailed'); 
+            }
+
+            //add payments to internal map, emit events for each individual payment
+            for(uint256 n=0; n<multiPayment.payments.length; n++) {
+                PaymentInput memory paymentInput = multiPayment.payments[i];
+
+                //add payment to mapping 
+                Payment storage payment = payments[paymentInput.id];
+                payment.payer = paymentInput.payer;
+                payment.receiver = paymentInput.receiver;
+                payment.currency = multiPayment.currency;
+                payment.amount = paymentInput.amount;
+                payment.id = paymentInput.id;
+
+                //emit event
+                emit PaymentReceived(
+                    payment.id, 
+                    payment.receiver, 
+                    payment.payer, 
+                    payment.currency, 
+                    payment.amount
+                );
+            }
+        }
+    }
+
+    function getPayment(bytes32 paymentId) public view returns (Payment memory) {
+        return payments[paymentId];
+    }
 
     function releaseEscrow(bytes32 paymentId) external {
         Payment storage payment = payments[paymentId];
@@ -153,53 +207,6 @@ contract PaymentEscrow is HasSecurityContext
         if (payment.amount > 0) {
             payment.payerReleased = true;
             _releaseEscrowPayment(paymentId);
-        }
-    }
-    
-    /**
-     * Allows multiple payments to be processed. 
-     * 
-     * @param multiPayments Array of payment definitions
-     */
-    function placeMultiPayments(MultiPaymentInput[] calldata multiPayments) public payable {
-        for(uint256 i=0; i<multiPayments.length; i++) {
-            MultiPaymentInput memory multiPayment = multiPayments[i];
-            address currency = multiPayment.currency; 
-            uint256 amount = _getPaymentTotal(multiPayment);
-
-            if (currency == address(0)) {
-                //check that the amount matches
-                if (msg.value < amount)
-                    revert("InsufficientAmount");
-            } 
-            else {
-                //transfer to self 
-                IERC20 token = IERC20(currency);
-                if (!token.transferFrom(msg.sender, address(this), amount))
-                    revert('TokenPaymentFailed'); 
-            }
-
-            //add payments to internal map, emit events for each individual payment
-            for(uint256 n=0; n<multiPayment.payments.length; n++) {
-                PaymentInput memory paymentInput = multiPayment.payments[i];
-
-                //add payment to mapping 
-                Payment memory payment = payments[paymentInput.id];
-                payment.payer = paymentInput.payer;
-                payment.receiver = paymentInput.receiver;
-                payment.currency = multiPayment.currency;
-                payment.amount = paymentInput.amount;
-                payment.id = paymentInput.id;
-
-                //emit event
-                emit PaymentReceived(
-                    payment.id, 
-                    payment.receiver, 
-                    payment.payer, 
-                    payment.currency, 
-                    payment.amount
-                );
-            }
         }
     }
 
