@@ -81,7 +81,7 @@ contract SystemSettings is HasSecurityContext, ISystemSettings
         if (_vaultAddress != vaultAddress_) {
             if (vaultAddress_ == address(0)) 
                 revert ("InvalidValue");
-                
+
             _vaultAddress = vaultAddress_;
             emit VaultAddressChanged(_vaultAddress, msg.sender);
         }
@@ -104,6 +104,4 @@ contract SystemSettings is HasSecurityContext, ISystemSettings
             emit FeeBpsChanged(_feeBps, msg.sender);(_vaultAddress, msg.sender);
         }
     }
-    
-    receive() external payable {}
 }
