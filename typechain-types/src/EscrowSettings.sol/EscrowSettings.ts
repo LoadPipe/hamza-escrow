@@ -3,6 +3,7 @@
 /* eslint-disable */
 import type {
   BaseContract,
+  BigNumberish,
   BytesLike,
   FunctionFragment,
   Result,
@@ -20,9 +21,9 @@ import type {
   TypedLogDescription,
   TypedListener,
   TypedContractMethod,
-} from "../common";
+} from "../../common";
 
-export interface HasSecurityContextInterface extends Interface {
+export interface EscrowSettingsInterface extends Interface {
   getFunction(
     nameOrSignature:
       | "ADMIN_ROLE"
@@ -32,11 +33,20 @@ export interface HasSecurityContextInterface extends Interface {
       | "PAUSER_ROLE"
       | "REFUNDER_ROLE"
       | "SYSTEM_ROLE"
+      | "feeBps"
       | "securityContext"
+      | "setFeeBps"
       | "setSecurityContext"
+      | "setVaultAddress"
+      | "vaultAddress"
   ): FunctionFragment;
 
-  getEvent(nameOrSignatureOrTopic: "SecurityContextSet"): EventFragment;
+  getEvent(
+    nameOrSignatureOrTopic:
+      | "FeeBpsChanged"
+      | "SecurityContextSet"
+      | "VaultAddressChanged"
+  ): EventFragment;
 
   encodeFunctionData(
     functionFragment: "ADMIN_ROLE",
@@ -63,13 +73,26 @@ export interface HasSecurityContextInterface extends Interface {
     functionFragment: "SYSTEM_ROLE",
     values?: undefined
   ): string;
+  encodeFunctionData(functionFragment: "feeBps", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "securityContext",
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "setFeeBps",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "setSecurityContext",
     values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setVaultAddress",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "vaultAddress",
+    values?: undefined
   ): string;
 
   decodeFunctionResult(functionFragment: "ADMIN_ROLE", data: BytesLike): Result;
@@ -94,14 +117,37 @@ export interface HasSecurityContextInterface extends Interface {
     functionFragment: "SYSTEM_ROLE",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "feeBps", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "securityContext",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "setFeeBps", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "setSecurityContext",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "setVaultAddress",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "vaultAddress",
+    data: BytesLike
+  ): Result;
+}
+
+export namespace FeeBpsChangedEvent {
+  export type InputTuple = [newValue: BigNumberish, changedBy: AddressLike];
+  export type OutputTuple = [newValue: bigint, changedBy: string];
+  export interface OutputObject {
+    newValue: bigint;
+    changedBy: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace SecurityContextSetEvent {
@@ -117,11 +163,24 @@ export namespace SecurityContextSetEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export interface HasSecurityContext extends BaseContract {
-  connect(runner?: ContractRunner | null): HasSecurityContext;
+export namespace VaultAddressChangedEvent {
+  export type InputTuple = [newAddress: AddressLike, changedBy: AddressLike];
+  export type OutputTuple = [newAddress: string, changedBy: string];
+  export interface OutputObject {
+    newAddress: string;
+    changedBy: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export interface EscrowSettings extends BaseContract {
+  connect(runner?: ContractRunner | null): EscrowSettings;
   waitForDeployment(): Promise<this>;
 
-  interface: HasSecurityContextInterface;
+  interface: EscrowSettingsInterface;
 
   queryFilter<TCEvent extends TypedContractEvent>(
     event: TCEvent,
@@ -174,13 +233,25 @@ export interface HasSecurityContext extends BaseContract {
 
   SYSTEM_ROLE: TypedContractMethod<[], [string], "view">;
 
+  feeBps: TypedContractMethod<[], [bigint], "view">;
+
   securityContext: TypedContractMethod<[], [string], "view">;
+
+  setFeeBps: TypedContractMethod<[feeBps_: BigNumberish], [void], "nonpayable">;
 
   setSecurityContext: TypedContractMethod<
     [_securityContext: AddressLike],
     [void],
     "nonpayable"
   >;
+
+  setVaultAddress: TypedContractMethod<
+    [vaultAddress_: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  vaultAddress: TypedContractMethod<[], [string], "view">;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
@@ -208,12 +279,31 @@ export interface HasSecurityContext extends BaseContract {
     nameOrSignature: "SYSTEM_ROLE"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "feeBps"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
     nameOrSignature: "securityContext"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "setFeeBps"
+  ): TypedContractMethod<[feeBps_: BigNumberish], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "setSecurityContext"
   ): TypedContractMethod<[_securityContext: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "setVaultAddress"
+  ): TypedContractMethod<[vaultAddress_: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "vaultAddress"
+  ): TypedContractMethod<[], [string], "view">;
 
+  getEvent(
+    key: "FeeBpsChanged"
+  ): TypedContractEvent<
+    FeeBpsChangedEvent.InputTuple,
+    FeeBpsChangedEvent.OutputTuple,
+    FeeBpsChangedEvent.OutputObject
+  >;
   getEvent(
     key: "SecurityContextSet"
   ): TypedContractEvent<
@@ -221,8 +311,26 @@ export interface HasSecurityContext extends BaseContract {
     SecurityContextSetEvent.OutputTuple,
     SecurityContextSetEvent.OutputObject
   >;
+  getEvent(
+    key: "VaultAddressChanged"
+  ): TypedContractEvent<
+    VaultAddressChangedEvent.InputTuple,
+    VaultAddressChangedEvent.OutputTuple,
+    VaultAddressChangedEvent.OutputObject
+  >;
 
   filters: {
+    "FeeBpsChanged(uint256,address)": TypedContractEvent<
+      FeeBpsChangedEvent.InputTuple,
+      FeeBpsChangedEvent.OutputTuple,
+      FeeBpsChangedEvent.OutputObject
+    >;
+    FeeBpsChanged: TypedContractEvent<
+      FeeBpsChangedEvent.InputTuple,
+      FeeBpsChangedEvent.OutputTuple,
+      FeeBpsChangedEvent.OutputObject
+    >;
+
     "SecurityContextSet(address,address)": TypedContractEvent<
       SecurityContextSetEvent.InputTuple,
       SecurityContextSetEvent.OutputTuple,
@@ -232,6 +340,17 @@ export interface HasSecurityContext extends BaseContract {
       SecurityContextSetEvent.InputTuple,
       SecurityContextSetEvent.OutputTuple,
       SecurityContextSetEvent.OutputObject
+    >;
+
+    "VaultAddressChanged(address,address)": TypedContractEvent<
+      VaultAddressChangedEvent.InputTuple,
+      VaultAddressChangedEvent.OutputTuple,
+      VaultAddressChangedEvent.OutputObject
+    >;
+    VaultAddressChanged: TypedContractEvent<
+      VaultAddressChangedEvent.InputTuple,
+      VaultAddressChangedEvent.OutputTuple,
+      VaultAddressChangedEvent.OutputObject
     >;
   };
 }

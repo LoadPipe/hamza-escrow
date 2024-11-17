@@ -21,12 +21,12 @@ abstract contract HasSecurityContext is Context {
     
     //security roles 
     bytes32 public constant ADMIN_ROLE = 0x0;
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
-    bytes32 public constant SYSTEM_ROLE = keccak256("SYSTEM_ROLE");
-    bytes32 public constant APPROVER_ROLE = keccak256("APPROVER_ROLE");
-    bytes32 public constant REFUNDER_ROLE = keccak256("REFUNDER_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");     //TODO: needed?
+    bytes32 public constant SYSTEM_ROLE = keccak256("SYSTEM_ROLE");     //TODO: not needed
+    bytes32 public constant APPROVER_ROLE = keccak256("APPROVER_ROLE"); //TODO: not needed?
+    bytes32 public constant REFUNDER_ROLE = keccak256("REFUNDER_ROLE"); //TODO: not needed?
     bytes32 public constant ARBITER_ROLE = keccak256("ARBITER_ROLE");
+    bytes32 public constant DAO_ROLE = keccak256("DAO_ROLE");
     
     //thrown when the onlyRole modifier reverts 
     error UnauthorizedAccess(bytes32 roleId, address addr); 

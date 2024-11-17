@@ -87,28 +87,26 @@ export interface PaymentEscrowInterface extends Interface {
       | "ADMIN_ROLE"
       | "APPROVER_ROLE"
       | "ARBITER_ROLE"
+      | "DAO_ROLE"
       | "PAUSER_ROLE"
       | "REFUNDER_ROLE"
       | "SYSTEM_ROLE"
-      | "UPGRADER_ROLE"
       | "getPayment"
       | "placeMultiPayments"
       | "refundPayment"
       | "releaseEscrow"
-      | "releaseEscrowOnBehalfOfPayer"
       | "securityContext"
       | "setSecurityContext"
-      | "setVaultAddress"
-      | "vaultAddress"
   ): FunctionFragment;
 
   getEvent(
     nameOrSignatureOrTopic:
+      | "EscrowReleased"
       | "PaymentReceived"
-      | "PaymentSweepFailed"
-      | "PaymentSwept"
+      | "PaymentTransferFailed"
+      | "PaymentTransferred"
+      | "ReleaseAssentGiven"
       | "SecurityContextSet"
-      | "VaultAddressChanged"
   ): EventFragment;
 
   encodeFunctionData(
@@ -123,6 +121,7 @@ export interface PaymentEscrowInterface extends Interface {
     functionFragment: "ARBITER_ROLE",
     values?: undefined
   ): string;
+  encodeFunctionData(functionFragment: "DAO_ROLE", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "PAUSER_ROLE",
     values?: undefined
@@ -133,10 +132,6 @@ export interface PaymentEscrowInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "SYSTEM_ROLE",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "UPGRADER_ROLE",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -156,24 +151,12 @@ export interface PaymentEscrowInterface extends Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "releaseEscrowOnBehalfOfPayer",
-    values: [BytesLike]
-  ): string;
-  encodeFunctionData(
     functionFragment: "securityContext",
     values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "setSecurityContext",
     values: [AddressLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "setVaultAddress",
-    values: [AddressLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "vaultAddress",
-    values?: undefined
   ): string;
 
   decodeFunctionResult(functionFragment: "ADMIN_ROLE", data: BytesLike): Result;
@@ -185,6 +168,7 @@ export interface PaymentEscrowInterface extends Interface {
     functionFragment: "ARBITER_ROLE",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "DAO_ROLE", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "PAUSER_ROLE",
     data: BytesLike
@@ -195,10 +179,6 @@ export interface PaymentEscrowInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "SYSTEM_ROLE",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "UPGRADER_ROLE",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "getPayment", data: BytesLike): Result;
@@ -215,10 +195,6 @@ export interface PaymentEscrowInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "releaseEscrowOnBehalfOfPayer",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "securityContext",
     data: BytesLike
   ): Result;
@@ -226,14 +202,19 @@ export interface PaymentEscrowInterface extends Interface {
     functionFragment: "setSecurityContext",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "setVaultAddress",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "vaultAddress",
-    data: BytesLike
-  ): Result;
+}
+
+export namespace EscrowReleasedEvent {
+  export type InputTuple = [paymentId: BytesLike, amount: BigNumberish];
+  export type OutputTuple = [paymentId: string, amount: bigint];
+  export interface OutputObject {
+    paymentId: string;
+    amount: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace PaymentReceivedEvent {
@@ -264,7 +245,7 @@ export namespace PaymentReceivedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace PaymentSweepFailedEvent {
+export namespace PaymentTransferFailedEvent {
   export type InputTuple = [
     paymentId: BytesLike,
     currency: AddressLike,
@@ -286,7 +267,7 @@ export namespace PaymentSweepFailedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace PaymentSweptEvent {
+export namespace PaymentTransferredEvent {
   export type InputTuple = [
     paymentId: BytesLike,
     currency: AddressLike,
@@ -301,6 +282,28 @@ export namespace PaymentSweptEvent {
     paymentId: string;
     currency: string;
     amount: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace ReleaseAssentGivenEvent {
+  export type InputTuple = [
+    paymentId: BytesLike,
+    assentingAddress: AddressLike,
+    assentType: BigNumberish
+  ];
+  export type OutputTuple = [
+    paymentId: string,
+    assentingAddress: string,
+    assentType: bigint
+  ];
+  export interface OutputObject {
+    paymentId: string;
+    assentingAddress: string;
+    assentType: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -314,19 +317,6 @@ export namespace SecurityContextSetEvent {
   export interface OutputObject {
     caller: string;
     securityContext: string;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace VaultAddressChangedEvent {
-  export type InputTuple = [newAddress: AddressLike, changedBy: AddressLike];
-  export type OutputTuple = [newAddress: string, changedBy: string];
-  export interface OutputObject {
-    newAddress: string;
-    changedBy: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -383,13 +373,13 @@ export interface PaymentEscrow extends BaseContract {
 
   ARBITER_ROLE: TypedContractMethod<[], [string], "view">;
 
+  DAO_ROLE: TypedContractMethod<[], [string], "view">;
+
   PAUSER_ROLE: TypedContractMethod<[], [string], "view">;
 
   REFUNDER_ROLE: TypedContractMethod<[], [string], "view">;
 
   SYSTEM_ROLE: TypedContractMethod<[], [string], "view">;
-
-  UPGRADER_ROLE: TypedContractMethod<[], [string], "view">;
 
   getPayment: TypedContractMethod<
     [paymentId: BytesLike],
@@ -415,12 +405,6 @@ export interface PaymentEscrow extends BaseContract {
     "nonpayable"
   >;
 
-  releaseEscrowOnBehalfOfPayer: TypedContractMethod<
-    [paymentId: BytesLike],
-    [void],
-    "nonpayable"
-  >;
-
   securityContext: TypedContractMethod<[], [string], "view">;
 
   setSecurityContext: TypedContractMethod<
@@ -428,14 +412,6 @@ export interface PaymentEscrow extends BaseContract {
     [void],
     "nonpayable"
   >;
-
-  setVaultAddress: TypedContractMethod<
-    [_vaultAddress: AddressLike],
-    [void],
-    "nonpayable"
-  >;
-
-  vaultAddress: TypedContractMethod<[], [string], "view">;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
@@ -451,6 +427,9 @@ export interface PaymentEscrow extends BaseContract {
     nameOrSignature: "ARBITER_ROLE"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "DAO_ROLE"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
     nameOrSignature: "PAUSER_ROLE"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
@@ -458,9 +437,6 @@ export interface PaymentEscrow extends BaseContract {
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "SYSTEM_ROLE"
-  ): TypedContractMethod<[], [string], "view">;
-  getFunction(
-    nameOrSignature: "UPGRADER_ROLE"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "getPayment"
@@ -483,21 +459,19 @@ export interface PaymentEscrow extends BaseContract {
     nameOrSignature: "releaseEscrow"
   ): TypedContractMethod<[paymentId: BytesLike], [void], "nonpayable">;
   getFunction(
-    nameOrSignature: "releaseEscrowOnBehalfOfPayer"
-  ): TypedContractMethod<[paymentId: BytesLike], [void], "nonpayable">;
-  getFunction(
     nameOrSignature: "securityContext"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "setSecurityContext"
   ): TypedContractMethod<[_securityContext: AddressLike], [void], "nonpayable">;
-  getFunction(
-    nameOrSignature: "setVaultAddress"
-  ): TypedContractMethod<[_vaultAddress: AddressLike], [void], "nonpayable">;
-  getFunction(
-    nameOrSignature: "vaultAddress"
-  ): TypedContractMethod<[], [string], "view">;
 
+  getEvent(
+    key: "EscrowReleased"
+  ): TypedContractEvent<
+    EscrowReleasedEvent.InputTuple,
+    EscrowReleasedEvent.OutputTuple,
+    EscrowReleasedEvent.OutputObject
+  >;
   getEvent(
     key: "PaymentReceived"
   ): TypedContractEvent<
@@ -506,18 +480,25 @@ export interface PaymentEscrow extends BaseContract {
     PaymentReceivedEvent.OutputObject
   >;
   getEvent(
-    key: "PaymentSweepFailed"
+    key: "PaymentTransferFailed"
   ): TypedContractEvent<
-    PaymentSweepFailedEvent.InputTuple,
-    PaymentSweepFailedEvent.OutputTuple,
-    PaymentSweepFailedEvent.OutputObject
+    PaymentTransferFailedEvent.InputTuple,
+    PaymentTransferFailedEvent.OutputTuple,
+    PaymentTransferFailedEvent.OutputObject
   >;
   getEvent(
-    key: "PaymentSwept"
+    key: "PaymentTransferred"
   ): TypedContractEvent<
-    PaymentSweptEvent.InputTuple,
-    PaymentSweptEvent.OutputTuple,
-    PaymentSweptEvent.OutputObject
+    PaymentTransferredEvent.InputTuple,
+    PaymentTransferredEvent.OutputTuple,
+    PaymentTransferredEvent.OutputObject
+  >;
+  getEvent(
+    key: "ReleaseAssentGiven"
+  ): TypedContractEvent<
+    ReleaseAssentGivenEvent.InputTuple,
+    ReleaseAssentGivenEvent.OutputTuple,
+    ReleaseAssentGivenEvent.OutputObject
   >;
   getEvent(
     key: "SecurityContextSet"
@@ -526,15 +507,19 @@ export interface PaymentEscrow extends BaseContract {
     SecurityContextSetEvent.OutputTuple,
     SecurityContextSetEvent.OutputObject
   >;
-  getEvent(
-    key: "VaultAddressChanged"
-  ): TypedContractEvent<
-    VaultAddressChangedEvent.InputTuple,
-    VaultAddressChangedEvent.OutputTuple,
-    VaultAddressChangedEvent.OutputObject
-  >;
 
   filters: {
+    "EscrowReleased(bytes32,uint256)": TypedContractEvent<
+      EscrowReleasedEvent.InputTuple,
+      EscrowReleasedEvent.OutputTuple,
+      EscrowReleasedEvent.OutputObject
+    >;
+    EscrowReleased: TypedContractEvent<
+      EscrowReleasedEvent.InputTuple,
+      EscrowReleasedEvent.OutputTuple,
+      EscrowReleasedEvent.OutputObject
+    >;
+
     "PaymentReceived(bytes32,address,address,address,uint256)": TypedContractEvent<
       PaymentReceivedEvent.InputTuple,
       PaymentReceivedEvent.OutputTuple,
@@ -546,26 +531,37 @@ export interface PaymentEscrow extends BaseContract {
       PaymentReceivedEvent.OutputObject
     >;
 
-    "PaymentSweepFailed(bytes32,address,uint256)": TypedContractEvent<
-      PaymentSweepFailedEvent.InputTuple,
-      PaymentSweepFailedEvent.OutputTuple,
-      PaymentSweepFailedEvent.OutputObject
+    "PaymentTransferFailed(bytes32,address,uint256)": TypedContractEvent<
+      PaymentTransferFailedEvent.InputTuple,
+      PaymentTransferFailedEvent.OutputTuple,
+      PaymentTransferFailedEvent.OutputObject
     >;
-    PaymentSweepFailed: TypedContractEvent<
-      PaymentSweepFailedEvent.InputTuple,
-      PaymentSweepFailedEvent.OutputTuple,
-      PaymentSweepFailedEvent.OutputObject
+    PaymentTransferFailed: TypedContractEvent<
+      PaymentTransferFailedEvent.InputTuple,
+      PaymentTransferFailedEvent.OutputTuple,
+      PaymentTransferFailedEvent.OutputObject
     >;
 
-    "PaymentSwept(bytes32,address,uint256)": TypedContractEvent<
-      PaymentSweptEvent.InputTuple,
-      PaymentSweptEvent.OutputTuple,
-      PaymentSweptEvent.OutputObject
+    "PaymentTransferred(bytes32,address,uint256)": TypedContractEvent<
+      PaymentTransferredEvent.InputTuple,
+      PaymentTransferredEvent.OutputTuple,
+      PaymentTransferredEvent.OutputObject
     >;
-    PaymentSwept: TypedContractEvent<
-      PaymentSweptEvent.InputTuple,
-      PaymentSweptEvent.OutputTuple,
-      PaymentSweptEvent.OutputObject
+    PaymentTransferred: TypedContractEvent<
+      PaymentTransferredEvent.InputTuple,
+      PaymentTransferredEvent.OutputTuple,
+      PaymentTransferredEvent.OutputObject
+    >;
+
+    "ReleaseAssentGiven(bytes32,address,uint8)": TypedContractEvent<
+      ReleaseAssentGivenEvent.InputTuple,
+      ReleaseAssentGivenEvent.OutputTuple,
+      ReleaseAssentGivenEvent.OutputObject
+    >;
+    ReleaseAssentGiven: TypedContractEvent<
+      ReleaseAssentGivenEvent.InputTuple,
+      ReleaseAssentGivenEvent.OutputTuple,
+      ReleaseAssentGivenEvent.OutputObject
     >;
 
     "SecurityContextSet(address,address)": TypedContractEvent<
@@ -577,17 +573,6 @@ export interface PaymentEscrow extends BaseContract {
       SecurityContextSetEvent.InputTuple,
       SecurityContextSetEvent.OutputTuple,
       SecurityContextSetEvent.OutputObject
-    >;
-
-    "VaultAddressChanged(address,address)": TypedContractEvent<
-      VaultAddressChangedEvent.InputTuple,
-      VaultAddressChangedEvent.OutputTuple,
-      VaultAddressChangedEvent.OutputObject
-    >;
-    VaultAddressChanged: TypedContractEvent<
-      VaultAddressChangedEvent.InputTuple,
-      VaultAddressChangedEvent.OutputTuple,
-      VaultAddressChangedEvent.OutputObject
     >;
   };
 }

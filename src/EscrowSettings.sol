@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.7;
+
+import "./HasSecurityContext.sol"; 
+import "./IEscrowSettings.sol"; 
+
+/**
+ * @title PaymentEscrow
+ * 
+ * Takes in funds from marketplace, extracts a fee, and batches the payments for transfer
+ * to the appropriate parties, holding the funds in escrow in the meantime. 
+ * 
+ * @author John R. Kosinski
+ * LoadPipe 2024
+ * All rights reserved. Unauthorized use prohibited.
+ */
+contract EscrowSettings is HasSecurityContext, IEscrowSettings
+{
+    address private _vaultAddress;
+    uint256 private _feeBps;
+
+    //EVENTS 
+    event VaultAddressChanged (
+        address newAddress,
+        address changedBy
+    );
+
+    event FeeBpsChanged (
+        uint256 newValue,
+        address changedBy
+    );
+
+    function vaultAddress() external view returns (address) {
+        return _vaultAddress;
+    }
+
+    function feeBps() external view returns (uint256) {
+        return _feeBps;
+    }
+
+    /**
+     * Constructor. 
+     * 
+     * Emits: 
+     * - {HasSecurityContext-SecurityContextSet}
+     * 
+     * Reverts: 
+     * - {ZeroAddressArgument} if the securityContext address is 0x0. 
+     * - 'InvalidVaultAddress' if the given vault address is zero. 
+     * 
+     * @param securityContext Contract which will define & manage secure access for this contract. 
+     * @param vaultAddress_ Recipient of the extracted fees. 
+     * @param feeBps_ Amount of fees charged in basis points. 
+     */
+    constructor(ISecurityContext securityContext, address vaultAddress_, uint256 feeBps_) {
+        _setSecurityContext(securityContext);
+        if (vaultAddress_ == address(0)) 
+            revert("InvalidVaultAddress");
+        _vaultAddress = vaultAddress_;
+        _feeBps = feeBps_;
+    }
+
+    /**
+     * Sets the address to which fees are sent. 
+     * 
+     * Emits: 
+     * - {EscrowSettings-VaultAddressChanged} 
+     * 
+     * Reverts: 
+     * - 'AccessControl:' if caller is not authorized as DAO_ROLE. 
+     * 
+     * @param vaultAddress_ The new address. 
+     */
+    function setVaultAddress(address vaultAddress_) public onlyRole(DAO_ROLE) {
+        if (_vaultAddress != vaultAddress_) {
+            _vaultAddress = vaultAddress_;
+            emit VaultAddressChanged(_vaultAddress, msg.sender);
+        }
+    }
+
+    /**
+     * Sets the address to which fees are sent. 
+     * 
+     * Emits: 
+     * - {EscrowSettings-FeeBpsChanged} 
+     * 
+     * Reverts: 
+     * - 'AccessControl:' if caller is not authorized as DAO_ROLE. 
+     * 
+     * @param feeBps_ The new value for fee in BPS. 
+     */
+    function setFeeBps(uint256 feeBps_) public onlyRole(DAO_ROLE) {
+        if (_feeBps != feeBps_) {
+            _feeBps = feeBps_;
+            emit FeeBpsChanged(_feeBps, msg.sender);(_vaultAddress, msg.sender);
+        }
+    }
+    
+    receive() external payable {}
+}

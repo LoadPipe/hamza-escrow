@@ -54,9 +54,17 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IERC165__factory>;
     getContractFactory(
+      name: "EscrowSettings",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.EscrowSettings__factory>;
+    getContractFactory(
       name: "HasSecurityContext",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.HasSecurityContext__factory>;
+    getContractFactory(
+      name: "IEscrowSettings",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.IEscrowSettings__factory>;
     getContractFactory(
       name: "ISecurityContext",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -125,10 +133,20 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.IERC165>;
     getContractAt(
+      name: "EscrowSettings",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.EscrowSettings>;
+    getContractAt(
       name: "HasSecurityContext",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.HasSecurityContext>;
+    getContractAt(
+      name: "IEscrowSettings",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.IEscrowSettings>;
     getContractAt(
       name: "ISecurityContext",
       address: string | ethers.Addressable,
@@ -191,9 +209,17 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC165>;
     deployContract(
+      name: "EscrowSettings",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.EscrowSettings>;
+    deployContract(
       name: "HasSecurityContext",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.HasSecurityContext>;
+    deployContract(
+      name: "IEscrowSettings",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IEscrowSettings>;
     deployContract(
       name: "ISecurityContext",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -262,10 +288,20 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC165>;
     deployContract(
+      name: "EscrowSettings",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.EscrowSettings>;
+    deployContract(
       name: "HasSecurityContext",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.HasSecurityContext>;
+    deployContract(
+      name: "IEscrowSettings",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IEscrowSettings>;
     deployContract(
       name: "ISecurityContext",
       args: any[],

@@ -90,6 +90,19 @@ const _abi = [
   },
   {
     inputs: [],
+    name: "DAO_ROLE",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "PAUSER_ROLE",
     outputs: [
       {
@@ -117,19 +130,6 @@ const _abi = [
   {
     inputs: [],
     name: "SYSTEM_ROLE",
-    outputs: [
-      {
-        internalType: "bytes32",
-        name: "",
-        type: "bytes32",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "UPGRADER_ROLE",
     outputs: [
       {
         internalType: "bytes32",

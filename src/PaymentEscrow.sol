@@ -2,12 +2,11 @@
 pragma solidity ^0.8.7;
 
 import "./HasSecurityContext.sol"; 
+import "./IEscrowSettings.sol"; 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "hardhat/console.sol";
 
-//TODO: support for refunds 
-//TODO: support for % royalty
-//TODO: make upgradeable 
+//TODO: calculate & separate out fee BPS
+//TODO: unit tests for EscrowSettings
 
 /* Encapsulates information about an incoming payment
 */
@@ -50,14 +49,10 @@ struct MultiPaymentInput
  */
 contract PaymentEscrow is HasSecurityContext
 {
-    address public vaultAddress; 
+    IEscrowSettings private settings;
     mapping(bytes32 => Payment) private payments;
 
     //EVENTS 
-    event VaultAddressChanged (
-        address newAddress,
-        address changedBy
-    );
 
     event PaymentReceived (
         bytes32 indexed paymentId,
@@ -101,31 +96,11 @@ contract PaymentEscrow is HasSecurityContext
      * - {ZeroAddressArgument} if the securityContext address is 0x0. 
      * 
      * @param securityContext Contract which will define & manage secure access for this contract. 
-     * @param vault Recipient of the extracted fees. 
+     * @param settings_ Address of contract that holds settings. 
      */
-    constructor(ISecurityContext securityContext, address vault) {
+    constructor(ISecurityContext securityContext, IEscrowSettings settings_) {
         _setSecurityContext(securityContext);
-        if (vault == address(0)) 
-            revert("InvalidVaultAddress");
-        vaultAddress = vault;
-    }
-
-    /**
-     * Sets the address to which fees are sent. 
-     * 
-     * Emits: 
-     * - {PaymentEscrow-VaultAddressChanged} 
-     * 
-     * Reverts: 
-     * - 'AccessControl:' if caller is not authorized as ARBITER_ROLE. 
-     * 
-     * @param _vaultAddress The new address. 
-     */
-    function setVaultAddress(address _vaultAddress) public onlyRole(ARBITER_ROLE) {
-        if (_vaultAddress != vaultAddress) {
-            vaultAddress = _vaultAddress;
-            emit VaultAddressChanged(_vaultAddress, msg.sender);
-        }
+        settings = settings_;
     }
     
     /**
@@ -287,8 +262,6 @@ contract PaymentEscrow is HasSecurityContext
 
         if (amount > 0) {
             if (tokenAddressOrZero == address(0)) {
-                console.log("paymtnt to");
-                console.logAddress(to);
                 (success,) = payable(to).call{value: amount}("");
             } 
             else {

@@ -26,8 +26,12 @@ export type { ERC165 } from "./@openzeppelin/contracts/utils/introspection/ERC16
 export { ERC165__factory } from "./factories/@openzeppelin/contracts/utils/introspection/ERC165__factory";
 export type { IERC165 } from "./@openzeppelin/contracts/utils/introspection/IERC165";
 export { IERC165__factory } from "./factories/@openzeppelin/contracts/utils/introspection/IERC165__factory";
+export type { EscrowSettings } from "./src/EscrowSettings";
+export { EscrowSettings__factory } from "./factories/src/EscrowSettings__factory";
 export type { HasSecurityContext } from "./src/HasSecurityContext";
 export { HasSecurityContext__factory } from "./factories/src/HasSecurityContext__factory";
+export type { IEscrowSettings } from "./src/IEscrowSettings";
+export { IEscrowSettings__factory } from "./factories/src/IEscrowSettings__factory";
 export type { ISecurityContext } from "./src/ISecurityContext";
 export { ISecurityContext__factory } from "./factories/src/ISecurityContext__factory";
 export type { PaymentEscrow } from "./src/PaymentEscrow";

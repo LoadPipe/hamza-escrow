@@ -45,7 +45,7 @@ describe('PaymentEscrow', function () {
             await hre.ethers.getContractFactory('PaymentEscrow');
         escrow = await PaymentEscrowFactory.deploy(
             securityContext.target,
-            vaultAddress
+            ethers.ZeroAddress
         );
         await securityContext
             .connect(admin)
