@@ -76,7 +76,7 @@ describe('SystemSettings', function () {
                 .reverted;
         });
 
-        it.skip('cannot set zero address for vault', async function () {
+        it('cannot set zero address for vault', async function () {
             await expect(
                 systemSettings.connect(dao).setVaultAddress(ethers.ZeroAddress)
             ).to.be.reverted;

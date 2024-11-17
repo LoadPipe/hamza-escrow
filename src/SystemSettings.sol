@@ -73,11 +73,15 @@ contract SystemSettings is HasSecurityContext, ISystemSettings
      * 
      * Reverts: 
      * - 'AccessControl:' if caller is not authorized as DAO_ROLE. 
+     * - 'InvalidValue' if the given address is invalid (zero address)
      * 
      * @param vaultAddress_ The new address. 
      */
     function setVaultAddress(address vaultAddress_) public onlyRole(DAO_ROLE) {
         if (_vaultAddress != vaultAddress_) {
+            if (vaultAddress_ == address(0)) 
+                revert ("InvalidValue");
+                
             _vaultAddress = vaultAddress_;
             emit VaultAddressChanged(_vaultAddress, msg.sender);
         }
