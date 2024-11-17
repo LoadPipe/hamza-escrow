@@ -2,7 +2,7 @@
 pragma solidity ^0.8.7;
 
 import "./HasSecurityContext.sol"; 
-import "./IEscrowSettings.sol"; 
+import "./ISystemSettings.sol"; 
 
 /**
  * @title PaymentEscrow
@@ -14,7 +14,7 @@ import "./IEscrowSettings.sol";
  * LoadPipe 2024
  * All rights reserved. Unauthorized use prohibited.
  */
-contract EscrowSettings is HasSecurityContext, IEscrowSettings
+contract SystemSettings is HasSecurityContext, ISystemSettings
 {
     address private _vaultAddress;
     uint256 private _feeBps;
@@ -64,7 +64,7 @@ contract EscrowSettings is HasSecurityContext, IEscrowSettings
      * Sets the address to which fees are sent. 
      * 
      * Emits: 
-     * - {EscrowSettings-VaultAddressChanged} 
+     * - {SystemSettings-VaultAddressChanged} 
      * 
      * Reverts: 
      * - 'AccessControl:' if caller is not authorized as DAO_ROLE. 
@@ -82,7 +82,7 @@ contract EscrowSettings is HasSecurityContext, IEscrowSettings
      * Sets the address to which fees are sent. 
      * 
      * Emits: 
-     * - {EscrowSettings-FeeBpsChanged} 
+     * - {SystemSettings-FeeBpsChanged} 
      * 
      * Reverts: 
      * - 'AccessControl:' if caller is not authorized as DAO_ROLE. 

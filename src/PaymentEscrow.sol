@@ -2,12 +2,12 @@
 pragma solidity ^0.8.7;
 
 import "./HasSecurityContext.sol"; 
-import "./IEscrowSettings.sol"; 
+import "./ISystemSettings.sol"; 
 import "./CarefulMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 //TODO: calculate & separate out fee BPS
-//TODO: unit tests for EscrowSettings
+//TODO: unit tests for SystemSettings
 
 /* Encapsulates information about an incoming payment
 */
@@ -50,7 +50,7 @@ struct MultiPaymentInput
  */
 contract PaymentEscrow is HasSecurityContext
 {
-    IEscrowSettings private settings;
+    ISystemSettings private settings;
     mapping(bytes32 => Payment) private payments;
 
     //EVENTS 
@@ -98,9 +98,9 @@ contract PaymentEscrow is HasSecurityContext
      * - {ZeroAddressArgument} if the securityContext address is 0x0. 
      * 
      * @param securityContext Contract which will define & manage secure access for this contract. 
-     * @param settings_ Address of contract that holds settings. 
+     * @param settings_ Address of contract that holds system settings. 
      */
-    constructor(ISecurityContext securityContext, IEscrowSettings settings_) {
+    constructor(ISecurityContext securityContext, ISystemSettings settings_) {
         _setSecurityContext(securityContext);
         settings = settings_;
     }

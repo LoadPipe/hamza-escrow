@@ -8,7 +8,7 @@ describe('PaymentEscrow', function () {
     let securityContext: any;
     let escrow: any;
     let testToken: any;
-    let escrowSettings: any;
+    let systemSettings: any;
     let admin: HardhatEthersSigner;
     let nonOwner: HardhatEthersSigner;
     let payer1: HardhatEthersSigner;
@@ -42,9 +42,9 @@ describe('PaymentEscrow', function () {
         testToken = await TestTokenFactory.deploy('XYZ', 'ZYX');
 
         //deploy settings
-        const EscrowSettingsFactory =
-            await hre.ethers.getContractFactory('EscrowSettings');
-        escrowSettings = await EscrowSettingsFactory.deploy(
+        const SystemSettingsFactory =
+            await hre.ethers.getContractFactory('SystemSettings');
+        systemSettings = await SystemSettingsFactory.deploy(
             securityContext.target,
             vaultAddress,
             100
@@ -55,7 +55,7 @@ describe('PaymentEscrow', function () {
             await hre.ethers.getContractFactory('PaymentEscrow');
         escrow = await PaymentEscrowFactory.deploy(
             securityContext.target,
-            escrowSettings.target
+            systemSettings.target
         );
         await securityContext
             .connect(admin)
