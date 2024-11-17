@@ -8,6 +8,7 @@ describe('PaymentEscrow', function () {
     let securityContext: any;
     let escrow: any;
     let testToken: any;
+    let escrowSettings: any;
     let admin: HardhatEthersSigner;
     let nonOwner: HardhatEthersSigner;
     let payer1: HardhatEthersSigner;
@@ -40,12 +41,21 @@ describe('PaymentEscrow', function () {
             await hre.ethers.getContractFactory('TestToken');
         testToken = await TestTokenFactory.deploy('XYZ', 'ZYX');
 
+        //deploy settings
+        const EscrowSettingsFactory =
+            await hre.ethers.getContractFactory('EscrowSettings');
+        escrowSettings = await EscrowSettingsFactory.deploy(
+            securityContext.target,
+            vaultAddress,
+            100
+        );
+
         //grant roles
         const PaymentEscrowFactory =
             await hre.ethers.getContractFactory('PaymentEscrow');
         escrow = await PaymentEscrowFactory.deploy(
             securityContext.target,
-            ethers.ZeroAddress
+            escrowSettings.target
         );
         await securityContext
             .connect(admin)
@@ -127,6 +137,14 @@ describe('PaymentEscrow', function () {
     REFUND & RELEASE
     fully refunded payment cannot be released
     partially refunded payment can be only partially released
+
+    VAULT ADDRESS 
+    fees go to the correct address
+    vault address cannot be zero 
+
+    FEE AMOUNTS 
+    fees are calculated correctly 
+    fee can be zero 
 
     EDGE CASES 
     payer & receiver are the same 
