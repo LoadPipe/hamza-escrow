@@ -205,11 +205,16 @@ export interface PaymentEscrowInterface extends Interface {
 }
 
 export namespace EscrowReleasedEvent {
-  export type InputTuple = [paymentId: BytesLike, amount: BigNumberish];
-  export type OutputTuple = [paymentId: string, amount: bigint];
+  export type InputTuple = [
+    paymentId: BytesLike,
+    amount: BigNumberish,
+    fee: BigNumberish
+  ];
+  export type OutputTuple = [paymentId: string, amount: bigint, fee: bigint];
   export interface OutputObject {
     paymentId: string;
     amount: bigint;
+    fee: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -509,7 +514,7 @@ export interface PaymentEscrow extends BaseContract {
   >;
 
   filters: {
-    "EscrowReleased(bytes32,uint256)": TypedContractEvent<
+    "EscrowReleased(bytes32,uint256,uint256)": TypedContractEvent<
       EscrowReleasedEvent.InputTuple,
       EscrowReleasedEvent.OutputTuple,
       EscrowReleasedEvent.OutputObject

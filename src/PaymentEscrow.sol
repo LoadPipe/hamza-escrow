@@ -3,6 +3,7 @@ pragma solidity ^0.8.7;
 
 import "./HasSecurityContext.sol"; 
 import "./IEscrowSettings.sol"; 
+import "./CarefulMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 //TODO: calculate & separate out fee BPS
@@ -71,7 +72,8 @@ contract PaymentEscrow is HasSecurityContext
 
     event EscrowReleased (
         bytes32 indexed paymentId,
-        uint256 amount
+        uint256 amount,
+        uint256 fee
     );
 
     event PaymentTransferred (
@@ -242,16 +244,41 @@ contract PaymentEscrow is HasSecurityContext
         Payment storage payment = payments[paymentId];
         if (payment.payerReleased && payment.receiverReleased && !payment.released) {
             uint256 amount = payment.amount - payment.amountRefunded;
+
+            //break off fee 
+            uint256 fee = 0;
+            uint256 feeBps = 0; //settings.feeBps();
+            if (feeBps > 0) {
+                fee = CarefulMath.div(amount, feeBps);
+                if (fee > amount)
+                    fee = 0;
+            }
+            uint256 amountToPay = amount - fee; 
+
             //transfer funds 
             if (!payment.released) {
                 if (_transferAmount(
                     payment.id, 
                     payment.receiver, 
                     payment.currency, 
-                    amount
+                    amountToPay
                 )) {
-                    payment.released = true;
-                    emit EscrowReleased(paymentId, amount);
+                    //also transfer fee to vault 
+                    if (fee > 0) {
+                        if (_transferAmount(
+                            payment.id, 
+                            settings.vaultAddress(), 
+                            payment.currency, 
+                            fee
+                        )) { 
+                            payment.released = true;
+                            emit EscrowReleased(paymentId, amountToPay, fee);
+                        }
+                    }
+                    else {
+                        payment.released = true;
+                        emit EscrowReleased(paymentId, amountToPay, fee);
+                    }
                 }
             }
         }

@@ -54,6 +54,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IERC165__factory>;
     getContractFactory(
+      name: "CarefulMath",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.CarefulMath__factory>;
+    getContractFactory(
       name: "EscrowSettings",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.EscrowSettings__factory>;
@@ -133,6 +137,11 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.IERC165>;
     getContractAt(
+      name: "CarefulMath",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.CarefulMath>;
+    getContractAt(
       name: "EscrowSettings",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -209,6 +218,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC165>;
     deployContract(
+      name: "CarefulMath",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.CarefulMath>;
+    deployContract(
       name: "EscrowSettings",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.EscrowSettings>;
@@ -287,6 +300,11 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC165>;
+    deployContract(
+      name: "CarefulMath",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.CarefulMath>;
     deployContract(
       name: "EscrowSettings",
       args: any[],
