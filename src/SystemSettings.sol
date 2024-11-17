@@ -5,10 +5,9 @@ import "./HasSecurityContext.sol";
 import "./ISystemSettings.sol"; 
 
 /**
- * @title PaymentEscrow
+ * @title SystemSettings
  * 
- * Takes in funds from marketplace, extracts a fee, and batches the payments for transfer
- * to the appropriate parties, holding the funds in escrow in the meantime. 
+ * Holds global settings, to be set only by privileged parties, for all escrow contracts to read.
  * 
  * @author John R. Kosinski
  * LoadPipe 2024
@@ -30,10 +29,16 @@ contract SystemSettings is HasSecurityContext, ISystemSettings
         address changedBy
     );
 
+    /**
+     * Address of the vault to which fees are paid.
+     */
     function vaultAddress() external view returns (address) {
         return _vaultAddress;
     }
 
+    /**
+     * Amount in basis points, indicating the portion of payments to be separated and paid to the vault as fees.
+     */
     function feeBps() external view returns (uint256) {
         return _feeBps;
     }
