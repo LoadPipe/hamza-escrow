@@ -971,7 +971,32 @@ describe('PaymentEscrow', function () {
             );
         });
 
-        //not possible to refund a payment to which one is not a party
-        //not possible to refund more than the remaining balance
+        it('not possible to refund a payment to which one is not a party', async function () {
+            const amount = 100000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
+
+            //attempt to refund non-authorized
+            await expect(
+                escrow.connect(payer1).refundPayment(paymentId, amount)
+            ).to.be.reverted;
+
+            //attempt to refund authorized
+            await expect(
+                escrow.connect(arbiter).refundPayment(paymentId, amount)
+            ).to.not.be.reverted;
+        });
+
+        it.skip('not possible to refund more than the payment amount', async function () {});
+
+        it.skip('not possible to refund more than the payment amount, using multiple refunds', async function () {});
     });
 });
