@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import hre, { ethers } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { BigNumberish } from 'ethers';
+import { BigNumberish, keccak256 } from 'ethers';
 
 //TODO: test the coverage
 
@@ -860,31 +860,118 @@ describe('PaymentEscrow', function () {
     });
 
     describe('Refund Payments', function () {
-        it('arbiter can cause a partial refund', async function () {
+        async function refundTest(
+            amount: number,
+            refundAmount: number,
+            payerAccount: HardhatEthersSigner,
+            receiverAccount: HardhatEthersSigner,
+            refunderAccount: HardhatEthersSigner
+        ): Promise<string> {
             const initialContractBalance = await getBalance(
                 escrow.target,
                 true
             );
-            const initialReceiverBalance = await getBalance(
-                receiver1.address,
+            const initialPayerBalance = await getBalance(
+                payerAccount.address,
                 true
             );
-            const amount = 10000000;
 
             //place the payment
             const paymentId = ethers.keccak256('0x01');
             await placePayment(
                 paymentId,
-                payer1,
-                receiver1.address,
+                payerAccount,
+                receiverAccount.address,
                 amount,
                 true
             );
+
+            //partially refund the payment
+            await escrow
+                .connect(refunderAccount)
+                .refundPayment(paymentId, refundAmount);
+
+            //get & check the payment - was it refunded?
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            expect(payment.amountRefunded).to.equal(refundAmount);
+            expect(payment.amount).to.equal(amount);
+
+            //check the balances
+            const finalContractBalance = await getBalance(escrow.target, true);
+            const finalPayerBalance = await getBalance(
+                payerAccount.address,
+                true
+            );
+
+            expect(finalContractBalance).to.equal(
+                initialContractBalance + BigInt(amount - refundAmount)
+            );
+            expect(finalPayerBalance).to.equal(
+                initialPayerBalance - BigInt(amount - refundAmount)
+            );
+
+            return paymentId;
+        }
+
+        it('arbiter can cause a partial refund', async function () {
+            const amount = 1000000;
+            await refundTest(amount, amount / 5, payer1, receiver1, arbiter);
         });
 
-        //arbiter can cause a full refund
-        //receiver can cause a partial refund
-        it('receiver can cause a full refund', async function () {});
+        it('receiver can cause a partial refund', async function () {
+            const amount = 1000000;
+            await refundTest(amount, amount / 5, payer1, receiver1, receiver1);
+        });
+
+        it('arbiter can cause a full refund', async function () {
+            const amount = 1000000;
+            await refundTest(amount, amount, payer1, receiver1, arbiter);
+        });
+
+        it('receiver can cause a full refund', async function () {
+            const amount = 1000000;
+            await refundTest(amount, amount, payer1, receiver1, receiver1);
+        });
+
+        it('can do multiple partial refunds', async function () {
+            const amount = 1000000;
+            const refundAmount = amount / 5;
+            const initialContractBalance = await getBalance(
+                escrow.target,
+                true
+            );
+            const initialPayerBalance = await getBalance(payer1.address, true);
+
+            //initial refund
+            const paymentId = await refundTest(
+                amount,
+                refundAmount,
+                payer1,
+                receiver1,
+                receiver1
+            );
+
+            //partially refund the payment
+            await escrow.connect(arbiter).refundPayment(paymentId, amount / 5);
+
+            //get & check the payment - was it refunded?
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            expect(payment.amountRefunded).to.equal(refundAmount * 2);
+            expect(payment.amount).to.equal(amount);
+
+            //check the balances
+            const finalContractBalance = await getBalance(escrow.target, true);
+            const finalPayerBalance = await getBalance(payer1.address, true);
+
+            expect(finalContractBalance).to.equal(
+                initialContractBalance + BigInt(amount - refundAmount * 2)
+            );
+            expect(finalPayerBalance).to.equal(
+                initialPayerBalance - BigInt(amount - refundAmount * 2)
+            );
+        });
+
         //not possible to refund a payment to which one is not a party
+        //not possible to refund more than the remaining balance
     });
 });
