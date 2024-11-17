@@ -67,13 +67,25 @@ contract PaymentEscrow is HasSecurityContext
         uint256 amount 
     );
 
-    event PaymentSwept (
+    event ReleaseAssentGiven (
+        bytes32 indexed paymentId,
+        address assentingAddress,
+        //TODO: make enum
+        uint8 assentType // 1 = payer, 2 = receiver, 3 = arbiter
+    );
+
+    event EscrowReleased (
+        bytes32 indexed paymentId,
+        uint256 amount
+    );
+
+    event PaymentTransferred (
         bytes32 indexed paymentId, 
         address currency, 
         uint256 amount 
     );
 
-    event PaymentSweepFailed (
+    event PaymentTransferFailed (
         bytes32 indexed paymentId, 
         address currency, 
         uint256 amount 
@@ -102,7 +114,7 @@ contract PaymentEscrow is HasSecurityContext
      * Sets the address to which fees are sent. 
      * 
      * Emits: 
-     * - {MasterSwitch-VaultAddressChanged} 
+     * - {PaymentEscrow-VaultAddressChanged} 
      * 
      * Reverts: 
      * - 'AccessControl:' if caller is not authorized as ARBITER_ROLE. 
@@ -119,7 +131,14 @@ contract PaymentEscrow is HasSecurityContext
     /**
      * Allows multiple payments to be processed. 
      * 
-     * @param multiPayments Array of payment definitions
+     * Reverts: 
+     * - 'InsufficientAmount': if amount of native ETH sent is not equal to the declared amount. 
+     * - 'TokenPaymentFailed': if token transfer fails for any reason (e.g. insufficial allowance)
+     * 
+     * Emits: 
+     * - {PaymentEscrow-PaymentReceived} 
+     * 
+     * @param multiPayments Array of payment input definitions
      */
     function placeMultiPayments(MultiPaymentInput[] calldata multiPayments) public payable {
         for(uint256 i=0; i<multiPayments.length; i++) {
@@ -163,24 +182,58 @@ contract PaymentEscrow is HasSecurityContext
         }
     }
 
+    /**
+     * Returns the payment data specified by id. 
+     * 
+     * @param paymentId A unique payment id
+     */
     function getPayment(bytes32 paymentId) public view returns (Payment memory) {
         return payments[paymentId];
     }
 
+    /**
+     * Gives assent to release the escrow. Caller must be a party to the escrow (either payer, 
+     * receiver, or arbiter).  
+
+     * Reverts: 
+     * - 'Unauthorized': if caller is neither payer, receiver, nor arbiter.
+
+     * Emits: 
+     * - {PaymentEscrow-ReleaseAssentGiven} 
+     * - {PaymentEscrow-EscrowReleased} 
+     * 
+     * @param paymentId A unique payment id
+     */
     function releaseEscrow(bytes32 paymentId) external {
         Payment storage payment = payments[paymentId];
         if (payment.amount > 0) {
             if (payment.receiver == msg.sender) {
-                payment.receiverReleased = true;
+                if (!payment.receiverReleased) {
+                    payment.receiverReleased = true;
+                    emit ReleaseAssentGiven(paymentId, msg.sender, 1);
+                }
             }
-            if (payment.payer == msg.sender) {
-                payment.payerReleased = true;
+            else if (payment.payer == msg.sender) {
+                if (!payment.payerReleased) {
+                    payment.payerReleased = true;
+                    emit ReleaseAssentGiven(paymentId, msg.sender, 2);
+                }
+            }
+            else if (securityContext.hasRole(ARBITER_ROLE, msg.sender)) {
+                if (!payment.payerReleased) {
+                    payment.payerReleased = true;
+                    emit ReleaseAssentGiven(paymentId, msg.sender, 3);
+                }
+            }
+            else {
+                revert("Unauthorized");
             }
 
             _releaseEscrowPayment(paymentId);
         }
     }
 
+    //TODO: need event here
     function refundPayment(bytes32 paymentId, uint256 amount) external {
         Payment storage payment = payments[paymentId]; 
         if (payment.amount > 0 && payment.amountRefunded <= payment.amount) {
@@ -202,14 +255,6 @@ contract PaymentEscrow is HasSecurityContext
         }
     }
 
-    function releaseEscrowOnBehalfOfPayer(bytes32 paymentId) onlyRole(ARBITER_ROLE) external {
-        Payment storage payment = payments[paymentId];
-        if (payment.amount > 0) {
-            payment.payerReleased = true;
-            _releaseEscrowPayment(paymentId);
-        }
-    }
-
     function _getPaymentTotal(MultiPaymentInput memory input) internal pure returns (uint256) {
         uint256 output = 0;
         for(uint256 n=0; n<input.payments.length; n++) {
@@ -221,15 +266,17 @@ contract PaymentEscrow is HasSecurityContext
     function _releaseEscrowPayment(bytes32 paymentId) internal {
         Payment storage payment = payments[paymentId];
         if (payment.payerReleased && payment.receiverReleased && !payment.released) {
+            uint256 amount = payment.amount - payment.amountRefunded;
             //transfer funds 
             if (!payment.released) {
                 if (_transferAmount(
                     payment.id, 
                     payment.receiver, 
                     payment.currency, 
-                    payment.amount - payment.amountRefunded
+                    amount
                 )) {
                     payment.released = true;
+                    emit EscrowReleased(paymentId, amount);
                 }
             }
         }
@@ -250,10 +297,10 @@ contract PaymentEscrow is HasSecurityContext
             }
 
             if (success) {
-                emit PaymentSwept(paymentId, tokenAddressOrZero, amount);
+                emit PaymentTransferred(paymentId, tokenAddressOrZero, amount);
             }
             else {
-                emit PaymentSweepFailed(paymentId, tokenAddressOrZero, amount);
+                emit PaymentTransferFailed(paymentId, tokenAddressOrZero, amount);
             }
         }
 
