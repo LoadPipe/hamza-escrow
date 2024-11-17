@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import hre, { ethers } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
+import { BigNumberish } from 'ethers';
 
 //TODO: test the coverage
 
@@ -156,6 +157,40 @@ describe('PaymentEscrow', function () {
             : await admin.provider.getBalance(address);
     }
 
+    async function placePayment(
+        paymentId: string,
+        payerAccount: HardhatEthersSigner,
+        receiverAddress: string,
+        amount: BigNumberish,
+        isToken: boolean = false
+    ): Promise<IPayment> {
+        if (isToken)
+            await testToken
+                .connect(payerAccount)
+                .approve(escrow.target, amount);
+
+        await escrow.connect(payerAccount).placeMultiPayments(
+            [
+                {
+                    currency: isToken ? testToken.target : ethers.ZeroAddress,
+                    payments: [
+                        {
+                            id: paymentId,
+                            receiver: receiverAddress,
+                            payer: payerAccount.address,
+                            amount,
+                        },
+                    ],
+                },
+            ],
+            { value: amount }
+        );
+
+        //payment is logged in contract with right values
+        const payment = convertPayment(await escrow.getPayment(paymentId));
+        return payment;
+    }
+
     interface IPayment {
         id: any;
         payer: any;
@@ -208,25 +243,14 @@ describe('PaymentEscrow', function () {
 
             //place the payment
             const paymentId = ethers.keccak256('0x01');
-            await escrow.connect(payer1).placeMultiPayments(
-                [
-                    {
-                        currency: ethers.ZeroAddress,
-                        payments: [
-                            {
-                                id: paymentId,
-                                receiver: receiver1.address,
-                                payer: payer1.address,
-                                amount,
-                            },
-                        ],
-                    },
-                ],
-                { value: amount }
-            );
 
             //payment is logged in contract with right values
-            const payment = convertPayment(await escrow.getPayment(paymentId));
+            const payment = await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount
+            );
             verifyPayment(payment, {
                 id: paymentId,
                 payer: payer1.address,
@@ -263,23 +287,15 @@ describe('PaymentEscrow', function () {
 
             //place the payment
             const paymentId = ethers.keccak256('0x01');
-            await testToken.connect(payer1).approve(escrow.target, amount);
-            await escrow.connect(payer1).placeMultiPayments([
-                {
-                    currency: testToken.target,
-                    payments: [
-                        {
-                            id: paymentId,
-                            receiver: receiver1.address,
-                            payer: payer1.address,
-                            amount,
-                        },
-                    ],
-                },
-            ]);
 
             //payment is logged in contract with right values
-            const payment = convertPayment(await escrow.getPayment(paymentId));
+            const payment = await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
             verifyPayment(payment, {
                 id: paymentId,
                 payer: payer1.address,
@@ -477,22 +493,13 @@ describe('PaymentEscrow', function () {
 
             //place the payment
             const paymentId = ethers.keccak256('0x01');
-            await testToken.connect(payer1).approve(escrow.target, amount);
-            await escrow.connect(payer1).placeMultiPayments(
-                [
-                    {
-                        currency: testToken.target,
-                        payments: [
-                            {
-                                id: paymentId,
-                                receiver: receiver1.address,
-                                payer: payer1.address,
-                                amount,
-                            },
-                        ],
-                    },
-                ],
-                { value: amount }
+
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
             );
 
             //check the balance
@@ -531,22 +538,8 @@ describe('PaymentEscrow', function () {
 
             //place the payment
             const paymentId = ethers.keccak256('0x01');
-            await escrow.connect(payer1).placeMultiPayments(
-                [
-                    {
-                        currency: ethers.ZeroAddress,
-                        payments: [
-                            {
-                                id: paymentId,
-                                receiver: receiver1.address,
-                                payer: payer1.address,
-                                amount,
-                            },
-                        ],
-                    },
-                ],
-                { value: amount }
-            );
+
+            await placePayment(paymentId, payer1, receiver1.address, amount);
 
             //check the balance
             const newContractBalance = await getBalance(escrow.target);
@@ -582,22 +575,7 @@ describe('PaymentEscrow', function () {
 
             //place the payment
             const paymentId = ethers.keccak256('0x01');
-            await escrow.connect(payer1).placeMultiPayments(
-                [
-                    {
-                        currency: ethers.ZeroAddress,
-                        payments: [
-                            {
-                                id: paymentId,
-                                receiver: receiver1.address,
-                                payer: payer1.address,
-                                amount,
-                            },
-                        ],
-                    },
-                ],
-                { value: amount }
-            );
+            await placePayment(paymentId, payer1, receiver1.address, amount);
 
             //check the balance
             const newContractBalance = await getBalance(escrow.target);
@@ -640,22 +618,12 @@ describe('PaymentEscrow', function () {
 
             //place the payment
             const paymentId = ethers.keccak256('0x01');
-            await testToken.connect(payer1).approve(escrow.target, amount);
-            await escrow.connect(payer1).placeMultiPayments(
-                [
-                    {
-                        currency: testToken.target,
-                        payments: [
-                            {
-                                id: paymentId,
-                                receiver: receiver1.address,
-                                payer: payer1.address,
-                                amount,
-                            },
-                        ],
-                    },
-                ],
-                { value: amount }
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
             );
 
             //check the balance
@@ -784,22 +752,12 @@ describe('PaymentEscrow', function () {
 
             //place the payment
             const paymentId = ethers.keccak256('0x01');
-            await testToken.connect(payer1).approve(escrow.target, amount);
-            await escrow.connect(payer1).placeMultiPayments(
-                [
-                    {
-                        currency: testToken.target,
-                        payments: [
-                            {
-                                id: paymentId,
-                                receiver: receiver1.address,
-                                payer: payer1.address,
-                                amount,
-                            },
-                        ],
-                    },
-                ],
-                { value: amount }
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
             );
 
             //check the balance
@@ -845,22 +803,12 @@ describe('PaymentEscrow', function () {
 
             //place the payment
             const paymentId = ethers.keccak256('0x01');
-            await testToken.connect(payer1).approve(escrow.target, amount);
-            await escrow.connect(payer1).placeMultiPayments(
-                [
-                    {
-                        currency: testToken.target,
-                        payments: [
-                            {
-                                id: paymentId,
-                                receiver: receiver1.address,
-                                payer: payer1.address,
-                                amount,
-                            },
-                        ],
-                    },
-                ],
-                { value: amount }
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
             );
 
             //check the balance
