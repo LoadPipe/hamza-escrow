@@ -17,13 +17,13 @@ describe('PaymentEscrow', function () {
     let receiver1: HardhatEthersSigner;
     let receiver2: HardhatEthersSigner;
     let vaultAddress: HardhatEthersSigner;
+    let arbiter: HardhatEthersSigner;
 
-    const ARBITER_ROLE = hre.ethers.keccak256(
-        hre.ethers.encodeBytes32String('ARBITER_ROLE')
-    );
+    const ARBITER_ROLE =
+        '0xbb08418a67729a078f87bbc8d02a770929bb68f5bfdf134ae2ead6ed38e2f4ae';
 
     this.beforeEach(async () => {
-        const [a1, a2, a3, a4, a5, a6, a7] = await hre.ethers.getSigners();
+        const [a1, a2, a3, a4, a5, a6, a7, a8] = await hre.ethers.getSigners();
         admin = a1;
         nonOwner = a2;
         vaultAddress = a3;
@@ -31,6 +31,7 @@ describe('PaymentEscrow', function () {
         payer2 = a5;
         receiver1 = a6;
         receiver2 = a7;
+        arbiter = a8;
 
         //deploy security context
         const SecurityContextFactory =
@@ -64,7 +65,7 @@ describe('PaymentEscrow', function () {
 
         await securityContext
             .connect(admin)
-            .grantRole(ARBITER_ROLE, admin.address);
+            .grantRole(ARBITER_ROLE, arbiter.address);
 
         //grant token
         await testToken.mint(nonOwner, 10000000000);
@@ -74,7 +75,7 @@ describe('PaymentEscrow', function () {
 
     describe('Deployment', function () {
         it('Should set the right arbiter role', async function () {
-            expect(await securityContext.hasRole(ARBITER_ROLE, admin.address))
+            expect(await securityContext.hasRole(ARBITER_ROLE, arbiter.address))
                 .to.be.true;
             expect(
                 await securityContext.hasRole(ARBITER_ROLE, nonOwner.address)
@@ -509,9 +510,8 @@ describe('PaymentEscrow', function () {
             );
 
             //try to release the payment
-            await expect(escrow.releaseEscrow(paymentId)).to.be.revertedWith(
-                'Unauthorized'
-            );
+            await expect(escrow.connect(arbiter).releaseEscrow(paymentId)).to
+                .not.be.reverted;
 
             //ensure that nothing has been released
             const payment = convertPayment(await escrow.getPayment(paymentId));
@@ -521,7 +521,7 @@ describe('PaymentEscrow', function () {
                 receiver: receiver1.address,
                 amount,
                 amountRefunded: 0,
-                payerReleased: false,
+                payerReleased: true,
                 receiverReleased: false,
                 released: false,
                 currency: testToken.target,
@@ -669,7 +669,7 @@ describe('PaymentEscrow', function () {
             );
         });
 
-        it.skip('arbiter can release a payment on behalf of payer', async function () {
+        it('arbiter can release a payment on behalf of payer', async function () {
             const initialContractBalance = await getBalance(
                 escrow.target,
                 true
@@ -713,7 +713,7 @@ describe('PaymentEscrow', function () {
 
             //try to release the payment
             await escrow.connect(receiver1).releaseEscrow(paymentId);
-            await escrow.connect(admin).releaseEscrowOnBehalfOfPayer(paymentId);
+            await escrow.connect(arbiter).releaseEscrow(paymentId);
 
             //ensure that nothing has been released
             const payment = convertPayment(await escrow.getPayment(paymentId));
@@ -766,10 +766,10 @@ describe('PaymentEscrow', function () {
                 initialContractBalance + BigInt(amount)
             );
 
-            //try to release the payment
-            await expect(escrow.releaseEscrow(paymentId)).to.be.revertedWith(
-                'Unauthorized'
-            );
+            //try to release the payment, but with an unauthorized account
+            await expect(
+                escrow.connect(nonOwner).releaseEscrow(paymentId)
+            ).to.be.revertedWith('Unauthorized');
 
             //ensure that nothing has been released
             const payment = convertPayment(await escrow.getPayment(paymentId));
@@ -860,7 +860,28 @@ describe('PaymentEscrow', function () {
     });
 
     describe('Refund Payments', function () {
-        it('arbiter can cause a partial refund', async function () {});
+        it('arbiter can cause a partial refund', async function () {
+            const initialContractBalance = await getBalance(
+                escrow.target,
+                true
+            );
+            const initialReceiverBalance = await getBalance(
+                receiver1.address,
+                true
+            );
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
+        });
+
         //arbiter can cause a full refund
         //receiver can cause a partial refund
         it('receiver can cause a full refund', async function () {});
