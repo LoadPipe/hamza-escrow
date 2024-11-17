@@ -116,7 +116,6 @@ describe('PaymentEscrow', function () {
     arbiter can release a payment on behalf of payer
     not possible to release a payment for which one is not a party
     not possible to release a payment twice
-    non-arbiter cannot release on behalf of payer
 
     REFUNDS
     arbiter can cause a partial refund
@@ -485,7 +484,9 @@ describe('PaymentEscrow', function () {
             );
 
             //try to release the payment
-            await escrow.releaseEscrow(paymentId);
+            await expect(escrow.releaseEscrow(paymentId)).to.be.revertedWith(
+                'Unauthorized'
+            );
 
             //ensure that nothing has been released
             const payment = convertPayment(await escrow.getPayment(paymentId));
@@ -756,11 +757,140 @@ describe('PaymentEscrow', function () {
             );
         });
 
-        //not possible to release a payment for which one is not a party
+        it('not possible to release a payment for which one is not a party', async function () {
+            const initialContractBalance = await getBalance(
+                escrow.target,
+                true
+            );
+            const amount = 10000000;
 
-        //not possible to release a payment twice
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await testToken.connect(payer1).approve(escrow.target, amount);
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: testToken.target,
+                        payments: [
+                            {
+                                id: paymentId,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount }
+            );
 
-        //non-arbiter cannot release on behalf of payer
+            //check the balance
+            const newContractBalance = await getBalance(escrow.target);
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+
+            //try to release the payment
+            await expect(escrow.releaseEscrow(paymentId)).to.be.revertedWith(
+                'Unauthorized'
+            );
+
+            //ensure that nothing has been released
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            verifyPayment(payment, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: false,
+                receiverReleased: false,
+                released: false,
+                currency: testToken.target,
+            });
+
+            //check the balance
+            const finalContractBalance = await getBalance(escrow.target, true);
+            expect(finalContractBalance).to.equal(newContractBalance);
+        });
+
+        it('not possible to release a payment twice', async function () {
+            const initialContractBalance = await getBalance(
+                escrow.target,
+                true
+            );
+            const initialReceiverBalance = await getBalance(
+                receiver1.address,
+                true
+            );
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await testToken.connect(payer1).approve(escrow.target, amount);
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: testToken.target,
+                        payments: [
+                            {
+                                id: paymentId,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount }
+            );
+
+            //check the balance
+            const newContractBalance = await getBalance(escrow.target, true);
+            const newReceiverBalance = await getBalance(
+                receiver1.address,
+                true
+            );
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+            expect(newReceiverBalance).to.equal(initialReceiverBalance);
+
+            //try to release the payment
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+
+            //ensure that nothing has been released
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            verifyPayment(payment, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: true,
+                receiverReleased: true,
+                released: true,
+                currency: testToken.target,
+            });
+
+            //try to release the payment a second time
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+
+            //check the balance
+            const finalContractBalance = await getBalance(escrow.target, true);
+            const finalReceiverBalance = await getBalance(
+                receiver1.address,
+                true
+            );
+            expect(finalContractBalance).to.equal(
+                newContractBalance - BigInt(amount)
+            );
+            expect(finalReceiverBalance).to.equal(
+                newReceiverBalance + BigInt(amount)
+            );
+        });
     });
 
     describe('Refund Payments', function () {
