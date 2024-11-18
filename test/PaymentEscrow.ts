@@ -2,8 +2,9 @@ import { expect } from 'chai';
 import hre, { ethers } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { BigNumberish, keccak256 } from 'ethers';
+import { IPayment, convertPayment } from './util';
 
-//TODO: test the coverage
+//TODO: test for events
 
 describe('PaymentEscrow', function () {
     let securityContext: any;
@@ -202,32 +203,6 @@ describe('PaymentEscrow', function () {
         //payment is logged in contract with right values
         const payment = convertPayment(await escrow.getPayment(paymentId));
         return payment;
-    }
-
-    interface IPayment {
-        id: any;
-        payer: any;
-        receiver: any;
-        amount: any;
-        amountRefunded: any;
-        payerReleased: any;
-        receiverReleased: any;
-        released: any;
-        currency: any;
-    }
-
-    function convertPayment(rawData: any[]): IPayment {
-        return {
-            id: rawData[0],
-            payer: rawData[1],
-            receiver: rawData[2],
-            amount: rawData[3],
-            amountRefunded: rawData[4],
-            payerReleased: rawData[5],
-            receiverReleased: rawData[6],
-            released: rawData[7],
-            currency: rawData[8],
-        };
     }
 
     function verifyPayment(actualPayment: IPayment, expectedPayment: IPayment) {
