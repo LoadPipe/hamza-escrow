@@ -111,6 +111,7 @@ contract PaymentEscrow is HasSecurityContext
      * Reverts: 
      * - 'InsufficientAmount': if amount of native ETH sent is not equal to the declared amount. 
      * - 'TokenPaymentFailed': if token transfer fails for any reason (e.g. insufficial allowance)
+     * - 'DuplicatePayment': if payment id exists already 
      * 
      * Emits: 
      * - {PaymentEscrow-PaymentReceived} 
@@ -138,6 +139,10 @@ contract PaymentEscrow is HasSecurityContext
             //add payments to internal map, emit events for each individual payment
             for(uint256 n=0; n<multiPayment.payments.length; n++) {
                 PaymentInput memory paymentInput = multiPayment.payments[n];
+
+                //check for existing, and revert if exists already
+                if (payments[paymentInput.id].id == paymentInput.id)
+                    revert("DuplicatePayment");
 
                 //add payment to mapping 
                 Payment storage payment = payments[paymentInput.id];
@@ -174,6 +179,7 @@ contract PaymentEscrow is HasSecurityContext
 
      * Reverts: 
      * - 'Unauthorized': if caller is neither payer, receiver, nor arbiter.
+     * - 'AmountExceeded': if the specified amount is more than the available amount to refund.
 
      * Emits: 
      * - {PaymentEscrow-ReleaseAssentGiven} 
@@ -222,7 +228,7 @@ contract PaymentEscrow is HasSecurityContext
             uint256 activeAmount = payment.amount - payment.amountRefunded; 
 
             if (amount > activeAmount) 
-                amount = activeAmount; 
+                revert("AmountExceeded");
 
             //transfer amount back to payer 
             if (amount > 0) {
