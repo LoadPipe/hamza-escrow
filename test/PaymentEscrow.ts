@@ -159,7 +159,9 @@ describe('PaymentEscrow', function () {
     fee can be zero 
 
     EDGE CASES 
-    payer & receiver are the same 
+    payer & receiver are the same account 
+    fee bps is 100% 
+    fee bps is > 100% 
     */
 
     async function getBalance(address: any, isToken = false) {
@@ -682,7 +684,87 @@ describe('PaymentEscrow', function () {
             );
         });
 
-        //cannot place order without correct amount
+        it('cannot place order without correct native amount', async function () {
+            const amount = 10000000;
+
+            //place the payment with less than required amount
+            const paymentId = ethers.keccak256('0x01');
+
+            await expect(
+                escrow.connect(payer1).placeMultiPayments(
+                    [
+                        {
+                            currency: ethers.ZeroAddress,
+                            payments: [
+                                {
+                                    id: paymentId,
+                                    receiver: receiver1,
+                                    payer: payer1.address,
+                                    amount,
+                                },
+                            ],
+                        },
+                    ],
+                    { value: amount - 1 }
+                )
+            ).to.be.revertedWith('InsufficientAmount');
+        });
+
+        it('cannot place order without correct token amount approved', async function () {
+            const amount = 10000000;
+
+            //place the payment with less than required amount
+            const paymentId = ethers.keccak256('0x01');
+
+            await testToken.connect(payer1).approve(escrow.target, amount - 1);
+            await expect(
+                escrow.connect(payer1).placeMultiPayments([
+                    {
+                        currency: testToken.target,
+                        payments: [
+                            {
+                                id: paymentId,
+                                receiver: receiver1,
+                                payer: payer1.address,
+                                amount,
+                            },
+                        ],
+                    },
+                ])
+            ).to.be.reverted;
+        });
+
+        it('cannot place order without correct token amount in balance', async function () {
+            const amount = 10000000;
+
+            //give all tokens away
+            await testToken
+                .connect(payer1)
+                .transfer(
+                    payer2.address,
+                    await getBalance(payer1.address, true)
+                );
+
+            //place the payment with less than required amount
+            const paymentId = ethers.keccak256('0x01');
+
+            await testToken.connect(payer1).approve(escrow.target, amount);
+            await expect(
+                escrow.connect(payer1).placeMultiPayments([
+                    {
+                        currency: testToken.target,
+                        payments: [
+                            {
+                                id: paymentId,
+                                receiver: receiver1,
+                                payer: payer1.address,
+                                amount,
+                            },
+                        ],
+                    },
+                ])
+            ).to.be.reverted;
+        });
     });
 
     describe('Release Payments', function () {
@@ -806,7 +888,50 @@ describe('PaymentEscrow', function () {
             expect(finalContractBalance).to.equal(newContractBalance);
         });
 
-        it('can release a payment with both approvals', async function () {
+        it('can release a native payment with both approvals', async function () {
+            const initialContractBalance = await getBalance(escrow.target);
+            const initialReceiverBalance = await getBalance(receiver1.address);
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await placePayment(paymentId, payer1, receiver1.address, amount);
+
+            //check the balance
+            const newContractBalance = await getBalance(escrow.target);
+            const newReceiverBalance = await getBalance(receiver1.address);
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+            expect(newReceiverBalance).to.equal(initialReceiverBalance);
+
+            //try to release the payment
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+
+            //ensure that nothing has been released
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            verifyPayment(payment, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: true,
+                receiverReleased: true,
+                released: true,
+                currency: ethers.ZeroAddress,
+            });
+
+            //check the balance
+            const finalContractBalance = await getBalance(escrow.target);
+            const finalReceiverBalance = await getBalance(receiver1.address);
+            expect(finalContractBalance).to.equal(
+                newContractBalance - BigInt(amount)
+            );
+        });
+
+        it('can release a token payment with both approvals', async function () {
             const initialContractBalance = await getBalance(
                 escrow.target,
                 true
@@ -1285,9 +1410,11 @@ describe('PaymentEscrow', function () {
         });
 
         it('fee can be zero', async function () {
-            await systemSettings.connect(dao).setFeeBps(0);
             const paymentId = ethers.keccak256('0x01');
             const amount = 10000000;
+
+            //set fee to 0
+            await systemSettings.connect(dao).setFeeBps(0);
 
             //ensure that dao balance at start is 0
             expect(await getBalance(vaultAddress, true)).to.equal(0);
@@ -1345,6 +1472,39 @@ describe('PaymentEscrow', function () {
             const paymentId = ethers.keccak256('0x01');
             const amount = 10000000;
             const refundAmount = amount;
+
+            //ensure that dao balance at start is 0
+            expect(await getBalance(vaultAddress, true)).to.equal(0);
+
+            //place a payment
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
+
+            //refund a small amount
+            await escrow
+                .connect(arbiter)
+                .refundPayment(paymentId, refundAmount);
+
+            //release the payment from escrow
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+
+            //no fee should be in the vault
+            expect(await getBalance(vaultAddress, true)).to.equal(0);
+        });
+
+        it('no fee is taken if fee rate is > 100%', async function () {
+            const paymentId = ethers.keccak256('0x01');
+            const amount = 10000000;
+            const refundAmount = amount;
+
+            //set fee to > 100%
+            await systemSettings.connect(dao).setFeeBps(20101);
 
             //ensure that dao balance at start is 0
             expect(await getBalance(vaultAddress, true)).to.equal(0);
