@@ -187,6 +187,14 @@ contract PaymentEscrow is HasSecurityContext
      */
     function releaseEscrow(bytes32 paymentId) external {
         Payment storage payment = payments[paymentId];
+
+        if (msg.sender != payment.receiver && 
+            msg.sender != payment.payer && 
+            !securityContext.hasRole(ARBITER_ROLE, msg.sender))
+        {
+            revert("Unauthorized");
+        }
+
         if (payment.amount > 0) {
             if (payment.receiver == msg.sender) {
                 if (!payment.receiverReleased) {
@@ -194,20 +202,17 @@ contract PaymentEscrow is HasSecurityContext
                     emit ReleaseAssentGiven(paymentId, msg.sender, 1);
                 }
             }
-            else if (payment.payer == msg.sender) {
+            if (payment.payer == msg.sender) {
                 if (!payment.payerReleased) {
                     payment.payerReleased = true;
                     emit ReleaseAssentGiven(paymentId, msg.sender, 2);
                 }
             }
-            else if (securityContext.hasRole(ARBITER_ROLE, msg.sender)) {
+            if (securityContext.hasRole(ARBITER_ROLE, msg.sender)) {
                 if (!payment.payerReleased) {
                     payment.payerReleased = true;
                     emit ReleaseAssentGiven(paymentId, msg.sender, 3);
                 }
-            }
-            else {
-                revert("Unauthorized");
             }
 
             _releaseEscrowPayment(paymentId);

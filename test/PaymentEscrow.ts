@@ -1583,4 +1583,40 @@ describe('PaymentEscrow', function () {
             );
         });
     });
+
+    describe('Edge Cases', function () {
+        it('payer and receiver are the same', async function () {
+            const initialPayerBalance = await getBalance(payer1.address, true);
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await placePayment(paymentId, payer1, payer1.address, amount, true);
+
+            //check the balance
+            const newPayerBalance = await getBalance(payer1.address, true);
+
+            //try to release the payment
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+
+            //ensure that nothing has been released
+            const payment = convertPayment(await escrow.getPayment(paymentId));
+            verifyPayment(payment, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: payer1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: true,
+                receiverReleased: true,
+                released: true,
+                currency: testToken.target,
+            });
+
+            //check the balance
+            const finalPayerBalance = await getBalance(payer1.address, true);
+            expect(finalPayerBalance).to.equal(initialPayerBalance);
+        });
+    });
 });
