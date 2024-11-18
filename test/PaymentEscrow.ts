@@ -18,12 +18,17 @@ describe('PaymentEscrow', function () {
     let receiver2: HardhatEthersSigner;
     let vaultAddress: HardhatEthersSigner;
     let arbiter: HardhatEthersSigner;
+    let dao: HardhatEthersSigner;
 
     const ARBITER_ROLE =
         '0xbb08418a67729a078f87bbc8d02a770929bb68f5bfdf134ae2ead6ed38e2f4ae';
 
+    const DAO_ROLE =
+        '0x3b5d4cc60d3ec3516ee8ae083bd60934f6eb2a6c54b1229985c41bfb092b2603';
+
     this.beforeEach(async () => {
-        const [a1, a2, a3, a4, a5, a6, a7, a8] = await hre.ethers.getSigners();
+        const [a1, a2, a3, a4, a5, a6, a7, a8, a9] =
+            await hre.ethers.getSigners();
         admin = a1;
         nonOwner = a2;
         vaultAddress = a3;
@@ -32,6 +37,7 @@ describe('PaymentEscrow', function () {
         receiver1 = a6;
         receiver2 = a7;
         arbiter = a8;
+        dao = a9;
 
         //deploy security context
         const SecurityContextFactory =
@@ -49,7 +55,7 @@ describe('PaymentEscrow', function () {
         systemSettings = await SystemSettingsFactory.deploy(
             securityContext.target,
             vaultAddress,
-            100
+            0
         );
 
         //grant roles
@@ -66,6 +72,8 @@ describe('PaymentEscrow', function () {
         await securityContext
             .connect(admin)
             .grantRole(ARBITER_ROLE, arbiter.address);
+
+        await securityContext.connect(admin).grantRole(DAO_ROLE, dao.address);
 
         //grant token
         await testToken.mint(nonOwner, 10000000000);
@@ -105,8 +113,8 @@ describe('PaymentEscrow', function () {
         - payment is logged in contract with right values 
         - amount leaves payer 
         - amount accrues in contract
-    can place mixed token & native payments
-    paid amounts accrue in contract
+    #can place mixed token & native payments
+    #paid amounts accrue in contract
         NATIVE 
         - multiple payments, balance accrues 
         TOKEN
@@ -118,18 +126,18 @@ describe('PaymentEscrow', function () {
         TOKEN
         - without having approved any
         - without having approved correct amount 
-    cannot place new order with same payment id
+    #cannot place new order with same payment id
 
-    RELEASE PAYMENTS
-    cannot release a payment with no approvals
-    cannot release a payment with only payer approval
-    cannot release a payment with only receiver approval
-    can release a payment with both approvals
-    arbiter can release a payment on behalf of payer
-    not possible to release a payment for which one is not a party
-    not possible to release a payment twice
+    #RELEASE PAYMENTS
+    #cannot release a payment with no approvals
+    #cannot release a payment with only payer approval
+    #cannot release a payment with only receiver approval
+    #can release a payment with both approvals
+    #arbiter can release a payment on behalf of payer
+    #not possible to release a payment for which one is not a party
+    #not possible to release a payment twice
 
-    REFUNDS
+    #REFUNDS
     #arbiter can cause a partial refund
     #arbiter can cause a full refund
     #receiver can cause a partial refund
@@ -1240,6 +1248,127 @@ describe('PaymentEscrow', function () {
             //attempt to refund normal amount
             await expect(escrow.connect(arbiter).refundPayment(paymentId, 1)).to
                 .not.be.reverted;
+        });
+    });
+
+    describe('Fee Amounts', function () {
+        const feeBps = 200;
+
+        this.beforeEach(async () => {
+            await systemSettings.connect(dao).setFeeBps(feeBps);
+        });
+
+        it('fees are calculated correctly', async function () {
+            const paymentId = ethers.keccak256('0x01');
+            const amount = 10000000;
+
+            //ensure that dao balance at start is 0
+            expect(await getBalance(vaultAddress, true)).to.equal(0);
+
+            //place a payment
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
+
+            //release the payment from escrow
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+
+            //fee should be in the vault
+            expect(await getBalance(vaultAddress, true)).to.equal(
+                amount * (feeBps / 10000)
+            );
+        });
+
+        it('fee can be zero', async function () {
+            await systemSettings.connect(dao).setFeeBps(0);
+            const paymentId = ethers.keccak256('0x01');
+            const amount = 10000000;
+
+            //ensure that dao balance at start is 0
+            expect(await getBalance(vaultAddress, true)).to.equal(0);
+
+            //place a payment
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
+
+            //release the payment from escrow
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+
+            //no fees should have gone to the vault
+            expect(await getBalance(vaultAddress, true)).to.equal(0);
+        });
+
+        it('fee is calculated from amount remaining after refund', async function () {
+            const paymentId = ethers.keccak256('0x01');
+            const amount = 10000000;
+            const refundAmount = 40000;
+
+            //ensure that dao balance at start is 0
+            expect(await getBalance(vaultAddress, true)).to.equal(0);
+
+            //place a payment
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
+
+            //refund a small amount
+            await escrow
+                .connect(arbiter)
+                .refundPayment(paymentId, refundAmount);
+
+            //release the payment from escrow
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+
+            //fee should be in the vault
+            expect(await getBalance(vaultAddress, true)).to.equal(
+                (amount - refundAmount) * (feeBps / 10000)
+            );
+        });
+
+        it('no fee is taken from fully refunded payment', async function () {
+            const paymentId = ethers.keccak256('0x01');
+            const amount = 10000000;
+            const refundAmount = amount;
+
+            //ensure that dao balance at start is 0
+            expect(await getBalance(vaultAddress, true)).to.equal(0);
+
+            //place a payment
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
+
+            //refund a small amount
+            await escrow
+                .connect(arbiter)
+                .refundPayment(paymentId, refundAmount);
+
+            //release the payment from escrow
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+
+            //no fee should be in the vault
+            expect(await getBalance(vaultAddress, true)).to.equal(0);
         });
     });
 });

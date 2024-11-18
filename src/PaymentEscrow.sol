@@ -5,9 +5,7 @@ import "./HasSecurityContext.sol";
 import "./ISystemSettings.sol"; 
 import "./CarefulMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-//TODO: calculate & separate out fee BPS
-//TODO: unit tests for SystemSettings
+//import "hardhat/console.sol";
 
 /* Encapsulates information about an incoming payment
 */
@@ -253,9 +251,9 @@ contract PaymentEscrow is HasSecurityContext
 
             //break off fee 
             uint256 fee = 0;
-            uint256 feeBps = 0; //settings.feeBps();
+            uint256 feeBps = settings.feeBps();
             if (feeBps > 0) {
-                fee = CarefulMath.div(amount, feeBps);
+                fee = CarefulMath.mulDiv(amount, feeBps, 10000);
                 if (fee > amount)
                     fee = 0;
             }
