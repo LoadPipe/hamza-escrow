@@ -2,10 +2,10 @@
 /* tslint:disable */
 /* eslint-disable */
 export type { CarefulMath } from "./CarefulMath";
-export type { EscrowSettings } from "./EscrowSettings";
 export type { HasSecurityContext } from "./HasSecurityContext";
-export type { IEscrowSettings } from "./IEscrowSettings";
 export type { ISecurityContext } from "./ISecurityContext";
+export type { ISystemSettings } from "./ISystemSettings";
 export type { PaymentEscrow } from "./PaymentEscrow";
 export type { SecurityContext } from "./SecurityContext";
+export type { SystemSettings } from "./SystemSettings";
 export type { TestToken } from "./TestToken";

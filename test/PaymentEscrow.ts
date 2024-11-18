@@ -130,11 +130,13 @@ describe('PaymentEscrow', function () {
     not possible to release a payment twice
 
     REFUNDS
-    arbiter can cause a partial refund
-    arbiter can cause a full refund
-    receiver can cause a partial refund
-    receiver can cause a full refund
-    not possible to refund a payment to which one is not a party
+    #arbiter can cause a partial refund
+    #arbiter can cause a full refund
+    #receiver can cause a partial refund
+    #receiver can cause a full refund
+    #not possible to refund a payment to which one is not a party
+    #not possible to refund a payment for more than the full amount
+    #not possible to refund a payment for more than the full amount in multiple transactions
 
     REFUND & RELEASE
     fully refunded payment cannot be released
@@ -482,6 +484,197 @@ describe('PaymentEscrow', function () {
                 initialContractBalance + BigInt(amount1 + amount2)
             );
         });
+
+        it('cannot place new order with same payment id in same transaction', async function () {
+            const amount = 10000000;
+
+            //place the payments with duplicate payment ids
+            const paymentId1 = ethers.keccak256('0x01');
+            const paymentId2 = ethers.keccak256('0x01');
+            await testToken.connect(payer1).approve(escrow.target, amount * 2);
+            await expect(
+                escrow.connect(payer1).placeMultiPayments(
+                    [
+                        {
+                            currency: testToken.target,
+                            payments: [
+                                {
+                                    id: paymentId1,
+                                    receiver: receiver1.address,
+                                    payer: payer1.address,
+                                    amount: amount,
+                                },
+                                {
+                                    id: paymentId2,
+                                    receiver: receiver2.address,
+                                    payer: payer1.address,
+                                    amount: amount,
+                                },
+                            ],
+                        },
+                    ],
+                    { value: amount * 2 }
+                )
+            ).to.be.revertedWith('DuplicatePayment');
+        });
+
+        it('cannot place new order with same payment id in different transactions', async function () {
+            const amount = 10000000;
+
+            //place the payments with duplicate payment ids
+            const paymentId = ethers.keccak256('0x01');
+
+            //place a legal payment
+            await placePayment(paymentId, payer1, receiver1.address, amount);
+
+            //place the same payment again
+            await expect(
+                placePayment(paymentId, payer1, receiver1.address, amount)
+            ).to.be.revertedWith('DuplicatePayment');
+        });
+
+        it('can place mixed token & native payments', async function () {
+            const amount1 = 10000000;
+            const amount2 = 20000000;
+
+            //place the payments with duplicate payment ids
+            const paymentId1 = ethers.keccak256('0x01');
+            const paymentId2 = ethers.keccak256('0x02');
+            await testToken.connect(payer1).approve(escrow.target, amount1);
+
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: testToken.target,
+                        payments: [
+                            {
+                                id: paymentId1,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount: amount1,
+                            },
+                        ],
+                    },
+                    {
+                        currency: ethers.ZeroAddress,
+                        payments: [
+                            {
+                                id: paymentId2,
+                                receiver: receiver2.address,
+                                payer: payer2.address,
+                                amount: amount2,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount2 }
+            );
+
+            expect(await getBalance(escrow.target, true)).to.equal(amount1);
+            expect(await getBalance(escrow.target, false)).to.equal(amount2);
+        });
+
+        it('paid token amounts accrue in contract', async function () {
+            const amount1 = 10000000;
+            const amount2 = 20000000;
+            const amount3 = 30000000;
+
+            //place the payments with duplicate payment ids
+            const paymentId1 = ethers.keccak256('0x01');
+            const paymentId2 = ethers.keccak256('0x02');
+            const paymentId3 = ethers.keccak256('0x03');
+
+            //pass 2 payments
+            await testToken
+                .connect(payer1)
+                .approve(escrow.target, amount1 + amount2);
+            await escrow.connect(payer1).placeMultiPayments([
+                {
+                    currency: testToken.target,
+                    payments: [
+                        {
+                            id: paymentId1,
+                            receiver: receiver1.address,
+                            payer: payer1.address,
+                            amount: amount1,
+                        },
+                        {
+                            id: paymentId2,
+                            receiver: receiver1.address,
+                            payer: payer1.address,
+                            amount: amount2,
+                        },
+                    ],
+                },
+            ]);
+
+            //check balance accrual
+            expect(await getBalance(escrow.target, true)).to.equal(
+                amount1 + amount2
+            );
+
+            //pass another payment
+            await placePayment(
+                paymentId3,
+                payer2,
+                receiver2.address,
+                amount3,
+                true
+            );
+
+            //check balance accrual
+            expect(await getBalance(escrow.target, true)).to.equal(
+                amount1 + amount2 + amount3
+            );
+        });
+
+        it('paid native amounts accrue in contract', async function () {
+            const amount1 = 10000000;
+            const amount2 = 20000000;
+            const amount3 = 30000000;
+
+            //place the payments with duplicate payment ids
+            const paymentId1 = ethers.keccak256('0x01');
+            const paymentId2 = ethers.keccak256('0x02');
+            const paymentId3 = ethers.keccak256('0x03');
+
+            //pass 2 payments
+            await escrow.connect(payer1).placeMultiPayments(
+                [
+                    {
+                        currency: ethers.ZeroAddress,
+                        payments: [
+                            {
+                                id: paymentId1,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount: amount1,
+                            },
+                            {
+                                id: paymentId2,
+                                receiver: receiver1.address,
+                                payer: payer1.address,
+                                amount: amount2,
+                            },
+                        ],
+                    },
+                ],
+                { value: amount1 + amount2 }
+            );
+
+            //check balance accrual
+            expect(await getBalance(escrow.target)).to.equal(amount1 + amount2);
+
+            //pass another payment
+            await placePayment(paymentId3, payer2, receiver2.address, amount3);
+
+            //check balance accrual
+            expect(await getBalance(escrow.target)).to.equal(
+                amount1 + amount2 + amount3
+            );
+        });
+
+        //cannot place order without correct amount
     });
 
     describe('Release Payments', function () {
@@ -995,8 +1188,58 @@ describe('PaymentEscrow', function () {
             ).to.not.be.reverted;
         });
 
-        it.skip('not possible to refund more than the payment amount', async function () {});
+        it('not possible to refund more than the payment amount', async function () {
+            const amount = 100000000;
 
-        it.skip('not possible to refund more than the payment amount, using multiple refunds', async function () {});
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
+
+            //attempt to refund more than one should
+            await expect(
+                escrow.connect(arbiter).refundPayment(paymentId, amount + 1)
+            ).to.be.revertedWith('AmountExceeded');
+
+            //attempt to refund normal amount
+            await expect(
+                escrow.connect(arbiter).refundPayment(paymentId, amount)
+            ).to.not.be.reverted;
+        });
+
+        it('not possible to refund more than the payment amount, using multiple refunds', async function () {
+            const amount = 100000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
+
+            //refunds that should be allowed
+            await expect(
+                escrow.connect(arbiter).refundPayment(paymentId, amount - 2)
+            ).to.not.be.reverted;
+            await expect(escrow.connect(arbiter).refundPayment(paymentId, 1)).to
+                .not.be.reverted;
+
+            //attempt to refund more than one should
+            await expect(
+                escrow.connect(arbiter).refundPayment(paymentId, 100)
+            ).to.be.revertedWith('AmountExceeded');
+
+            //attempt to refund normal amount
+            await expect(escrow.connect(arbiter).refundPayment(paymentId, 1)).to
+                .not.be.reverted;
+        });
     });
 });

@@ -58,21 +58,17 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.CarefulMath__factory>;
     getContractFactory(
-      name: "EscrowSettings",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.EscrowSettings__factory>;
-    getContractFactory(
       name: "HasSecurityContext",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.HasSecurityContext__factory>;
     getContractFactory(
-      name: "IEscrowSettings",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IEscrowSettings__factory>;
-    getContractFactory(
       name: "ISecurityContext",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.ISecurityContext__factory>;
+    getContractFactory(
+      name: "ISystemSettings",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.ISystemSettings__factory>;
     getContractFactory(
       name: "PaymentEscrow",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -81,6 +77,10 @@ declare module "hardhat/types/runtime" {
       name: "SecurityContext",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.SecurityContext__factory>;
+    getContractFactory(
+      name: "SystemSettings",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.SystemSettings__factory>;
     getContractFactory(
       name: "TestToken",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -142,25 +142,20 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.CarefulMath>;
     getContractAt(
-      name: "EscrowSettings",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.EscrowSettings>;
-    getContractAt(
       name: "HasSecurityContext",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.HasSecurityContext>;
     getContractAt(
-      name: "IEscrowSettings",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.IEscrowSettings>;
-    getContractAt(
       name: "ISecurityContext",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.ISecurityContext>;
+    getContractAt(
+      name: "ISystemSettings",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.ISystemSettings>;
     getContractAt(
       name: "PaymentEscrow",
       address: string | ethers.Addressable,
@@ -171,6 +166,11 @@ declare module "hardhat/types/runtime" {
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.SecurityContext>;
+    getContractAt(
+      name: "SystemSettings",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.SystemSettings>;
     getContractAt(
       name: "TestToken",
       address: string | ethers.Addressable,
@@ -222,21 +222,17 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.CarefulMath>;
     deployContract(
-      name: "EscrowSettings",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.EscrowSettings>;
-    deployContract(
       name: "HasSecurityContext",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.HasSecurityContext>;
     deployContract(
-      name: "IEscrowSettings",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IEscrowSettings>;
-    deployContract(
       name: "ISecurityContext",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.ISecurityContext>;
+    deployContract(
+      name: "ISystemSettings",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ISystemSettings>;
     deployContract(
       name: "PaymentEscrow",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -245,6 +241,10 @@ declare module "hardhat/types/runtime" {
       name: "SecurityContext",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.SecurityContext>;
+    deployContract(
+      name: "SystemSettings",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.SystemSettings>;
     deployContract(
       name: "TestToken",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -306,25 +306,20 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.CarefulMath>;
     deployContract(
-      name: "EscrowSettings",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.EscrowSettings>;
-    deployContract(
       name: "HasSecurityContext",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.HasSecurityContext>;
     deployContract(
-      name: "IEscrowSettings",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IEscrowSettings>;
-    deployContract(
       name: "ISecurityContext",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.ISecurityContext>;
+    deployContract(
+      name: "ISystemSettings",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ISystemSettings>;
     deployContract(
       name: "PaymentEscrow",
       args: any[],
@@ -335,6 +330,11 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.SecurityContext>;
+    deployContract(
+      name: "SystemSettings",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.SystemSettings>;
     deployContract(
       name: "TestToken",
       args: any[],
