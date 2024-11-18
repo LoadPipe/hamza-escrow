@@ -161,7 +161,7 @@ describe('PaymentEscrow', function () {
     EDGE CASES 
     payer & receiver are the same account 
     fee bps is 100% 
-    fee bps is > 100% 
+    #fee bps is > 100% 
     */
 
     async function getBalance(address: any, isToken = false) {
@@ -1386,6 +1386,10 @@ describe('PaymentEscrow', function () {
         it('fees are calculated correctly', async function () {
             const paymentId = ethers.keccak256('0x01');
             const amount = 10000000;
+            const receiverInitialAmount = await getBalance(
+                receiver1.address,
+                true
+            );
 
             //ensure that dao balance at start is 0
             expect(await getBalance(vaultAddress, true)).to.equal(0);
@@ -1404,14 +1408,22 @@ describe('PaymentEscrow', function () {
             await escrow.connect(receiver1).releaseEscrow(paymentId);
 
             //fee should be in the vault
-            expect(await getBalance(vaultAddress, true)).to.equal(
-                amount * (feeBps / 10000)
+            const feeAmount = amount * (feeBps / 10000);
+            expect(await getBalance(vaultAddress, true)).to.equal(feeAmount);
+
+            //remainder amount should have gone to the receiver
+            expect(await getBalance(receiver1.address, true)).to.equal(
+                receiverInitialAmount + BigInt(amount - feeAmount)
             );
         });
 
-        it('fee can be zero', async function () {
+        it('fee can be 0%', async function () {
             const paymentId = ethers.keccak256('0x01');
             const amount = 10000000;
+            const receiverInitialAmount = await getBalance(
+                receiver1.address,
+                true
+            );
 
             //set fee to 0
             await systemSettings.connect(dao).setFeeBps(0);
@@ -1434,12 +1446,57 @@ describe('PaymentEscrow', function () {
 
             //no fees should have gone to the vault
             expect(await getBalance(vaultAddress, true)).to.equal(0);
+
+            //full amount should have gone to the receiver
+            expect(await getBalance(receiver1.address, true)).to.equal(
+                receiverInitialAmount + BigInt(amount)
+            );
+        });
+
+        it('fee can be 100%', async function () {
+            const paymentId = ethers.keccak256('0x01');
+            const amount = 10000000;
+            const receiverInitialAmount = await getBalance(
+                receiver1.address,
+                true
+            );
+
+            //set fee to 0
+            await systemSettings.connect(dao).setFeeBps(10000);
+
+            //ensure that dao balance at start is 0
+            expect(await getBalance(vaultAddress, true)).to.equal(0);
+
+            //place a payment
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
+
+            //release the payment from escrow
+            await escrow.connect(payer1).releaseEscrow(paymentId);
+            await escrow.connect(receiver1).releaseEscrow(paymentId);
+
+            //full should have gone to the vault
+            expect(await getBalance(vaultAddress, true)).to.equal(amount);
+
+            //no amount should have gone to the receiver
+            expect(await getBalance(receiver1.address, true)).to.equal(
+                receiverInitialAmount
+            );
         });
 
         it('fee is calculated from amount remaining after refund', async function () {
             const paymentId = ethers.keccak256('0x01');
             const amount = 10000000;
             const refundAmount = 40000;
+            const receiverInitialAmount = await getBalance(
+                receiver1.address,
+                true
+            );
 
             //ensure that dao balance at start is 0
             expect(await getBalance(vaultAddress, true)).to.equal(0);
@@ -1463,8 +1520,15 @@ describe('PaymentEscrow', function () {
             await escrow.connect(receiver1).releaseEscrow(paymentId);
 
             //fee should be in the vault
+            const feeAmount = (amount - refundAmount) * (feeBps / 10000);
             expect(await getBalance(vaultAddress, true)).to.equal(
                 (amount - refundAmount) * (feeBps / 10000)
+            );
+
+            //remainder should have gone to receiver
+            expect(await getBalance(receiver1.address, true)).to.equal(
+                receiverInitialAmount +
+                    BigInt(amount - refundAmount - feeAmount)
             );
         });
 
@@ -1472,6 +1536,10 @@ describe('PaymentEscrow', function () {
             const paymentId = ethers.keccak256('0x01');
             const amount = 10000000;
             const refundAmount = amount;
+            const receiverInitialAmount = await getBalance(
+                receiver1.address,
+                true
+            );
 
             //ensure that dao balance at start is 0
             expect(await getBalance(vaultAddress, true)).to.equal(0);
@@ -1485,7 +1553,7 @@ describe('PaymentEscrow', function () {
                 true
             );
 
-            //refund a small amount
+            //refund all
             await escrow
                 .connect(arbiter)
                 .refundPayment(paymentId, refundAmount);
@@ -1496,12 +1564,21 @@ describe('PaymentEscrow', function () {
 
             //no fee should be in the vault
             expect(await getBalance(vaultAddress, true)).to.equal(0);
+
+            //none should have gone to receiver
+            expect(await getBalance(receiver1.address, true)).to.equal(
+                receiverInitialAmount
+            );
         });
 
         it('no fee is taken if fee rate is > 100%', async function () {
             const paymentId = ethers.keccak256('0x01');
             const amount = 10000000;
             const refundAmount = amount;
+            const receiverInitialAmount = await getBalance(
+                receiver1.address,
+                true
+            );
 
             //set fee to > 100%
             await systemSettings.connect(dao).setFeeBps(20101);
@@ -1518,17 +1595,17 @@ describe('PaymentEscrow', function () {
                 true
             );
 
-            //refund a small amount
-            await escrow
-                .connect(arbiter)
-                .refundPayment(paymentId, refundAmount);
-
             //release the payment from escrow
             await escrow.connect(payer1).releaseEscrow(paymentId);
             await escrow.connect(receiver1).releaseEscrow(paymentId);
 
             //no fee should be in the vault
             expect(await getBalance(vaultAddress, true)).to.equal(0);
+
+            //all should have gone to receiver
+            expect(await getBalance(receiver1.address, true)).to.equal(
+                receiverInitialAmount + BigInt(amount)
+            );
         });
     });
 });

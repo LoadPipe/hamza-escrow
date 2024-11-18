@@ -5,7 +5,7 @@ import "./HasSecurityContext.sol";
 import "./ISystemSettings.sol"; 
 import "./CarefulMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-//import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 /* Encapsulates information about an incoming payment
 */
@@ -261,12 +261,15 @@ contract PaymentEscrow is HasSecurityContext
 
             //transfer funds 
             if (!payment.released) {
-                if (_transferAmount(
-                    payment.id, 
-                    payment.receiver, 
-                    payment.currency, 
-                    amountToPay
-                )) {
+                if (
+                    (amountToPay == 0 && fee > 0) || 
+                    _transferAmount(
+                        payment.id, 
+                        payment.receiver, 
+                        payment.currency, 
+                        amountToPay
+                    )
+                ) {
                     //also transfer fee to vault 
                     if (fee > 0) {
                         if (_transferAmount(
