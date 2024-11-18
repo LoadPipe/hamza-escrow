@@ -56,7 +56,7 @@ abstract contract HasSecurityContext is Context {
      * @param _securityContext Address of an ISecurityContext. 
      */
     function setSecurityContext(ISecurityContext _securityContext) external onlyRole(ADMIN_ROLE) {
-        _setSecurityContext(_securityContext); 
+        _setSecurityContext(_securityContext);
     }
     
     /**

@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import hre, { ethers } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
+import { ZeroAddress } from 'ethers';
 
 const DAO_ROLE =
     '0x3b5d4cc60d3ec3516ee8ae083bd60934f6eb2a6c54b1229985c41bfb092b2603';
@@ -80,6 +81,27 @@ describe('SystemSettings', function () {
             await expect(
                 systemSettings.connect(dao).setVaultAddress(ethers.ZeroAddress)
             ).to.be.reverted;
+        });
+
+        it('cannot set zero address for vault in constructor', async function () {
+            const SystemSettingsFactory =
+                await hre.ethers.getContractFactory('SystemSettings');
+
+            await expect(
+                SystemSettingsFactory.deploy(
+                    securityContext.target,
+                    ethers.ZeroAddress,
+                    100
+                )
+            ).to.be.revertedWith('InvalidVaultAddress');
+        });
+
+        it('cannot set zero address for security context', async function () {
+            await expect(
+                systemSettings.setSecurityContext(securityContext.target)
+            ).to.not.be.reverted;
+            await expect(systemSettings.setSecurityContext(ethers.ZeroAddress))
+                .to.be.reverted;
         });
     });
 });
