@@ -3,6 +3,7 @@ import hre, { ethers } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { BigNumberish, keccak256 } from 'ethers';
 import { IPayment, convertPayment } from './util';
+import { sign } from 'crypto';
 
 describe('PaymentEscrow', function () {
     let securityContext: any;
@@ -16,7 +17,75 @@ describe('PaymentEscrow', function () {
     let arbiter: HardhatEthersSigner;
     let dao: HardhatEthersSigner;
 
-    function playRound() {}
+    function generatePaymentId(): string {
+        let result = '';
+        const characters =
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const charactersLength = characters.length;
+        let n = 0;
+        while (n < length) {
+            result += characters.charAt(
+                Math.floor(Math.random() * charactersLength)
+            );
+            n += 1;
+        }
+        return result;
+    }
+
+    function randomWholeNum(min: number, max: number) {
+        return Math.floor(Math.random() * (max - min)) + min;
+    }
+
+    function getIndexList(count: number): number[] {
+        const output: number[] = [];
+        for (let n = 0; n < count; n++) {
+            output[n] = n;
+        }
+        return output;
+    }
+
+    function pickRandomAgents(
+        signers: HardhatEthersSigner[]
+    ): HardhatEthersSigner[] {
+        const count: number = randomWholeNum(1, payers.length);
+        const output: HardhatEthersSigner[] = [];
+        const indices = getIndexList(payers.length);
+        for (let n = 0; n < count; n++) {
+            const randIndex: number = randomWholeNum(0, indices.length);
+            const index = indices[randIndex];
+            output.push(signers[index]);
+            indices.splice(index, 1);
+        }
+        return output;
+    }
+
+    function pickRandomPayers(): HardhatEthersSigner[] {
+        return pickRandomAgents(payers);
+    }
+
+    function pickRandomReceivers(): HardhatEthersSigner[] {
+        return pickRandomAgents(receivers);
+    }
+
+    async function playRound() {
+        const payers = pickRandomPayers();
+        const receivers = pickRandomReceivers();
+
+        for (let n = 0; n < payers.length; n++) {
+            //match random payer to random receiver
+            await makePurchases(payers[n], receivers[n], testToken.target);
+        }
+    }
+
+    async function makePurchases(
+        payer: HardhatEthersSigner,
+        receiver: HardhatEthersSigner,
+        currency: any
+    ): Promise<string> {
+        const amount: number = randomWholeNum(1, getBalance(payer));
+        const paymentId: string = generatePaymentId(); 
+        
+    }
 
     const ARBITER_ROLE =
         '0xbb08418a67729a078f87bbc8d02a770929bb68f5bfdf134ae2ead6ed38e2f4ae';

@@ -5,6 +5,7 @@ import { BigNumberish, keccak256 } from 'ethers';
 import { IPayment, convertPayment } from './util';
 
 //TODO: test for events
+//TODO: break this file up
 
 describe('PaymentEscrow', function () {
     let securityContext: any;
@@ -1595,6 +1596,9 @@ describe('PaymentEscrow', function () {
 
             //check the balance
             const newPayerBalance = await getBalance(payer1.address, true);
+            expect(newPayerBalance).to.equal(
+                initialPayerBalance - BigInt(amount)
+            );
 
             //try to release the payment
             await escrow.connect(payer1).releaseEscrow(paymentId);
