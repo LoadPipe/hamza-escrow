@@ -33,7 +33,7 @@ contract EscrowMulticall
 {
     constructor() {}
 
-    function multicall(PaymentInput[] calldata payments) external payable {
+    function multipay(PaymentInput[] calldata payments) external payable {
         for (uint256 n=0; n<payments.length; n++) {
             PaymentInput memory payment = payments[n];
 

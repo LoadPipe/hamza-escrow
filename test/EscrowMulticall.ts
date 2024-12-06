@@ -119,7 +119,7 @@ describe('EscrowMulticall', function () {
                 .connect(payerAccount)
                 .approve(multicall.target, amount);
 
-        await multicall.connect(payerAccount).multicall(
+        await multicall.connect(payerAccount).multipay(
             [
                 {
                     contractAddress: escrow.target,
@@ -599,7 +599,7 @@ describe('EscrowMulticall', function () {
             const paymentId = ethers.keccak256('0x01');
 
             await expect(
-                multicall.connect(payer1).multicall(
+                multicall.connect(payer1).multipay(
                     [
                         {
                             contractAddress: escrow.target,
@@ -623,7 +623,7 @@ describe('EscrowMulticall', function () {
 
             await testToken.connect(payer1).approve(escrow.target, amount - 1);
             await expect(
-                multicall.connect(payer1).multicall([
+                multicall.connect(payer1).multipay([
                     {
                         contractAddress: escrow.target,
                         currency: testToken.target,
