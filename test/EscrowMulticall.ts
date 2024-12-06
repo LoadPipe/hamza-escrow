@@ -3,11 +3,9 @@ import hre, { ethers } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { BigNumberish, keccak256 } from 'ethers';
 import { IPayment, convertPayment } from './util';
+import { EscrowMulticall } from '../typechain-types';
 
-//TODO: test for events
-//TODO: break this file up
-
-describe('PaymentEscrow', function () {
+describe('EscrowMulticall', function () {
     let securityContext: any;
     let escrow: any;
     let testToken: any;
@@ -21,6 +19,7 @@ describe('PaymentEscrow', function () {
     let vaultAddress: HardhatEthersSigner;
     let arbiter: HardhatEthersSigner;
     let dao: HardhatEthersSigner;
+    let multicall: EscrowMulticall;
 
     const ARBITER_ROLE =
         '0xbb08418a67729a078f87bbc8d02a770929bb68f5bfdf134ae2ead6ed38e2f4ae';
@@ -60,13 +59,20 @@ describe('PaymentEscrow', function () {
             0
         );
 
-        //grant roles
+        //deploy escrow
         const PaymentEscrowFactory =
             await hre.ethers.getContractFactory('PaymentEscrow');
         escrow = await PaymentEscrowFactory.deploy(
             securityContext.target,
             systemSettings.target
         );
+
+        //deploy multicall
+        const EscrowMulticallFactory =
+            await hre.ethers.getContractFactory('EscrowMulticall');
+        multicall = await EscrowMulticallFactory.deploy();
+
+        //grant roles
         await securityContext
             .connect(admin)
             .grantRole(ARBITER_ROLE, vaultAddress);
@@ -95,77 +101,6 @@ describe('PaymentEscrow', function () {
         });
     });
 
-    /*
-    PLACE PAYMENTS
-    #can place a single payment
-        #TOKEN: 
-        - payment is logged in contract with right values 
-        - amount leaves payer 
-        - amount accrues in contract
-        #NATIVE:
-        - payment is logged in contract with right values 
-        - amount leaves payer 
-        - amount accrues in contract
-    #can place multiple payments
-        #TOKEN: 
-        - payment is logged in contract with right values 
-        - amount leaves payer 
-        - amount accrues in contract
-        #NATIVE:
-        - payment is logged in contract with right values 
-        - amount leaves payer 
-        - amount accrues in contract
-    #can place mixed token & native payments
-    #paid amounts accrue in contract
-        NATIVE 
-        - multiple payments, balance accrues 
-        TOKEN
-        - multiple payments, balance accrues 
-    cannot place order without correct amount 
-        NATIVE 
-        - with 0 amount
-        - without correct amount
-        TOKEN
-        - without having approved any
-        - without having approved correct amount 
-    #cannot place new order with same payment id
-
-    #RELEASE PAYMENTS
-    #cannot release a payment with no approvals
-    #cannot release a payment with only payer approval
-    #cannot release a payment with only receiver approval
-    #can release a payment with both approvals
-    #arbiter can release a payment on behalf of payer
-    #not possible to release a payment for which one is not a party
-    #not possible to release a payment twice
-
-    #REFUNDS
-    #arbiter can cause a partial refund
-    #arbiter can cause a full refund
-    #receiver can cause a partial refund
-    #receiver can cause a full refund
-    #not possible to refund a payment to which one is not a party
-    #not possible to refund a payment for more than the full amount
-    #not possible to refund a payment for more than the full amount in multiple transactions
-
-    REFUND & RELEASE
-    fully refunded payment cannot be released
-    partially refunded payment can be only partially released
-
-    VAULT ADDRESS 
-    fees go to the correct address
-    vault address cannot be zero 
-
-    FEE AMOUNTS 
-    fees are calculated correctly 
-    fee can be zero 
-
-    EDGE CASES 
-    payer & receiver are the same account 
-    fee bps is 100% 
-    #fee bps is > 100% 
-    */
-
     async function getBalance(address: any, isToken = false) {
         return isToken
             ? await await testToken.balanceOf(address)
@@ -182,16 +117,19 @@ describe('PaymentEscrow', function () {
         if (isToken)
             await testToken
                 .connect(payerAccount)
-                .approve(escrow.target, amount);
+                .approve(multicall.target, amount);
 
-        await escrow.connect(payerAccount).placeSinglePayment(
-            {
-                currency: isToken ? testToken.target : ethers.ZeroAddress,
-                id: paymentId,
-                receiver: receiverAddress,
-                payer: payerAccount.address,
-                amount,
-            },
+        await multicall.connect(payerAccount).multicall(
+            [
+                {
+                    contractAddress: escrow.target,
+                    currency: isToken ? testToken.target : ethers.ZeroAddress,
+                    id: paymentId,
+                    receiver: receiverAddress,
+                    payer: payerAccount.address,
+                    amount,
+                },
+            ],
             { value: amount }
         );
 
@@ -661,14 +599,17 @@ describe('PaymentEscrow', function () {
             const paymentId = ethers.keccak256('0x01');
 
             await expect(
-                escrow.connect(payer1).placeSinglePayment(
-                    {
-                        currency: ethers.ZeroAddress,
-                        id: paymentId,
-                        receiver: receiver1,
-                        payer: payer1.address,
-                        amount,
-                    },
+                multicall.connect(payer1).multicall(
+                    [
+                        {
+                            contractAddress: escrow.target,
+                            currency: ethers.ZeroAddress,
+                            id: paymentId,
+                            receiver: receiver1,
+                            payer: payer1.address,
+                            amount,
+                        },
+                    ],
                     { value: amount - 1 }
                 )
             ).to.be.revertedWith('InsufficientAmount');
@@ -682,13 +623,16 @@ describe('PaymentEscrow', function () {
 
             await testToken.connect(payer1).approve(escrow.target, amount - 1);
             await expect(
-                escrow.connect(payer1).placeSinglePayment({
-                    currency: testToken.target,
-                    id: paymentId,
-                    receiver: receiver1,
-                    payer: payer1.address,
-                    amount,
-                })
+                multicall.connect(payer1).multicall([
+                    {
+                        contractAddress: escrow.target,
+                        currency: testToken.target,
+                        id: paymentId,
+                        receiver: receiver1,
+                        payer: payer1.address,
+                        amount,
+                    },
+                ])
             ).to.be.reverted;
         });
 
@@ -961,16 +905,7 @@ describe('PaymentEscrow', function () {
             //place the payment
             const paymentId = ethers.keccak256('0x01');
             await testToken.connect(payer1).approve(escrow.target, amount);
-            await escrow.connect(payer1).placeSinglePayment(
-                {
-                    currency: testToken.target,
-                    id: paymentId,
-                    receiver: receiver1.address,
-                    payer: payer1.address,
-                    amount,
-                },
-                { value: amount }
-            );
+            await placePayment(paymentId, payer1, receiver1.address, amount);
 
             //check the balance
             const newContractBalance = await getBalance(escrow.target, true);

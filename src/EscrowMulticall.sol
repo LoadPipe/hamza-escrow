@@ -12,8 +12,17 @@ interface IEscrowContract
 */
 struct PaymentInput
 {
-    address currency; //token address, or 0x0 for native 
     address contractAddress;
+    address currency; //token address, or 0x0 for native 
+    bytes32 id;
+    address receiver;
+    address payer;
+    uint256 amount;
+}
+
+struct SinglePaymentInput
+{
+    address currency; //token address, or 0x0 for native 
     bytes32 id;
     address receiver;
     address payer;
@@ -36,9 +45,14 @@ contract EscrowMulticall
                     revert("InsufficientAmount");
 
                 //then forward the payment & call to the contract 
+                SinglePaymentInput memory input = SinglePaymentInput(payment.currency, payment.id, payment.receiver, payment.payer, payment.amount);
                 (bool success, ) = payment.contractAddress.call{value: msg.value}(
-                    abi.encodeWithSignature("placeSinglePayment((address,address,bytes32,address,address,uint256))", payment)
+                    abi.encodeWithSignature("placeSinglePayment((address,bytes32,address,address,uint256))", input)
                 );
+
+                if (!success) {
+                    revert();
+                }
             } 
             else {
                     //transfer to self 
@@ -49,9 +63,14 @@ contract EscrowMulticall
                 //then forward the payment & call to the contract 
                 token.approve(payment.contractAddress, amount);
 
+                SinglePaymentInput memory input = SinglePaymentInput(payment.currency, payment.id, payment.receiver, payment.payer, payment.amount);
                 (bool success, ) = payment.contractAddress.call{value: msg.value}(
-                    abi.encodeWithSignature("placeSinglePayment((address,address,bytes32,address,address,uint256))", payment)
+                    abi.encodeWithSignature("placeSinglePayment((address,bytes32,address,address,uint256))", input)
                 );
+
+                if (!success) {
+                    revert();
+                }
             }
         }
     }

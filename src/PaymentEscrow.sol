@@ -38,7 +38,6 @@ struct MultiPaymentInput
 struct SinglePaymentInput
 {
     address currency; //token address, or 0x0 for native 
-    address contractAddress;
     bytes32 id;
     address receiver;
     address payer;
