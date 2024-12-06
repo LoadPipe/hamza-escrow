@@ -175,6 +175,7 @@ contract PaymentEscrow is HasSecurityContext
         address currency = paymentInput.currency; 
         uint256 amount = paymentInput.amount;
 
+
         if (currency == address(0)) {
                 //check that the amount matches
             if (msg.value < amount)
@@ -183,13 +184,15 @@ contract PaymentEscrow is HasSecurityContext
         else {
                 //transfer to self 
             IERC20 token = IERC20(currency);
-            if (!token.transferFrom(msg.sender, address(this), amount))
-                revert('TokenPaymentFailed'); 
+            if (!token.transferFrom(msg.sender, address(this), amount)){
+                revert("TokenPaymentFailed"); 
+            }
         }
 
         //check for existing, and revert if exists already
-        if (payments[paymentInput.id].id == paymentInput.id)
+        if (payments[paymentInput.id].id == paymentInput.id) {
             revert("DuplicatePayment");
+        }
 
         //add payments to internal map, emit events for each individual payment
         Payment storage payment = payments[paymentInput.id];

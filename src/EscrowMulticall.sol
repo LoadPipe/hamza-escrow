@@ -40,18 +40,18 @@ contract EscrowMulticall
             uint256 amount = payment.amount;
 
             if (payment.currency == address(0)) {
-                    //check that the amount matches
+                //check that the amount matches
                 if (msg.value < amount)
                     revert("InsufficientAmount");
 
                 //then forward the payment & call to the contract 
                 SinglePaymentInput memory input = SinglePaymentInput(payment.currency, payment.id, payment.receiver, payment.payer, payment.amount);
-                (bool success, ) = payment.contractAddress.call{value: msg.value}(
+                (bool success, ) = payment.contractAddress.call{value: payment.amount}(
                     abi.encodeWithSignature("placeSinglePayment((address,bytes32,address,address,uint256))", input)
                 );
 
                 if (!success) {
-                    revert();
+                    revert("PaymentFailure");
                 }
             } 
             else {
@@ -64,12 +64,12 @@ contract EscrowMulticall
                 token.approve(payment.contractAddress, amount);
 
                 SinglePaymentInput memory input = SinglePaymentInput(payment.currency, payment.id, payment.receiver, payment.payer, payment.amount);
-                (bool success, ) = payment.contractAddress.call{value: msg.value}(
+                (bool success, ) = payment.contractAddress.call{value: 0}(
                     abi.encodeWithSignature("placeSinglePayment((address,bytes32,address,address,uint256))", input)
                 );
 
                 if (!success) {
-                    revert();
+                    revert("TokenPaymentFailure");
                 }
             }
         }
