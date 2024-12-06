@@ -147,7 +147,7 @@ describe('EscrowMulticall', function () {
                     amount,
                 },
             ],
-            { value: amount }
+            { value: isToken ? 0 : amount }
         );
 
         //payment is logged in contract with right values
@@ -272,7 +272,7 @@ describe('EscrowMulticall', function () {
             //place the same payment again
             await expect(
                 placePayment(paymentId, payer1, receiver1.address, amount)
-            ).to.be.revertedWith('DuplicatePayment');
+            ).to.be.revertedWith('PaymentFailure');
         });
 
         it('cannot place order without correct native amount', async function () {
@@ -366,7 +366,7 @@ describe('EscrowMulticall', function () {
             );
 
             //check the balance
-            const newContractBalance = await getBalance(escrow.target);
+            const newContractBalance = await getBalance(escrow.target, true);
             expect(newContractBalance).to.equal(
                 initialContractBalance + BigInt(amount)
             );
@@ -588,7 +588,13 @@ describe('EscrowMulticall', function () {
             //place the payment
             const paymentId = ethers.keccak256('0x01');
             await testToken.connect(payer1).approve(escrow.target, amount);
-            await placePayment(paymentId, payer1, receiver1.address, amount);
+            await placePayment(
+                paymentId,
+                payer1,
+                receiver1.address,
+                amount,
+                true
+            );
 
             //check the balance
             const newContractBalance = await getBalance(escrow.target, true);
@@ -651,7 +657,7 @@ describe('EscrowMulticall', function () {
             );
 
             //check the balance
-            const newContractBalance = await getBalance(escrow.target);
+            const newContractBalance = await getBalance(escrow.target, true);
             expect(newContractBalance).to.equal(
                 initialContractBalance + BigInt(amount)
             );
@@ -1214,7 +1220,60 @@ describe('EscrowMulticall', function () {
 
     //TODO: finish these tests
     describe('Multicall', function () {
-        it.only('can place payments to different escrows', async function () {
+        it('can place payments to different escrows', async function () {
+            const amount1 = 10000;
+            const amount2 = 22500;
+            const amount3 = 32500;
+            const id1 = ethers.keccak256('0x01');
+            const id2 = ethers.keccak256('0x02');
+            const id3 = ethers.keccak256('0x03');
+
+            await testToken.connect(payer1).approve(multicall.target, amount3);
+
+            await multicall.connect(payer1).multipay(
+                [
+                    {
+                        contractAddress: escrow1.target,
+                        currency: ethers.ZeroAddress,
+                        receiver: receiver1.address,
+                        payer: payer1.address,
+                        amount: amount1,
+                        id: id1,
+                    },
+                    {
+                        contractAddress: escrow2.target,
+                        currency: ethers.ZeroAddress,
+                        receiver: receiver1.address,
+                        payer: payer1.address,
+                        amount: amount2,
+                        id: id2,
+                    },
+                    {
+                        contractAddress: escrow3.target,
+                        currency: testToken.target,
+                        receiver: receiver1.address,
+                        payer: payer1.address,
+                        amount: amount3,
+                        id: id3,
+                    },
+                ],
+                { value: amount1 + amount2 }
+            );
+
+            //multicall should retain nothing
+            expect(await getBalance(multicall.target, true)).to.equal(0);
+            expect(await getBalance(multicall.target, false)).to.equal(0);
+
+            //escrows should contain what they contain
+            expect(await getBalance(escrow1.target, true)).to.equal(0);
+            expect(await getBalance(escrow1.target, false)).to.equal(amount1);
+            expect(await getBalance(escrow2.target, true)).to.equal(0);
+            expect(await getBalance(escrow2.target, false)).to.equal(amount2);
+            expect(await getBalance(escrow3.target, true)).to.equal(amount3);
+            expect(await getBalance(escrow3.target, false)).to.equal(0);
+        });
+
+        it('can place multiple payments to the same escrow', async function () {
             const amount1 = 10000;
             const amount2 = 22500;
             const amount3 = 32500;
@@ -1243,7 +1302,7 @@ describe('EscrowMulticall', function () {
                         id: id2,
                     },
                     {
-                        contractAddress: escrow3.target,
+                        contractAddress: escrow1.target,
                         currency: testToken.target,
                         receiver: receiver1.address,
                         payer: payer1.address,
@@ -1253,8 +1312,20 @@ describe('EscrowMulticall', function () {
                 ],
                 { value: amount1 + amount2 }
             );
+
+            //multicall should retain nothing
+            expect(await getBalance(multicall.target, true)).to.equal(0);
+            expect(await getBalance(multicall.target, false)).to.equal(0);
+
+            //escrows should contain what they contain
+            expect(await getBalance(escrow1.target, true)).to.equal(amount3);
+            expect(await getBalance(escrow1.target, false)).to.equal(
+                amount1 + amount2
+            );
         });
 
-        it('can place multiple payments to the same escrow', async function () {});
+        it('multicall to invalid escrow', async function () {});
+
+        it('multicall to valid escrow, invalid receiver', async function () {});
     });
 });
