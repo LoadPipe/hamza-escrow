@@ -5,7 +5,6 @@ import "./HasSecurityContext.sol";
 import "./ISystemSettings.sol"; 
 import "./CarefulMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "hardhat/console.sol";
 
 /* Encapsulates information about an incoming payment
 */
@@ -34,6 +33,16 @@ struct MultiPaymentInput
 {
     address currency; //token address, or 0x0 for native 
     PaymentInput[] payments;
+}
+
+struct SinglePaymentInput
+{
+    address currency; //token address, or 0x0 for native 
+    address contractAddress;
+    bytes32 id;
+    address receiver;
+    address payer;
+    uint256 amount;
 }
 
 /**
@@ -162,6 +171,45 @@ contract PaymentEscrow is HasSecurityContext
         }
     }
 
+    //TODO: combine duplicate logic between this & placeMultiPayments
+    function placeSinglePayment(SinglePaymentInput calldata paymentInput) public payable {
+        address currency = paymentInput.currency; 
+        uint256 amount = paymentInput.amount;
+
+        if (currency == address(0)) {
+                //check that the amount matches
+            if (msg.value < amount)
+                revert("InsufficientAmount");
+        } 
+        else {
+                //transfer to self 
+            IERC20 token = IERC20(currency);
+            if (!token.transferFrom(msg.sender, address(this), amount))
+                revert('TokenPaymentFailed'); 
+        }
+
+        //check for existing, and revert if exists already
+        if (payments[paymentInput.id].id == paymentInput.id)
+            revert("DuplicatePayment");
+
+        //add payments to internal map, emit events for each individual payment
+        Payment storage payment = payments[paymentInput.id];
+        payment.payer = paymentInput.payer;
+        payment.receiver = paymentInput.receiver;
+        payment.currency = paymentInput.currency;
+        payment.amount = paymentInput.amount;
+        payment.id = paymentInput.id;
+
+        //emit event
+        emit PaymentReceived(
+            payment.id, 
+            payment.receiver, 
+            payment.payer, 
+            payment.currency, 
+            payment.amount
+        );
+    }
+
     /**
      * Returns the payment data specified by id. 
      * 
@@ -256,7 +304,7 @@ contract PaymentEscrow is HasSecurityContext
 
             //break off fee 
             uint256 fee = 0;
-            uint256 feeBps = settings.feeBps();
+            uint256 feeBps = _getFeeBps();
             if (feeBps > 0) {
                 fee = CarefulMath.mulDiv(amount, feeBps, 10000);
                 if (fee > amount)
@@ -279,7 +327,7 @@ contract PaymentEscrow is HasSecurityContext
                     if (fee > 0) {
                         if (_transferAmount(
                             payment.id, 
-                            settings.vaultAddress(), 
+                            _getvaultAddress(), 
                             payment.currency, 
                             fee
                         )) { 
@@ -317,6 +365,20 @@ contract PaymentEscrow is HasSecurityContext
         }
 
         return success;
+    }
+
+    function _getFeeBps() internal view returns (uint256) {
+        if (address(settings) != address(0)) 
+            return settings.feeBps();
+
+        return 0;
+    }
+
+    function _getvaultAddress() internal view returns (address) {
+        if (address(settings) != address(0)) 
+            return settings.vaultAddress();
+
+        return address(0);
     }
 
     receive() external payable {}
