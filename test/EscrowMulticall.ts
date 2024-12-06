@@ -1324,7 +1324,77 @@ describe('EscrowMulticall', function () {
             );
         });
 
-        it('multicall to invalid escrow', async function () {});
+        it('multicall to invalid escrow', async function () {
+            const amount = 10000;
+            const id = ethers.keccak256('0x01');
+            await expect(
+                multicall.connect(payer1).multipay(
+                    [
+                        {
+                            contractAddress: multicall.target,
+                            currency: ethers.ZeroAddress,
+                            receiver: receiver1.address,
+                            payer: payer1.address,
+                            amount,
+                            id,
+                        },
+                    ],
+                    { value: amount }
+                )
+            ).to.be.reverted;
+
+            await testToken.connect(payer1).approve(multicall.target, amount);
+
+            await expect(
+                multicall.connect(payer1).multipay([
+                    {
+                        contractAddress: multicall.target,
+                        currency: testToken.target,
+                        receiver: receiver1.address,
+                        payer: payer1.address,
+                        amount,
+                        id,
+                    },
+                ])
+            ).to.be.reverted;
+        });
+
+        it.skip('multicall with insufficient native amount', async function () {
+            const amount = '100000000000000000000000';
+            const id = ethers.keccak256('0x01');
+            await expect(
+                multicall.connect(payer1).multipay(
+                    [
+                        {
+                            contractAddress: escrow.target,
+                            currency: ethers.ZeroAddress,
+                            receiver: receiver1.address,
+                            payer: payer1.address,
+                            amount,
+                            id,
+                        },
+                    ],
+                    { value: amount }
+                )
+            ).to.be.reverted;
+        });
+
+        it('multicall with insufficient token amount', async function () {
+            const amount = 10000;
+            const id = ethers.keccak256('0x01');
+            await expect(
+                multicall.connect(payer1).multipay([
+                    {
+                        contractAddress: escrow.target,
+                        currency: testToken.target,
+                        receiver: receiver1.address,
+                        payer: payer1.address,
+                        amount,
+                        id,
+                    },
+                ])
+            ).to.be.reverted;
+        });
 
         it('multicall to valid escrow, invalid receiver', async function () {});
     });
