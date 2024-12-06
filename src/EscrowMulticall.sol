@@ -39,14 +39,6 @@ contract EscrowMulticall
                 (bool success, ) = payment.contractAddress.call{value: msg.value}(
                     abi.encodeWithSignature("placeSinglePayment((address,address,bytes32,address,address,uint256))", payment)
                 );
-
-                //TODO: if this call fails, return the money
-                if (!success) {
-                    (bool returnSuccess, ) = msg.sender.call{value: msg.value}("");
-
-                    //TODO: emit event 
-                    if (!returnSuccess){}
-                }
             } 
             else {
                     //transfer to self 
@@ -55,18 +47,11 @@ contract EscrowMulticall
                     revert('TokenPaymentFailed'); 
 
                 //then forward the payment & call to the contract 
-                //TODO: handle this call's failure as well 
                 token.approve(payment.contractAddress, amount);
 
                 (bool success, ) = payment.contractAddress.call{value: msg.value}(
                     abi.encodeWithSignature("placeSinglePayment((address,address,bytes32,address,address,uint256))", payment)
                 );
-
-                //if this call fails, return the money
-                if (!success) {
-                    //TODO: emit event?
-                    token.transfer(msg.sender, amount);
-                }
             }
         }
     }
