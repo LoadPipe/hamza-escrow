@@ -2,15 +2,12 @@
 pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-interface IEscrowContract 
-{
-    function placeSinglePayment(PaymentInput calldata payment) external;
-}
+import "./PaymentInput.sol";
+import "./IEscrowContract.sol";
 
 /* Encapsulates information about an incoming payment
 */
-struct PaymentInput
+struct MulticallPaymentInput
 {
     address contractAddress;
     address currency; //token address, or 0x0 for native 
@@ -20,22 +17,36 @@ struct PaymentInput
     uint256 amount;
 }
 
-struct SinglePaymentInput
-{
-    address currency; //token address, or 0x0 for native 
-    bytes32 id;
-    address receiver;
-    address payer;
-    uint256 amount;
-}
-
+/**
+ * @title EscrowMulticall
+ * 
+ * Allows multiple payments to be passed in and routed to the appropriate escrow contracts.
+ * 
+ * @author John R. Kosinski
+ * LoadPipe 2024
+ * All rights reserved. Unauthorized use prohibited.
+ */
 contract EscrowMulticall
 {
     constructor() {}
 
-    function multipay(PaymentInput[] calldata payments) external payable {
+    /**
+     * Accepts multiple inputs for payments, each of which can be in a different currency and 
+     * passed to a different escrow contract. 
+     * 
+     * Reverts: 
+     * - 'InsufficientAmount': if amount of native ETH sent is not equal to the declared amount. 
+     * - 'TokenTransferFailed': if the token transfer from sender to this contract fails for any reason (e.g. insufficient allowance)
+     * - 'TokenPaymentFailed': if token transfer to the escrow fails for any reason (e.g. insufficial allowance)
+     * - 'DuplicatePayment': if payment id exists already 
+     * 
+     * Calls: PaymentEscrow.placePayment
+     * 
+     * @param payments Array of payment specifications, each to be passed to a different escrow.
+     */
+    function multipay(MulticallPaymentInput[] calldata payments) external payable {
         for (uint256 n=0; n<payments.length; n++) {
-            PaymentInput memory payment = payments[n];
+            MulticallPaymentInput memory payment = payments[n];
 
             uint256 amount = payment.amount;
 
@@ -45,9 +56,9 @@ contract EscrowMulticall
                     revert("InsufficientAmount");
 
                 //then forward the payment & call to the contract 
-                SinglePaymentInput memory input = SinglePaymentInput(payment.currency, payment.id, payment.receiver, payment.payer, payment.amount);
+                PaymentInput memory input = PaymentInput(payment.currency, payment.id, payment.receiver, payment.payer, payment.amount);
                 (bool success, ) = payment.contractAddress.call{value: payment.amount}(
-                    abi.encodeWithSignature("placeSinglePayment((address,bytes32,address,address,uint256))", input)
+                    abi.encodeWithSignature("placePayment((address,bytes32,address,address,uint256))", input)
                 );
 
                 if (!success) {
@@ -55,17 +66,17 @@ contract EscrowMulticall
                 }
             } 
             else {
-                    //transfer to self 
+                //transfer to self 
                 IERC20 token = IERC20(payment.currency);
                 if (!token.transferFrom(msg.sender, address(this), amount))
-                    revert('TokenPaymentFailed'); 
+                    revert('TokenTransferFailed'); 
 
                 //then forward the payment & call to the contract 
                 token.approve(payment.contractAddress, amount);
 
-                SinglePaymentInput memory input = SinglePaymentInput(payment.currency, payment.id, payment.receiver, payment.payer, payment.amount);
+                PaymentInput memory input = PaymentInput(payment.currency, payment.id, payment.receiver, payment.payer, payment.amount);
                 (bool success, ) = payment.contractAddress.call{value: 0}(
-                    abi.encodeWithSignature("placeSinglePayment((address,bytes32,address,address,uint256))", input)
+                    abi.encodeWithSignature("placePayment((address,bytes32,address,address,uint256))", input)
                 );
 
                 if (!success) {
