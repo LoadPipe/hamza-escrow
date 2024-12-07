@@ -335,7 +335,7 @@ describe('EscrowMulticall', function () {
 
             await testToken.connect(payer1).approve(escrow.target, amount);
             await expect(
-                escrow.connect(payer1).placeSinglePayment({
+                escrow.connect(payer1).placePayment({
                     currency: testToken.target,
                     id: paymentId,
                     receiver: receiver1,
