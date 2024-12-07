@@ -4,18 +4,9 @@ pragma solidity ^0.8.7;
 import "./HasSecurityContext.sol"; 
 import "./ISystemSettings.sol"; 
 import "./CarefulMath.sol";
+import "./PaymentInput.sol";
+import "./IEscrowContract.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "hardhat/console.sol";
-
-/* Encapsulates information about an incoming payment
-*/
-struct PaymentInput
-{
-    bytes32 id;
-    address receiver;
-    address payer;
-    uint256 amount;
-}
 
 struct Payment 
 {
@@ -30,12 +21,6 @@ struct Payment
     address currency; //token address, or 0x0 for native 
 }
 
-struct MultiPaymentInput 
-{
-    address currency; //token address, or 0x0 for native 
-    PaymentInput[] payments;
-}
-
 /**
  * @title PaymentEscrow
  * 
@@ -46,7 +31,7 @@ struct MultiPaymentInput
  * LoadPipe 2024
  * All rights reserved. Unauthorized use prohibited.
  */
-contract PaymentEscrow is HasSecurityContext
+contract PaymentEscrow is HasSecurityContext, IEscrowContract
 {
     ISystemSettings private settings;
     mapping(bytes32 => Payment) private payments;
@@ -114,52 +99,47 @@ contract PaymentEscrow is HasSecurityContext
      * Emits: 
      * - {PaymentEscrow-PaymentReceived} 
      * 
-     * @param multiPayments Array of payment input definitions
+     * @param paymentInput Payment inputs
      */
-    function placeMultiPayments(MultiPaymentInput[] calldata multiPayments) public payable {
-        for(uint256 i=0; i<multiPayments.length; i++) {
-            MultiPaymentInput memory multiPayment = multiPayments[i];
-            address currency = multiPayment.currency; 
-            uint256 amount = _getPaymentTotal(multiPayment);
+    function placePayment(PaymentInput calldata paymentInput) public payable {
+        address currency = paymentInput.currency; 
+        uint256 amount = paymentInput.amount;
 
-            if (currency == address(0)) {
+
+        if (currency == address(0)) {
                 //check that the amount matches
-                if (msg.value < amount)
-                    revert("InsufficientAmount");
-            } 
-            else {
+            if (msg.value < amount)
+                revert("InsufficientAmount");
+        } 
+        else {
                 //transfer to self 
-                IERC20 token = IERC20(currency);
-                if (!token.transferFrom(msg.sender, address(this), amount))
-                    revert('TokenPaymentFailed'); 
-            }
-
-            //add payments to internal map, emit events for each individual payment
-            for(uint256 n=0; n<multiPayment.payments.length; n++) {
-                PaymentInput memory paymentInput = multiPayment.payments[n];
-
-                //check for existing, and revert if exists already
-                if (payments[paymentInput.id].id == paymentInput.id)
-                    revert("DuplicatePayment");
-
-                //add payment to mapping 
-                Payment storage payment = payments[paymentInput.id];
-                payment.payer = paymentInput.payer;
-                payment.receiver = paymentInput.receiver;
-                payment.currency = multiPayment.currency;
-                payment.amount = paymentInput.amount;
-                payment.id = paymentInput.id;
-
-                //emit event
-                emit PaymentReceived(
-                    payment.id, 
-                    payment.receiver, 
-                    payment.payer, 
-                    payment.currency, 
-                    payment.amount
-                );
+            IERC20 token = IERC20(currency);
+            if (!token.transferFrom(msg.sender, address(this), amount)){
+                revert("TokenPaymentFailed"); 
             }
         }
+
+        //check for existing, and revert if exists already
+        if (payments[paymentInput.id].id == paymentInput.id) {
+            revert("DuplicatePayment");
+        }
+
+        //add payments to internal map, emit events for each individual payment
+        Payment storage payment = payments[paymentInput.id];
+        payment.payer = paymentInput.payer;
+        payment.receiver = paymentInput.receiver;
+        payment.currency = paymentInput.currency;
+        payment.amount = paymentInput.amount;
+        payment.id = paymentInput.id;
+
+        //emit event
+        emit PaymentReceived(
+            payment.id, 
+            payment.receiver, 
+            payment.payer, 
+            payment.currency, 
+            payment.amount
+        );
     }
 
     /**
@@ -220,6 +200,8 @@ contract PaymentEscrow is HasSecurityContext
     }
 
     //TODO: need event here
+    /**
+     */
     function refundPayment(bytes32 paymentId, uint256 amount) external {
         Payment storage payment = payments[paymentId]; 
         if (payment.amount > 0 && payment.amountRefunded <= payment.amount) {
@@ -241,13 +223,6 @@ contract PaymentEscrow is HasSecurityContext
         }
     }
 
-    function _getPaymentTotal(MultiPaymentInput memory input) internal pure returns (uint256) {
-        uint256 output = 0;
-        for(uint256 n=0; n<input.payments.length; n++) {
-            output += input.payments[n].amount;
-        }
-        return output;
-    }
 
     function _releaseEscrowPayment(bytes32 paymentId) internal {
         Payment storage payment = payments[paymentId];
@@ -256,7 +231,7 @@ contract PaymentEscrow is HasSecurityContext
 
             //break off fee 
             uint256 fee = 0;
-            uint256 feeBps = settings.feeBps();
+            uint256 feeBps = _getFeeBps();
             if (feeBps > 0) {
                 fee = CarefulMath.mulDiv(amount, feeBps, 10000);
                 if (fee > amount)
@@ -279,7 +254,7 @@ contract PaymentEscrow is HasSecurityContext
                     if (fee > 0) {
                         if (_transferAmount(
                             payment.id, 
-                            settings.vaultAddress(), 
+                            _getvaultAddress(), 
                             payment.currency, 
                             fee
                         )) { 
@@ -317,6 +292,20 @@ contract PaymentEscrow is HasSecurityContext
         }
 
         return success;
+    }
+
+    function _getFeeBps() internal view returns (uint256) {
+        if (address(settings) != address(0)) 
+            return settings.feeBps();
+
+        return 0;
+    }
+
+    function _getvaultAddress() internal view returns (address) {
+        if (address(settings) != address(0)) 
+            return settings.vaultAddress();
+
+        return address(0);
     }
 
     receive() external payable {}
