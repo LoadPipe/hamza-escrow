@@ -201,6 +201,10 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
 
     //TODO: need event here
     /**
+     * Partially or fully refunds the payment. Can be called only by arbiter or receiver. 
+     * 
+     * @param paymentId Identifies the payment to refund. 
+     * @param amount The amount to refund, can't be more than the remaining amount.
      */
     function refundPayment(bytes32 paymentId, uint256 amount) external {
         Payment storage payment = payments[paymentId]; 
