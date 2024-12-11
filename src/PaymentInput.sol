@@ -11,3 +11,19 @@ struct PaymentInput
     address payer;
     uint256 amount;
 }
+
+
+/* Encapsulates information about a stored payment in escrow.
+*/
+struct Payment 
+{
+    bytes32 id;
+    address payer;
+    address receiver;
+    uint256 amount;
+    uint256 amountRefunded;
+    bool payerReleased;
+    bool receiverReleased;
+    bool released;
+    address currency; //token address, or 0x0 for native 
+}

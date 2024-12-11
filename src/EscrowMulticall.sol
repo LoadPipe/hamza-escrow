@@ -29,7 +29,7 @@ struct MulticallPaymentInput
 contract EscrowMulticall
 {
     constructor() {}
-
+    
     /**
      * Accepts multiple inputs for payments, each of which can be in a different currency and 
      * passed to a different escrow contract. 
@@ -37,8 +37,9 @@ contract EscrowMulticall
      * Reverts: 
      * - 'InsufficientAmount': if amount of native ETH sent is not equal to the declared amount. 
      * - 'TokenTransferFailed': if the token transfer from sender to this contract fails for any reason (e.g. insufficient allowance)
-     * - 'TokenPaymentFailed': if token transfer to the escrow fails for any reason (e.g. insufficial allowance)
+     * - 'TokenPaymentFailure': if token transfer to the escrow fails for any reason (e.g. insufficial allowance)
      * - 'DuplicatePayment': if payment id exists already 
+     * - 'PaymentFailure': if native payment transfer to escrow fails for any reason
      * 
      * Calls: PaymentEscrow.placePayment
      * 

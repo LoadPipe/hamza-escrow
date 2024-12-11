@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/Context.sol";
 import "./ISecurityContext.sol"; 
 
 /**
- * @title ManagedSecurity 
+ * @title HasSecurityContext 
  * 
  * This is an abstract base class for contracts whose security is managed by { SecurityContext }. It exposes 
  * the modifier which calls back to the associated { SecurityContext } contract. 

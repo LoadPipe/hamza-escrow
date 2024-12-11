@@ -2,7 +2,7 @@
 pragma solidity ^0.8.7;
 
 /**
- * @title SystemSettings
+ * @title ISystemSettings
  * 
  * Holds global settings, to be set only by privileged parties, for all escrow contracts to read.
  * 
@@ -12,12 +12,13 @@ pragma solidity ^0.8.7;
  */
 interface ISystemSettings {
     /**
-     * Address of the vault to which fees are paid.
+     * Gets the address of the vault to which fees are paid.
      */
     function vaultAddress() external view returns (address);
 
     /**
-     * Amount in basis points, indicating the portion of payments to be separated and paid to the vault as fees.
+     * Gets the amount in basis points, indicating the portion of payments to be separated and 
+     * paid to the vault as fees.
      */
     function feeBps() external view returns (uint256);
 }

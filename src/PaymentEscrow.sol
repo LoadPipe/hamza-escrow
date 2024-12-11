@@ -8,19 +8,6 @@ import "./PaymentInput.sol";
 import "./IEscrowContract.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-struct Payment 
-{
-    bytes32 id;
-    address payer;
-    address receiver;
-    uint256 amount;
-    uint256 amountRefunded;
-    bool payerReleased;
-    bool receiverReleased;
-    bool released;
-    address currency; //token address, or 0x0 for native 
-}
-
 /**
  * @title PaymentEscrow
  * 
@@ -152,16 +139,17 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     }
 
     /**
-     * Gives assent to release the escrow. Caller must be a party to the escrow (either payer, 
+     * Gives consent to release the escrow. Caller must be a party to the escrow (either payer, 
      * receiver, or arbiter).  
 
      * Reverts: 
      * - 'Unauthorized': if caller is neither payer, receiver, nor arbiter.
-     * - 'AmountExceeded': if the specified amount is more than the available amount to refund.
 
      * Emits: 
      * - {PaymentEscrow-ReleaseAssentGiven} 
      * - {PaymentEscrow-EscrowReleased} 
+     * - {PaymentEscrow-PaymentTransferred} 
+     * - {PaymentEscrow-PaymentTransferFailed} 
      * 
      * @param paymentId A unique payment id
      */
@@ -202,6 +190,16 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     //TODO: need event here
     /**
      * Partially or fully refunds the payment. Can be called only by arbiter or receiver. 
+
+     * Reverts: 
+     * - 'Unauthorized': if caller is neither receiver nor arbiter.
+     * Reverts: 
+     * - 'AmountExceeded': if the amount to refund is greater than the remaining amount for the 
+     * order (the original amount minus any previous refunds).
+
+     * Emits: 
+     * - {PaymentEscrow-PaymentTransferred} 
+     * - {PaymentEscrow-PaymentTransferFailed} 
      * 
      * @param paymentId Identifies the payment to refund. 
      * @param amount The amount to refund, can't be more than the remaining amount.
@@ -227,6 +225,8 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         }
     }
 
+
+    //NON-PUBLIC METHODS
 
     function _releaseEscrowPayment(bytes32 paymentId) internal {
         Payment storage payment = payments[paymentId];
@@ -312,5 +312,6 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         return address(0);
     }
 
+    //TODO: no longer necessary?
     receive() external payable {}
 }
