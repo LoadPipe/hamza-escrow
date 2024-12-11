@@ -2,6 +2,7 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+test = "test-foundry"
 
 [rpc_endpoints]
 mainnet = "https://mainnet.infura.io/v3/${process.env.SEPOLIA_API_KEY}"
