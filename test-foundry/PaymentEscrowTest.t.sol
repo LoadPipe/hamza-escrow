@@ -9,6 +9,7 @@ import {TestToken} from "../src/TestToken.sol";
 import {ISecurityContext} from "../src/ISecurityContext.sol";
 import {ISystemSettings} from "../src/ISystemSettings.sol";
 import {PaymentInput, Payment} from "../src/PaymentInput.sol"; 
+import {FailingToken} from "../src/FailingToken.sol";
 
 contract PaymentEscrowTest is Test {
     SecurityContext internal securityContext;
@@ -897,5 +898,277 @@ contract PaymentEscrowTest is Test {
 
         uint256 finalPayerBalance = _getBalance(payer1, true);
         assertEq(finalPayerBalance, initialPayerBalance);
+    }
+
+    // Event Tests
+
+    // events 
+    // TODO: add events to interface and remove these
+    event PaymentReceived(
+        bytes32 indexed paymentId,
+        address indexed to,
+        address from,
+        address currency,
+        uint256 amount
+    );
+
+    event ReleaseAssentGiven (
+        bytes32 indexed paymentId,
+        address assentingAddress,
+        //TODO: make enum
+        uint8 assentType // 1 = payer, 2 = receiver, 3 = arbiter
+    );
+
+    event EscrowReleased (
+        bytes32 indexed paymentId,
+        uint256 amount,
+        uint256 fee
+    );
+
+    event PaymentTransferred (
+        bytes32 indexed paymentId, 
+        address currency, 
+        uint256 amount 
+    );
+
+    event PaymentTransferFailed (
+        bytes32 indexed paymentId, 
+        address currency, 
+        uint256 amount 
+    );
+
+    // PaymentReceived 
+
+    function testPaymentReceivedEventEmittedForNativePayment() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("payment-received-test-native");
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentReceived(paymentId, receiver1, payer1, address(0), amount);
+
+        vm.prank(payer1);
+        escrow.placePayment{value: amount}(
+            PaymentInput({
+                currency: address(0),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+    }
+
+    function testPaymentReceivedEventEmittedForTokenPayment() public {
+        uint256 amount = 1000;
+        bytes32 paymentId = keccak256("payment-received-test-token");
+
+        vm.prank(payer1);
+        testToken.approve(address(escrow), amount);
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentReceived(paymentId, receiver1, payer1, address(testToken), amount);
+
+        vm.prank(payer1);
+        escrow.placePayment(
+            PaymentInput({
+                currency: address(testToken),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+    }
+
+    // ReleaseAssentGiven
+    
+    function testReleaseAssentGivenEventEmittedByReceiver() public {
+        bytes32 paymentId = keccak256("release-assent-receiver");
+        uint256 amount = 5000;
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        vm.expectEmit(true, true, true, true);
+        // receiver assentType = 1
+        emit ReleaseAssentGiven(paymentId, receiver1, 1);
+
+        vm.prank(receiver1);
+        escrow.releaseEscrow(paymentId);
+    }
+
+    function testReleaseAssentGivenEventEmittedByPayer() public {
+        bytes32 paymentId = keccak256("release-assent-payer");
+        uint256 amount = 5000;
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        vm.expectEmit(true, true, true, true);
+        // payer assentType = 2
+        emit ReleaseAssentGiven(paymentId, payer1, 2);
+
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+    }
+
+    function testReleaseAssentGivenEventEmittedByArbiter() public {
+        bytes32 paymentId = keccak256("release-assent-arbiter");
+        uint256 amount = 5000;
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        vm.expectEmit(true, true, true, true);
+        // arbiter assentType = 3
+        emit ReleaseAssentGiven(paymentId, arbiter, 3);
+
+        vm.prank(arbiter);
+        escrow.releaseEscrow(paymentId);
+    }
+
+    // EscrowReleased 
+
+    function testEscrowReleasedEventEmittedOnlyAfterBothApprovalsNative() public {
+        bytes32 paymentId = keccak256("escrow-released-native");
+        uint256 amount = 1 ether;
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+
+        // Calculate fee
+        uint256 feeBps = systemSettings.feeBps();
+        uint256 fee = (amount * feeBps) / 10000;
+        if (fee > amount) fee = 0;
+        uint256 amountToPay = amount - fee;
+
+        // Ensure event is emitted after the second approval
+        vm.expectEmit(true, true, true, true);
+        emit EscrowReleased(paymentId, amountToPay, fee);
+
+        vm.prank(receiver1);
+        escrow.releaseEscrow(paymentId);
+    }
+
+    function testEscrowReleasedEventEmittedOnlyAfterBothApprovalsToken() public {
+        bytes32 paymentId = keccak256("escrow-released-token");
+        uint256 amount = 10_000;
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        vm.prank(receiver1);
+        escrow.releaseEscrow(paymentId);
+
+        // Calculate fee
+        uint256 feeBps = systemSettings.feeBps();
+        uint256 fee = (amount * feeBps) / 10000;
+        if (fee > amount) fee = 0;
+        uint256 amountToPay = amount - fee;
+
+        // Expect the EscrowReleased event only after the second approval
+        vm.expectEmit(true, true, true, true);
+        emit EscrowReleased(paymentId, amountToPay, fee);
+
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+    }
+
+    // PaymentTransferred Event
+
+    function testPaymentTransferredEventEmittedOnSuccessfulTransferDuringRelease() public {
+        // With zero fees and both approvals payment transfers successfully
+        vm.prank(dao);
+        systemSettings.setFeeBps(0);
+
+        bytes32 paymentId = keccak256("payment-transferred-success-release");
+        uint256 amount = 1_000;
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        // Receiver approves
+        vm.prank(receiver1);
+        escrow.releaseEscrow(paymentId);
+
+        vm.expectEmit(true, true, true, true);
+        // The receiver should get full amount in a successful transfer
+        emit PaymentTransferred(paymentId, address(testToken), amount);
+
+        // Payer approves triggering release and transfer
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+    }
+
+    function testPaymentTransferredEventEmittedOnSuccessfulRefund() public {
+        bytes32 paymentId = keccak256("payment-transferred-success-refund");
+        uint256 amount = 10_000;
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        // reciever issues refund
+        uint256 refundAmount = 1_000;
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentTransferred(paymentId, address(testToken), refundAmount);
+
+        vm.prank(receiver1);
+        escrow.refundPayment(paymentId, refundAmount);
+    }
+
+    // PaymentTransferFailed
+
+    function testPaymentTransferFailedEventEmittedOnFailedNativeTransfer() public {
+        // Create a contract that reverts on receiving ETH
+        RevertingReceiver revReceiver = new RevertingReceiver();
+        bytes32 paymentId = keccak256("payment-transfer-failed-native");
+        uint256 amount = 1 ether;
+
+        _placePayment(paymentId, payer1, address(revReceiver), amount, false);
+
+        // payer releases first
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+
+        // expect a transfer fail event when receiver tries to release and send funds
+        vm.expectEmit(true, true, true, true);
+        emit PaymentTransferFailed(paymentId, address(0), amount);
+
+        vm.prank(address(revReceiver));
+        escrow.releaseEscrow(paymentId);
+    }
+
+    function testPaymentTransferFailedEventEmittedOnFailedTokenTransfer() public {
+        FailingToken failingToken = new FailingToken();
+        bytes32 paymentId = keccak256("payment-transfer-failed-token");
+        uint256 amount = 1000;
+
+        // Give payer1 some tokens so the placePayment call can succeed
+        failingToken.transfer(payer1, 2000);
+
+        // Ensure normal operations during placePayment
+        vm.prank(payer1);
+        failingToken.approve(address(escrow), amount);
+        vm.prank(payer1);
+        escrow.placePayment(
+            PaymentInput({
+                currency: address(failingToken),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+
+        // First approval succeeds; token transfers normally at this stage
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+
+        // set the token to fail on transfer
+        failingToken.setFailTransfers(true);
+
+        // Expect a PaymentTransferFailed event when the receiver1 attempts release
+        vm.expectEmit(true, true, true, true);
+        emit PaymentTransferFailed(paymentId, address(failingToken), amount);
+
+        vm.prank(receiver1);
+        escrow.releaseEscrow(paymentId);
+    }
+}
+
+// This contract reverts on receiving eth enabling a scenario to test PaymentTransferFailed
+contract RevertingReceiver {
+    receive() external payable {
+        revert("I don't accept ETH");
     }
 }
