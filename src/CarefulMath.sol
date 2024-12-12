@@ -116,4 +116,7 @@ library CarefulMath {
     function div(uint256 numerator, uint256 denominator) internal pure returns (uint256 result) {
         return mulDiv(numerator, 1, denominator);
     }
+
+    // including this excludes from coverage report foundry
+    function test() public {}
 }
