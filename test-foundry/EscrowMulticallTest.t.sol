@@ -11,6 +11,7 @@ import { EscrowMulticall } from "../src/EscrowMulticall.sol";
 
 import { Payment } from "../src/PaymentInput.sol";
 import {MulticallPaymentInput} from "../src/EscrowMulticall.sol";
+import {FailingToken} from "../src/FailingToken.sol";
 
 contract EscrowMulticallTest is Test {
     SecurityContext securityContext;
@@ -1021,8 +1022,260 @@ contract EscrowMulticallTest is Test {
         vm.stopPrank();
     }
 
-    function testMulticallToValidEscrowInvalidReceiver() public {
-        // TODO: Need to know what is invalid reciever. Maybe null address?
+    // Event tests
+
+    // events
+    event PaymentReceived(
+        bytes32 indexed paymentId, address indexed to, address from, address currency, uint256 amount
+    );
+
+    event ReleaseAssentGiven( // 1 = payer, 2 = receiver, 3 = arbiter
+        bytes32 indexed paymentId,
+        address assentingAddress,
+        //TODO: make enum
+        uint8 assentType
+    );
+
+    event EscrowReleased(bytes32 indexed paymentId, uint256 amount, uint256 fee);
+
+    event PaymentTransferred(bytes32 indexed paymentId, address currency, uint256 amount);
+
+    event PaymentTransferFailed(bytes32 indexed paymentId, address currency, uint256 amount);
+
+    function testPaymentReceivedEvent() public {
+        // Prepare test data
+        bytes32 paymentId = keccak256("payment1");
+        address payerAccount = payer1;
+        address receiverAccount = receiver1;
+        uint256 amount = 1000;
+        bool isToken = false;
+
+        // expect PaymentReceived event
+        vm.expectEmit(true, true, true, true);
+        emit PaymentReceived(paymentId, receiverAccount, payerAccount, address(0), amount);
+
+        // place payment
+        placePayment(paymentId, payerAccount, receiverAccount, amount, isToken);
     }
 
+    function testReleaseAssentGivenEvent() public {
+        // Setup a payment first
+        bytes32 paymentId = keccak256("payment2");
+        address payerAccount = payer1;
+        address receiverAccount = receiver1;
+        uint256 amount = 2000;
+        bool isToken = false;
+        placePayment(paymentId, payerAccount, receiverAccount, amount, isToken);
+
+        // payer release first
+        vm.prank(payerAccount);
+        vm.expectEmit(true, true, true, true);
+        emit ReleaseAssentGiven(paymentId, payerAccount, 2 /*payer assent*/ );
+        escrow.releaseEscrow(paymentId);
+
+        // receiver releases
+        vm.prank(receiverAccount);
+        vm.expectEmit(true, true, true, true);
+        emit ReleaseAssentGiven(paymentId, receiverAccount, 1 /*receiver assent*/ );
+        escrow.releaseEscrow(paymentId);
+    }
+
+    function testEscrowReleasedEvent() public {
+        // Setup a payment and fully release escrow
+        bytes32 paymentId = keccak256("payment3");
+        address payerAccount = payer1;
+        address receiverAccount = receiver1;
+        uint256 amount = 3000;
+        bool isToken = false;
+        placePayment(paymentId, payerAccount, receiverAccount, amount, isToken);
+
+        // Both parties release
+        vm.startPrank(payerAccount);
+        escrow.releaseEscrow(paymentId);
+        vm.stopPrank();
+
+        vm.startPrank(receiverAccount);
+
+        vm.expectEmit(true, true, true, true);
+        emit EscrowReleased(paymentId, amount, 0);
+        escrow.releaseEscrow(paymentId);
+        vm.stopPrank();
+    }
+
+    function testPaymentTransferredEventOnRelease() public {
+        // Setup a payment
+        bytes32 paymentId = keccak256("payment4");
+        address payerAccount = payer1;
+        address receiverAccount = receiver1;
+        uint256 amount = 4000;
+        bool isToken = false;
+        placePayment(paymentId, payerAccount, receiverAccount, amount, isToken);
+
+        // Both parties assent to release to trigger transfer
+        vm.prank(payerAccount);
+        escrow.releaseEscrow(paymentId);
+
+        vm.prank(receiverAccount);
+        // Expect transfer of funds to receiver
+        vm.expectEmit(true, true, true, true);
+        emit PaymentTransferred(paymentId, address(0), amount);
+        escrow.releaseEscrow(paymentId);
+    }
+
+    function testPaymentTransferredEventOnRefund() public {
+        // Setup payment
+        bytes32 paymentId = keccak256("payment5");
+        address payerAccount = payer1;
+        address receiverAccount = receiver1;
+        uint256 amount = 5000;
+        bool isToken = false;
+        placePayment(paymentId, payerAccount, receiverAccount, amount, isToken);
+
+        uint256 refundAmount = 1000;
+
+        // Receiver refunds
+        vm.prank(receiverAccount);
+        vm.expectEmit(true, true, true, true);
+        emit PaymentTransferred(paymentId, address(0), refundAmount);
+        escrow.refundPayment(paymentId, refundAmount);
+    }
+
+    function testPaymentTransferFailedEvent() public {
+        FailingToken failingToken = new FailingToken();
+
+        address payerAccount = payer1;
+        address receiverAccount = receiver1;
+        uint256 amount = 6000 ether;
+        bytes32 paymentId = keccak256("payment6");
+
+        failingToken.transfer(payer1, amount);
+
+        // Mint failing tokens
+        vm.prank(payerAccount);
+        failingToken.approve(address(multicall), amount);
+
+        // Place payment
+        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](1);
+        arr[0] = MulticallPaymentInput({
+            contractAddress: address(escrow),
+            currency: address(failingToken),
+            id: paymentId,
+            receiver: receiverAccount,
+            payer: payerAccount,
+            amount: amount
+        });
+
+        vm.prank(payerAccount);
+        multicall.multipay(arr);
+
+        // set the failing token to fail transfers
+        vm.prank(address(this));
+        failingToken.setFailTransfers(true);
+
+        // payer to release the escrow
+        vm.prank(payerAccount);
+        escrow.releaseEscrow(paymentId);
+
+        // release the escrow and expect the PaymentTransferFailed event
+        vm.expectEmit(true, true, true, true);
+        emit PaymentTransferFailed(paymentId, address(failingToken), amount);
+
+        vm.prank(receiverAccount);
+        escrow.releaseEscrow(paymentId);
+    }
+
+    function testMultipleEventsEmittedForMultiplePayments() public {
+        // Setup
+        uint256 amount1 = 5000;
+        uint256 amount2 = 8000;
+        uint256 amount3 = 10000;
+
+        bytes32 id1 = keccak256("batchPayment1");
+        bytes32 id2 = keccak256("batchPayment2");
+        bytes32 id3 = keccak256("batchPayment3");
+
+        // Approve tokens for the third payment
+        vm.startPrank(payer1);
+        testToken.approve(address(multicall), amount3);
+        vm.stopPrank();
+
+        // prepare three payments: two native one token
+        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](3);
+        arr[0] = MulticallPaymentInput({
+            contractAddress: address(escrow1),
+            currency: address(0),
+            receiver: receiver1,
+            payer: payer1,
+            amount: amount1,
+            id: id1
+        });
+        arr[1] = MulticallPaymentInput({
+            contractAddress: address(escrow2),
+            currency: address(0),
+            receiver: receiver2,
+            payer: payer1,
+            amount: amount2,
+            id: id2
+        });
+        arr[2] = MulticallPaymentInput({
+            contractAddress: address(escrow3),
+            currency: address(testToken),
+            receiver: receiver3,
+            payer: payer1,
+            amount: amount3,
+            id: id3
+        });
+
+        // Expect three PaymentReceived events, one per payment
+        vm.expectEmit(true, true, true, true);
+        emit PaymentReceived(id1, receiver1, payer1, address(0), amount1);
+        vm.expectEmit(true, true, true, true);
+        emit PaymentReceived(id2, receiver2, payer1, address(0), amount2);
+        vm.expectEmit(true, true, true, true);
+        emit PaymentReceived(id3, receiver3, payer1, address(testToken), amount3);
+
+        // execute the multipay
+        vm.prank(payer1);
+        multicall.multipay{value: amount1 + amount2}(arr);
+    }
+
+    function testNoEventsEmittedOnBatchFailure() public {
+        // Setup
+        uint256 amount1 = 5000;
+        uint256 amount2 = 10000; // This will cause a failure
+        bytes32 id1 = keccak256("failingBatch1");
+        bytes32 id2 = keccak256("failingBatch2");
+
+        // For token payment do not approve enough tokens so failure is triggered
+        vm.startPrank(payer1);
+        // only approve less than needed
+        testToken.approve(address(multicall), amount2 - 1);
+        vm.stopPrank();
+
+        // two payments: one native one token
+        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](2);
+        arr[0] = MulticallPaymentInput({
+            contractAddress: address(escrow1),
+            currency: address(0),
+            receiver: receiver1,
+            payer: payer1,
+            amount: amount1,
+            id: id1
+        });
+        arr[1] = MulticallPaymentInput({
+            contractAddress: address(escrow1),
+            currency: address(testToken),
+            receiver: receiver1,
+            payer: payer1,
+            amount: amount2,
+            id: id2
+        });
+
+        // the entire multipay should revert do to insufficient token approval
+        vm.startPrank(payer1);
+        vm.expectRevert();
+        multicall.multipay{value: amount1}(arr);
+        vm.stopPrank();
+    }
+    
 }

@@ -1171,4 +1171,6 @@ contract RevertingReceiver {
     receive() external payable {
         revert("I don't accept ETH");
     }
+    // test function so foundry ignores this contract
+    function test() public pure {}
 }
