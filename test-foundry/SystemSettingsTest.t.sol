@@ -108,4 +108,70 @@ contract SystemSettingsTest is Test {
         vm.expectRevert();
         systemSettings.setSecurityContext(ISecurityContext(address(0)));
     }
+
+    // event tests
+
+    //events 
+    event VaultAddressChanged (
+        address newAddress,
+        address changedBy
+    );
+
+    event FeeBpsChanged (
+        uint256 newValue,
+        address changedBy
+    );
+
+    function testSetVaultAddressEmitsEvent() public {
+        address newVaultAddress = address(5);
+
+        // set new value
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, true);
+        emit VaultAddressChanged(newVaultAddress, dao);
+        systemSettings.setVaultAddress(newVaultAddress);
+
+        // check new value
+        assertEq(systemSettings.vaultAddress(), newVaultAddress);
+    }
+
+    function testSetFeeBpsEmitsEvent() public {
+        uint256 newFeeBps = 150;
+
+       // set new value
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, true);
+        emit FeeBpsChanged(newFeeBps, dao);
+        systemSettings.setFeeBps(newFeeBps);
+
+        // check new value
+        assertEq(systemSettings.feeBps(), newFeeBps);
+    }
+
+    function testSetVaultAddressDoesNotEmitIfUnchanged() public {
+        address unchangedVaultAddress = systemSettings.vaultAddress();
+
+        // set vault same as current
+        vm.prank(dao);
+        vm.recordLogs(); 
+        systemSettings.setVaultAddress(unchangedVaultAddress);
+
+        // assert no events
+        Vm.Log[] memory logs = vm.getRecordedLogs(); 
+        assertEq(logs.length, 0, "No event should have been emitted");
+    }
+
+    function testSetFeeBpsDoesNotEmitIfUnchanged() public {
+        uint256 unchangedFeeBps = systemSettings.feeBps();
+
+        // set fee same as current
+        vm.prank(dao);
+        vm.recordLogs(); 
+        systemSettings.setFeeBps(unchangedFeeBps);
+
+        // assert no events
+        Vm.Log[] memory logs = vm.getRecordedLogs(); 
+        assertEq(logs.length, 0, "No event should have been emitted");
+    }
+
 }
