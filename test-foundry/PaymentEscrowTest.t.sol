@@ -2,13 +2,14 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
-import {PaymentEscrow} from "../src/PaymentEscrow.sol";
+import {PaymentEscrow, IEscrowContract} from "../src/PaymentEscrow.sol";
 import {SecurityContext} from "../src/SecurityContext.sol";
 import {SystemSettings} from "../src/SystemSettings.sol";
 import {TestToken} from "../src/TestToken.sol";
 import {ISecurityContext} from "../src/ISecurityContext.sol";
 import {ISystemSettings} from "../src/ISystemSettings.sol";
-import {PaymentInput, Payment} from "../src/PaymentInput.sol"; 
+import {PaymentInput, Payment} from "../src/PaymentInput.sol";
+import {console} from "forge-std/console.sol";
 import {FailingToken} from "../src/FailingToken.sol";
 
 contract PaymentEscrowTest is Test {
@@ -899,6 +900,113 @@ contract PaymentEscrowTest is Test {
         uint256 finalPayerBalance = _getBalance(payer1, true);
         assertEq(finalPayerBalance, initialPayerBalance);
     }
+
+    function testGetPaymentForNonExistentID() public {
+        bytes32 nonExistentPaymentId = keccak256("non-existent-payment");
+
+        Payment memory payment = escrow.getPayment(nonExistentPaymentId);
+
+        // Expect all fields to be zeroed out for non-existent payments
+        assertEq(payment.id, bytes32(0));
+        assertEq(payment.payer, address(0));
+        assertEq(payment.receiver, address(0));
+        assertEq(payment.amount, 0);
+        assertEq(payment.amountRefunded, 0);
+        assertEq(payment.currency, address(0));
+        assertFalse(payment.payerReleased);
+        assertFalse(payment.receiverReleased);
+        assertFalse(payment.released);
+    }
+
+
+
+    function testPlacePaymentInsufficientETH() public {
+        uint256 amount = 1 ether; 
+        bytes32 paymentId = keccak256("insufficient-eth");
+
+        vm.prank(payer1);
+        vm.expectRevert("InsufficientAmount");
+        escrow.placePayment{value: amount - 1}(
+            PaymentInput({
+                currency: address(0),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+    }
+
+    function testFeeResetToZeroIfExceedsAmount() public {
+        vm.prank(dao);
+        systemSettings.setFeeBps(20_000); // 200% fee  exceeds the total amount
+
+        bytes32 paymentId = keccak256("fee-reset");
+        uint256 amount = 10 ether;
+
+        // Place a payment
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Record the initial balance of the receiver
+        uint256 initialReceiverBalance = _getBalance(receiver1, false);
+
+        // Release the escrow from both parties
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+        vm.prank(receiver1);
+        escrow.releaseEscrow(paymentId);
+
+        // Assert that the fee was reset to zero
+        assertEq(_getBalance(vaultAddress, false), 0);
+
+        // Assert the receiver's balance increase matches the full payment amount
+        uint256 finalReceiverBalance = _getBalance(receiver1, false);
+        assertEq(finalReceiverBalance, initialReceiverBalance + amount);
+    }
+
+
+    function testRefundExceedsRemainingAmount() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("refund-exceeds");
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Refund part of the amount first
+        uint256 partialRefund = amount / 2;
+        vm.prank(receiver1);
+        escrow.refundPayment(paymentId, partialRefund);
+
+        // Attempt to refund more than the remaining amount
+        vm.prank(receiver1);
+        vm.expectRevert("AmountExceeded");
+        escrow.refundPayment(paymentId, partialRefund + 1);
+    }
+
+    function testZeroAmountRefund() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("zero-amount-refund");
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Attempt a zero-amount refund
+        vm.prank(receiver1);
+        escrow.refundPayment(paymentId, 0);
+
+        // Verify that no state changes occurred
+        Payment memory payment = _getPayment(paymentId);
+        assertEq(payment.amountRefunded, 0); // No refund should have occurred
+        assertFalse(payment.released);      // Payment should still not be released
+    }
+
+    function testContractCanReceiveEthDirectly() public {
+        uint256 initialBalance = address(escrow).balance;
+        uint256 transferAmount = 1 ether;
+
+        vm.prank(payer1);
+        (bool success,) = address(escrow).call{value: transferAmount}("");
+        assertTrue(success);
+
+        assertEq(address(escrow).balance, initialBalance + transferAmount);
+    }
+
 
     // Event Tests
 
