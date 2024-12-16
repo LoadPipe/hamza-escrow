@@ -620,6 +620,37 @@ contract PaymentEscrowTest is Test {
         assertEq(finalReceiverBalance, newReceiverBalance + amount);
     }
 
+    function testMultiplePartialReleases() public {
+        uint256 amount = 2 ether;
+        bytes32 paymentId = keccak256("partial-releases-test");
+
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Payer gives approval
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+
+        // Verify state after payer approval
+        Payment memory paymentAfterPayer = _getPayment(paymentId);
+        assertTrue(paymentAfterPayer.payerReleased);
+        assertFalse(paymentAfterPayer.receiverReleased);
+        assertFalse(paymentAfterPayer.released);
+
+        // Receiver gives approval
+        vm.prank(receiver1);
+        escrow.releaseEscrow(paymentId);
+
+        // Verify state after receiver approval
+        Payment memory paymentAfterReceiver = _getPayment(paymentId);
+        assertTrue(paymentAfterReceiver.payerReleased);
+        assertTrue(paymentAfterReceiver.receiverReleased);
+        assertTrue(paymentAfterReceiver.released);
+
+        // Verify escrow funds were transferred
+        uint256 finalEscrowBalance = address(escrow).balance;
+        assertEq(finalEscrowBalance, 0);
+    }
+
     // Refund Tests
     function _refundTest(
         uint256 amount,
@@ -737,6 +768,209 @@ contract PaymentEscrowTest is Test {
         vm.prank(arbiter);
         escrow.refundPayment(paymentId, 1);
         // total refunded now = amount
+    }
+
+    function testFailRefundAfterReleaseWithActiveEscrow() public {
+        // Exploit: malcious actor is able to refund the payment after it has been released stealing the funds in escrow 
+        // 1. Place a payment from payer1 to receiver1
+        // 2. malicious actor pays self through escrow and releases the payment to self
+        // 3. malicious actor refunds the payment to self, since no check for released payment, the funds are refunded to the malicious actor
+        // 4. escrow balance is drained to 0
+        uint256 amountEscrowed = 1 ether;
+        uint256 amountReleased = 1 ether;
+
+        // Record initial balances
+        uint256[] memory initialBalances = _recordBalances();
+        console.log("Initial Balances: ");
+        for (uint256 i = 0; i < initialBalances.length; i++) {
+            console.log(initialBalances[i]);
+        }
+
+        // First payment: From payer1 to receiver1, stays in escrow
+        bytes32 paymentIdEscrowed = keccak256("payment-escrowed");
+        _placePayment(paymentIdEscrowed, payer1, receiver1, amountEscrowed, false);
+        console.log("Escrow Balance After First Payment: ", address(escrow).balance);
+
+        // Second payment: From payer2 to receiver2, will be fully released
+        bytes32 paymentIdReleased = keccak256("payment-released");
+        _placePayment(paymentIdReleased, payer2, receiver2, amountReleased, false);
+
+        uint256 escrowBalanceAfterSecond = address(escrow).balance;
+        console.log("Escrow Balance After Second Payment: ", escrowBalanceAfterSecond);
+
+        // Release the second payment completely
+        vm.prank(payer2);
+        escrow.releaseEscrow(paymentIdReleased);
+        vm.prank(receiver2);
+        escrow.releaseEscrow(paymentIdReleased);
+
+        // After releasing the second payment
+        uint256 escrowBalanceAfterRelease = address(escrow).balance;
+        console.log("Escrow Balance After Release: ", escrowBalanceAfterRelease);
+
+        // Ensure the second payment is fully released
+        Payment memory releasedPayment = _getPayment(paymentIdReleased);
+        assertTrue(releasedPayment.released);
+
+        // Malicious refund attempt by receiver2
+        vm.prank(receiver2);
+        escrow.refundPayment(paymentIdReleased, amountReleased);
+
+        // Final balances after the malicious refund
+        uint256[] memory finalBalances = _recordBalances();
+        console.log("Final Balances: ");
+        for (uint256 i = 0; i < finalBalances.length; i++) {
+            console.log(finalBalances[i]);
+        }
+        // finalBalances[0] - Escrow contract balance
+        // finalBalances[1] - Receiver1's balance
+        // finalBalances[2] - Payer1's balance
+        // finalBalances[3] - Receiver2's balance
+        // finalBalances[4] - Payer2's balance
+
+        // Assertions
+        // Check if Receiver2 profited (exploit success)
+        assertTrue(
+            finalBalances[3] + finalBalances[4] > initialBalances[3] + initialBalances[4],
+            "Exploit success: Receiver2 profited"
+        );
+
+        // Check if Payer1 and Receiver1 lost funds, along with escrow depletion
+        assertTrue(
+            finalBalances[1] + finalBalances[2] + finalBalances[0] < initialBalances[1] + initialBalances[2] + initialBalances[0],
+            "Exploit success: Payer1 and Receiver1 lost funds"
+        );
+
+        // Ensure the escrow balance was drained to 0
+        assertEq(finalBalances[0], 0, "Exploit success: Escrow balance drained");
+    }
+
+    function testCannotRefundAfterRelease() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("refund-after-release-test");
+
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Approvals to release escrow
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+        vm.prank(receiver1);
+        escrow.releaseEscrow(paymentId);
+
+        // Verify payment is released
+        Payment memory payment = _getPayment(paymentId);
+        assertTrue(payment.released);
+
+        // Attempt to refund after release
+        vm.prank(receiver1);
+        vm.expectRevert("Payment already released");
+        escrow.refundPayment(paymentId, amount / 2);
+    }
+
+
+    function testZeroAmountRefundNoStateChange() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("zero-amount-refund-test");
+
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Record initial state and balances
+        Payment memory paymentBefore = _getPayment(paymentId);
+        uint256 escrowBalanceBefore = address(escrow).balance;
+
+        // Attempt a zero-amount refund
+        vm.prank(receiver1);
+        escrow.refundPayment(paymentId, 0);
+
+        // Verify state remains unchanged
+        Payment memory paymentAfter = _getPayment(paymentId);
+        assertEq(paymentAfter.amountRefunded, paymentBefore.amountRefunded);
+        assertEq(paymentAfter.released, paymentBefore.released);
+
+        // Verify no balance changes
+        uint256 escrowBalanceAfter = address(escrow).balance;
+        assertEq(escrowBalanceAfter, escrowBalanceBefore);
+    }
+
+    function testCannotRefundAlreadyFullyRefundedPayment() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("already-fully-refunded");
+
+        // Place the payment
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Fully refund the payment
+        vm.prank(receiver1);
+        escrow.refundPayment(paymentId, amount);
+
+        // Attempt to refund again
+        vm.prank(receiver1);
+        vm.expectRevert("AmountExceeded");
+        escrow.refundPayment(paymentId, 1);
+    }
+
+    function testCannotRefundByPayer() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("refund-by-payer");
+
+        // Place the payment
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Attempt refund by payer (not authorized)
+        vm.prank(payer1);
+        vm.expectRevert("Unauthorized");
+        escrow.refundPayment(paymentId, amount);
+    }
+
+    function testStateUnchangedAfterFailedRefund() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("state-unchanged-failed-refund");
+
+        // Place the payment
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Record initial state
+        Payment memory paymentBefore = _getPayment(paymentId);
+
+        // Attempt an invalid refund
+        vm.prank(receiver1);
+        vm.expectRevert("AmountExceeded");
+        escrow.refundPayment(paymentId, amount + 1);
+
+        // Verify state remains unchanged
+        Payment memory paymentAfter = _getPayment(paymentId);
+        _verifyPayment(paymentAfter, paymentBefore);
+    }
+
+    function testRefundExceedsRemainingAmount() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("refund-exceeds");
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Refund part of the amount first
+        uint256 partialRefund = amount / 2;
+        vm.prank(receiver1);
+        escrow.refundPayment(paymentId, partialRefund);
+
+        // Attempt to refund more than the remaining amount
+        vm.prank(receiver1);
+        vm.expectRevert("AmountExceeded");
+        escrow.refundPayment(paymentId, partialRefund + 1);
+    }
+
+    function testZeroAmountRefund() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("zero-amount-refund");
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Attempt a zero-amount refund
+        vm.prank(receiver1);
+        escrow.refundPayment(paymentId, 0);
+
+        // Verify that no state changes occurred
+        Payment memory payment = _getPayment(paymentId);
+        assertEq(payment.amountRefunded, 0); 
+        assertFalse(payment.released);      
     }
 
     // Fee Amounts
@@ -932,81 +1166,7 @@ contract PaymentEscrowTest is Test {
 
 
 
-    function testPlacePaymentInsufficientETH() public {
-        uint256 amount = 1 ether; 
-        bytes32 paymentId = keccak256("insufficient-eth");
 
-        vm.prank(payer1);
-        vm.expectRevert("InsufficientAmount");
-        escrow.placePayment{value: amount - 1}(
-            PaymentInput({
-                currency: address(0),
-                id: paymentId,
-                receiver: receiver1,
-                payer: payer1,
-                amount: amount
-            })
-        );
-    }
-
-    function testFeeResetToZeroIfExceedsAmount() public {
-        vm.prank(dao);
-        systemSettings.setFeeBps(20_000); // 200% fee  exceeds the total amount
-
-        bytes32 paymentId = keccak256("fee-reset");
-        uint256 amount = 10 ether;
-
-        // Place a payment
-        _placePayment(paymentId, payer1, receiver1, amount, false);
-
-        // Record the initial balance of the receiver
-        uint256 initialReceiverBalance = _getBalance(receiver1, false);
-
-        // Release the escrow from both parties
-        vm.prank(payer1);
-        escrow.releaseEscrow(paymentId);
-        vm.prank(receiver1);
-        escrow.releaseEscrow(paymentId);
-
-        // Assert that the fee was reset to zero
-        assertEq(_getBalance(vaultAddress, false), 0);
-
-        // Assert the receiver's balance increase matches the full payment amount
-        uint256 finalReceiverBalance = _getBalance(receiver1, false);
-        assertEq(finalReceiverBalance, initialReceiverBalance + amount);
-    }
-
-
-    function testRefundExceedsRemainingAmount() public {
-        uint256 amount = 1 ether;
-        bytes32 paymentId = keccak256("refund-exceeds");
-        _placePayment(paymentId, payer1, receiver1, amount, false);
-
-        // Refund part of the amount first
-        uint256 partialRefund = amount / 2;
-        vm.prank(receiver1);
-        escrow.refundPayment(paymentId, partialRefund);
-
-        // Attempt to refund more than the remaining amount
-        vm.prank(receiver1);
-        vm.expectRevert("AmountExceeded");
-        escrow.refundPayment(paymentId, partialRefund + 1);
-    }
-
-    function testZeroAmountRefund() public {
-        uint256 amount = 1 ether;
-        bytes32 paymentId = keccak256("zero-amount-refund");
-        _placePayment(paymentId, payer1, receiver1, amount, false);
-
-        // Attempt a zero-amount refund
-        vm.prank(receiver1);
-        escrow.refundPayment(paymentId, 0);
-
-        // Verify that no state changes occurred
-        Payment memory payment = _getPayment(paymentId);
-        assertEq(payment.amountRefunded, 0); // No refund should have occurred
-        assertFalse(payment.released);      // Payment should still not be released
-    }
 
     function testContractCanReceiveEthDirectly() public {
         uint256 initialBalance = address(escrow).balance;
@@ -1053,212 +1213,6 @@ contract PaymentEscrowTest is Test {
         assertEq(finalPayerBalance, initialPayerBalance);
     }
 
-
-    function testMultiplePartialReleases() public {
-        uint256 amount = 2 ether;
-        bytes32 paymentId = keccak256("partial-releases-test");
-
-        _placePayment(paymentId, payer1, receiver1, amount, false);
-
-        // Payer gives approval
-        vm.prank(payer1);
-        escrow.releaseEscrow(paymentId);
-
-        // Verify state after payer approval
-        Payment memory paymentAfterPayer = _getPayment(paymentId);
-        assertTrue(paymentAfterPayer.payerReleased);
-        assertFalse(paymentAfterPayer.receiverReleased);
-        assertFalse(paymentAfterPayer.released);
-
-        // Receiver gives approval
-        vm.prank(receiver1);
-        escrow.releaseEscrow(paymentId);
-
-        // Verify state after receiver approval
-        Payment memory paymentAfterReceiver = _getPayment(paymentId);
-        assertTrue(paymentAfterReceiver.payerReleased);
-        assertTrue(paymentAfterReceiver.receiverReleased);
-        assertTrue(paymentAfterReceiver.released);
-
-        // Verify escrow funds were transferred
-        uint256 finalEscrowBalance = address(escrow).balance;
-        assertEq(finalEscrowBalance, 0);
-    }
-
-
-    // Refund Tests
-
-    function testFailRefundAfterReleaseWithActiveEscrow() public {
-        // Exploit: malcious actor is able to refund the payment after it has been released stealing the funds in escrow 
-        // 1. Place a payment from payer1 to receiver1
-        // 2. malicious actor pays self through escrow and releases the payment to self
-        // 3. malicious actor refunds the payment to self, since no check for released payment, the funds are refunded to the malicious actor
-        // 4. escrow balance is drained to 0
-        uint256 amountEscrowed = 1 ether;
-        uint256 amountReleased = 1 ether;
-
-        // Record initial balances
-        uint256[] memory initialBalances = _recordBalances();
-        console.log("Initial Balances: ");
-        for (uint256 i = 0; i < initialBalances.length; i++) {
-            console.log(initialBalances[i]);
-        }
-
-        // First payment: From payer1 to receiver1, stays in escrow
-        bytes32 paymentIdEscrowed = keccak256("payment-escrowed");
-        _placePayment(paymentIdEscrowed, payer1, receiver1, amountEscrowed, false);
-        console.log("Escrow Balance After First Payment: ", address(escrow).balance);
-
-        // Second payment: From payer2 to receiver2, will be fully released
-        bytes32 paymentIdReleased = keccak256("payment-released");
-        _placePayment(paymentIdReleased, payer2, receiver2, amountReleased, false);
-
-        uint256 escrowBalanceAfterSecond = address(escrow).balance;
-        console.log("Escrow Balance After Second Payment: ", escrowBalanceAfterSecond);
-
-        // Release the second payment completely
-        vm.prank(payer2);
-        escrow.releaseEscrow(paymentIdReleased);
-        vm.prank(receiver2);
-        escrow.releaseEscrow(paymentIdReleased);
-
-        // After releasing the second payment
-        uint256 escrowBalanceAfterRelease = address(escrow).balance;
-        console.log("Escrow Balance After Release: ", escrowBalanceAfterRelease);
-
-        // Ensure the second payment is fully released
-        Payment memory releasedPayment = _getPayment(paymentIdReleased);
-        assertTrue(releasedPayment.released);
-
-        // Malicious refund attempt by receiver2
-        vm.prank(receiver2);
-        escrow.refundPayment(paymentIdReleased, amountReleased);
-
-        // Final balances after the malicious refund
-        uint256[] memory finalBalances = _recordBalances();
-        console.log("Final Balances: ");
-        for (uint256 i = 0; i < finalBalances.length; i++) {
-            console.log(finalBalances[i]);
-        }
-        // finalBalances[0] - Escrow contract balance
-        // finalBalances[1] - Receiver1's balance
-        // finalBalances[2] - Payer1's balance
-        // finalBalances[3] - Receiver2's balance
-        // finalBalances[4] - Payer2's balance
-
-        // Assertions
-        // Check if Receiver2 profited (exploit success)
-        assertTrue(
-            finalBalances[3] + finalBalances[4] > initialBalances[3] + initialBalances[4],
-            "Exploit success: Receiver2 profited"
-        );
-
-        // Check if Payer1 and Receiver1 lost funds, along with escrow depletion
-        assertTrue(
-            finalBalances[1] + finalBalances[2] + finalBalances[0] < initialBalances[1] + initialBalances[2] + initialBalances[0],
-            "Exploit success: Payer1 and Receiver1 lost funds"
-        );
-
-        // Ensure the escrow balance was drained to 0
-        assertEq(finalBalances[0], 0, "Exploit success: Escrow balance drained");
-    }
-
-    function testCannotRefundAfterRelease() public {
-        uint256 amount = 1 ether;
-        bytes32 paymentId = keccak256("refund-after-release-test");
-
-        _placePayment(paymentId, payer1, receiver1, amount, false);
-
-        // Approvals to release escrow
-        vm.prank(payer1);
-        escrow.releaseEscrow(paymentId);
-        vm.prank(receiver1);
-        escrow.releaseEscrow(paymentId);
-
-        // Verify payment is released
-        Payment memory payment = _getPayment(paymentId);
-        assertTrue(payment.released);
-
-        // Attempt to refund after release
-        vm.prank(receiver1);
-        vm.expectRevert("Payment already released");
-        escrow.refundPayment(paymentId, amount / 2);
-    }
-
-
-    function testZeroAmountRefundNoStateChange() public {
-        uint256 amount = 1 ether;
-        bytes32 paymentId = keccak256("zero-amount-refund-test");
-
-        _placePayment(paymentId, payer1, receiver1, amount, false);
-
-        // Record initial state and balances
-        Payment memory paymentBefore = _getPayment(paymentId);
-        uint256 escrowBalanceBefore = address(escrow).balance;
-
-        // Attempt a zero-amount refund
-        vm.prank(receiver1);
-        escrow.refundPayment(paymentId, 0);
-
-        // Verify state remains unchanged
-        Payment memory paymentAfter = _getPayment(paymentId);
-        assertEq(paymentAfter.amountRefunded, paymentBefore.amountRefunded);
-        assertEq(paymentAfter.released, paymentBefore.released);
-
-        // Verify no balance changes
-        uint256 escrowBalanceAfter = address(escrow).balance;
-        assertEq(escrowBalanceAfter, escrowBalanceBefore);
-    }
-
-    function testCannotRefundAlreadyFullyRefundedPayment() public {
-        uint256 amount = 1 ether;
-        bytes32 paymentId = keccak256("already-fully-refunded");
-
-        // Place the payment
-        _placePayment(paymentId, payer1, receiver1, amount, false);
-
-        // Fully refund the payment
-        vm.prank(receiver1);
-        escrow.refundPayment(paymentId, amount);
-
-        // Attempt to refund again
-        vm.prank(receiver1);
-        vm.expectRevert("AmountExceeded");
-        escrow.refundPayment(paymentId, 1);
-    }
-
-    function testCannotRefundByPayer() public {
-        uint256 amount = 1 ether;
-        bytes32 paymentId = keccak256("refund-by-payer");
-
-        // Place the payment
-        _placePayment(paymentId, payer1, receiver1, amount, false);
-
-        // Attempt refund by payer (not authorized)
-        vm.prank(payer1);
-        vm.expectRevert("Unauthorized");
-        escrow.refundPayment(paymentId, amount);
-    }
-
-    function testStateUnchangedAfterFailedRefund() public {
-        uint256 amount = 1 ether;
-        bytes32 paymentId = keccak256("state-unchanged-failed-refund");
-
-        // Place the payment
-        _placePayment(paymentId, payer1, receiver1, amount, false);
-
-        // Record initial state
-        Payment memory paymentBefore = _getPayment(paymentId);
-
-        // Attempt an invalid refund
-        vm.prank(receiver1);
-        vm.expectRevert("AmountExceeded");
-        escrow.refundPayment(paymentId, amount + 1);
-
-        // Verify state remains unchanged
-        Payment memory paymentAfter = _getPayment(paymentId);
-        _verifyPayment(paymentAfter, paymentBefore);
-    }
 
     // Invalid Payment tests
 
@@ -1311,6 +1265,23 @@ contract PaymentEscrowTest is Test {
         );
     }
 
+    function testPlacePaymentInsufficientETH() public {
+        uint256 amount = 1 ether; 
+        bytes32 paymentId = keccak256("insufficient-eth");
+
+        vm.prank(payer1);
+        vm.expectRevert("InsufficientAmount");
+        escrow.placePayment{value: amount - 1}(
+            PaymentInput({
+                currency: address(0),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+    }
+
     // Event Tests
 
     // events 
@@ -1347,8 +1318,6 @@ contract PaymentEscrowTest is Test {
         address currency, 
         uint256 amount 
     );
-
-    // PaymentReceived 
 
     function testPaymentReceivedEventEmittedForNativePayment() public {
         uint256 amount = 1 ether;
@@ -1390,8 +1359,6 @@ contract PaymentEscrowTest is Test {
             })
         );
     }
-
-    // ReleaseAssentGiven
     
     function testReleaseAssentGivenEventEmittedByReceiver() public {
         bytes32 paymentId = keccak256("release-assent-receiver");
@@ -1431,8 +1398,6 @@ contract PaymentEscrowTest is Test {
         vm.prank(arbiter);
         escrow.releaseEscrow(paymentId);
     }
-
-    // EscrowReleased 
 
     function testEscrowReleasedEventEmittedOnlyAfterBothApprovalsNative() public {
         bytes32 paymentId = keccak256("escrow-released-native");
@@ -1478,8 +1443,6 @@ contract PaymentEscrowTest is Test {
         escrow.releaseEscrow(paymentId);
     }
 
-    // PaymentTransferred Event
-
     function testPaymentTransferredEventEmittedOnSuccessfulTransferDuringRelease() public {
         // With zero fees and both approvals payment transfers successfully
         vm.prank(dao);
@@ -1516,8 +1479,6 @@ contract PaymentEscrowTest is Test {
         vm.prank(receiver1);
         escrow.refundPayment(paymentId, refundAmount);
     }
-
-    // PaymentTransferFailed
 
     function testPaymentTransferFailedEventEmittedOnFailedNativeTransfer() public {
         // Create a contract that reverts on receiving ETH
