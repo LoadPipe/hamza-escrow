@@ -1094,6 +1094,109 @@ contract PaymentEscrowTest is Test {
         assertEq(finalBalances[0], 0, "Exploit success: Escrow balance drained");
     }
 
+    // Refund Tests
+
+    function testCannotRefundAlreadyFullyRefundedPayment() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("already-fully-refunded");
+
+        // Place the payment
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Fully refund the payment
+        vm.prank(receiver1);
+        escrow.refundPayment(paymentId, amount);
+
+        // Attempt to refund again
+        vm.prank(receiver1);
+        vm.expectRevert("AmountExceeded");
+        escrow.refundPayment(paymentId, 1);
+    }
+
+    function testCannotRefundByPayer() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("refund-by-payer");
+
+        // Place the payment
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Attempt refund by payer (not authorized)
+        vm.prank(payer1);
+        vm.expectRevert("Unauthorized");
+        escrow.refundPayment(paymentId, amount);
+    }
+
+    function testStateUnchangedAfterFailedRefund() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("state-unchanged-failed-refund");
+
+        // Place the payment
+        _placePayment(paymentId, payer1, receiver1, amount, false);
+
+        // Record initial state
+        Payment memory paymentBefore = _getPayment(paymentId);
+
+        // Attempt an invalid refund
+        vm.prank(receiver1);
+        vm.expectRevert("AmountExceeded");
+        escrow.refundPayment(paymentId, amount + 1);
+
+        // Verify state remains unchanged
+        Payment memory paymentAfter = _getPayment(paymentId);
+        _verifyPayment(paymentAfter, paymentBefore);
+    }
+
+    // Invalid Payment tests
+
+    function testCannotPlacePaymentWithZeroAmount() public {
+        bytes32 paymentId = keccak256("zero-amount-payment");
+
+        // Attempt to place a payment with zero amount (native currency)
+        vm.prank(payer1);
+        vm.expectRevert("InvalidAmount");
+        escrow.placePayment{value: 0}(
+            PaymentInput({
+                currency: address(0),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: 0
+            })
+        );
+
+        // Attempt to place a payment with zero amount (token)
+        vm.prank(payer1);
+        testToken.approve(address(escrow), 0);
+        vm.expectRevert("InvalidAmount");
+        escrow.placePayment(
+            PaymentInput({
+                currency: address(testToken),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: 0
+            })
+        );
+    }
+
+    function testCannotPlacePaymentToZeroAddress() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("payment-to-zero-address");
+
+        // Attempt to place a payment with zero address as the receiver
+        vm.prank(payer1);
+        vm.expectRevert("InvalidReceiver");
+        escrow.placePayment{value: amount}(
+            PaymentInput({
+                currency: address(0),
+                id: paymentId,
+                receiver: address(0),
+                payer: payer1,
+                amount: amount
+            })
+        );
+    }
+
     // Event Tests
 
     // events 
