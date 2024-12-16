@@ -1282,6 +1282,37 @@ contract PaymentEscrowTest is Test {
         );
     }
 
+    function testCannotPlacePaymentWithFailedTokenTransfer() public {
+        // Deploy a token contract that fails transfers
+        FailingToken failingToken = new FailingToken();
+
+        // Mint tokens to payer1
+        failingToken.transfer(payer1, 1_000_000);
+
+        // Attempt to place a payment with the failing token
+        bytes32 paymentId = keccak256("failed-token-payment");
+        uint256 amount = 100_000;
+
+        // Approve the escrow contract to spend tokens
+        vm.startPrank(payer1);
+        failingToken.approve(address(escrow), amount);
+
+        failingToken.setFailTransfers(true);
+
+        // Expect the 'TokenPaymentFailed' revert
+        vm.expectRevert("TokenPaymentFailed");
+        escrow.placePayment(
+            PaymentInput({
+                currency: address(failingToken),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+        vm.stopPrank();
+    }
+
     // Event Tests
 
     // events 
