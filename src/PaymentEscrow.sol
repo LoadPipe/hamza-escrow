@@ -295,6 +295,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
             }
             else {
                 emit PaymentTransferFailed(paymentId, tokenAddressOrZero, amount);
+                // think this should chnage to a revert to prevent stuck funds
             }
         }
 
