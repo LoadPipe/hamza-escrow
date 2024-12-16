@@ -9,4 +9,7 @@ contract TestToken is ERC20 {
     function mint(address to, uint256 amount) external {
         super._mint(to, amount);
     }
+
+    // including this excludes from coverage report foundry
+    function test() public {}
 }
