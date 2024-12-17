@@ -91,7 +91,6 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     function placePayment(PaymentInput calldata paymentInput) public payable {
         require(paymentInput.amount > 0, "InvalidAmount");
         require(paymentInput.receiver != address(0), "InvalidReceiver");
-        //revery msg value
         address currency = paymentInput.currency; 
         uint256 amount = paymentInput.amount;
 
