@@ -1164,6 +1164,51 @@ contract PaymentEscrowTest is Test {
         assertFalse(payment.released);
     }
 
+    function testPartialRefundThenFullRelease() public {
+        uint256 totalAmount = 1 ether;
+        uint256 partialRefundAmount = 0.4 ether; // 40% refund
+        bytes32 paymentId = keccak256("partial-refund-full-release");
+
+        // Record initial balances
+        uint256 payerInitialBalance = _getBalance(payer1, false);
+        uint256 receiverInitialBalance = _getBalance(receiver1, false);
+        uint256 escrowInitialBalance = address(escrow).balance;
+
+        // 1. Place the payment
+        _placePayment(paymentId, payer1, receiver1, totalAmount, false);
+
+        // Verify balances after placing the payment
+        assertEq(_getBalance(payer1, false), payerInitialBalance - totalAmount, "Payer balance incorrect after payment");
+        assertEq(address(escrow).balance, escrowInitialBalance + totalAmount, "Escrow balance incorrect after payment");
+        assertEq(_getBalance(receiver1, false), receiverInitialBalance, "Receiver balance should remain unchanged");
+
+        // 2. Perform a partial refund 
+        vm.prank(receiver1);
+        escrow.refundPayment(paymentId, partialRefundAmount);
+
+        // Verify balances after partial refund
+        assertEq(_getBalance(payer1, false), payerInitialBalance - totalAmount + partialRefundAmount, "Payer balance incorrect after refund");
+        assertEq(address(escrow).balance, escrowInitialBalance + totalAmount - partialRefundAmount, "Escrow balance incorrect after refund");
+        assertEq(_getBalance(receiver1, false), receiverInitialBalance, "Receiver balance should remain unchanged after refund");
+
+        // 3. Approve release by both parties
+        vm.prank(receiver1);
+        escrow.releaseEscrow(paymentId);
+
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+
+        // Verify final balances after full release
+        uint256 remainingAmount = totalAmount - partialRefundAmount;
+        assertEq(_getBalance(receiver1, false), receiverInitialBalance + remainingAmount, "Receiver balance incorrect after release");
+        assertEq(_getBalance(payer1, false), payerInitialBalance - totalAmount + partialRefundAmount, "Payer balance incorrect after full release");
+        assertEq(address(escrow).balance, escrowInitialBalance, "Escrow balance should be zero after release");
+
+        // Verify final payment state
+        Payment memory paymentAfterRelease = _getPayment(paymentId);
+        assertTrue(paymentAfterRelease.released, "Payment should be marked as released");
+        assertEq(paymentAfterRelease.amountRefunded, partialRefundAmount, "Refunded amount should match");
+    }
 
 
 
