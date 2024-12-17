@@ -91,6 +91,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     function placePayment(PaymentInput calldata paymentInput) public payable {
         require(paymentInput.amount > 0, "InvalidAmount");
         require(paymentInput.receiver != address(0), "InvalidReceiver");
+        //revery msg value
         address currency = paymentInput.currency; 
         uint256 amount = paymentInput.amount;
 
@@ -294,8 +295,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
                 emit PaymentTransferred(paymentId, tokenAddressOrZero, amount);
             }
             else {
-                emit PaymentTransferFailed(paymentId, tokenAddressOrZero, amount);
-                // think this should chnage to a revert to prevent stuck funds
+                revert("PaymentTransferFailed");
             }
         }
 

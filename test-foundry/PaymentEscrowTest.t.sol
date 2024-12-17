@@ -1313,6 +1313,61 @@ contract PaymentEscrowTest is Test {
         vm.stopPrank();
     }
 
+    function testPaymentTransferFailedRevertOnFailedNativeTransfer() public {
+        // Create a contract that reverts on receiving ETH
+        RevertingReceiver revReceiver = new RevertingReceiver();
+        bytes32 paymentId = keccak256("payment-transfer-failed-native");
+        uint256 amount = 1 ether;
+
+        _placePayment(paymentId, payer1, address(revReceiver), amount, false);
+
+        // payer releases first
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+
+        // expect a transfer fail revert when receiver tries to release and send funds
+        vm.expectRevert("PaymentTransferFailed");
+
+        vm.prank(address(revReceiver));
+        escrow.releaseEscrow(paymentId);
+    }
+
+    function testPaymentTransferFailedRevertOnFailedTokenTransfer() public {
+        FailingToken failingToken = new FailingToken();
+        bytes32 paymentId = keccak256("payment-transfer-failed-token");
+        uint256 amount = 1000;
+
+        // Give payer1 some tokens so the placePayment call can succeed
+        failingToken.transfer(payer1, 2000);
+
+        // Ensure normal operations during placePayment
+        vm.prank(payer1);
+        failingToken.approve(address(escrow), amount);
+        vm.prank(payer1);
+        escrow.placePayment(
+            PaymentInput({
+                currency: address(failingToken),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+
+        // First approval succeeds; token transfers normally at this stage
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+
+        // set the token to fail on transfer
+        failingToken.setFailTransfers(true);
+
+        // expect a transfer fail revert when receiver tries to release and send funds
+        vm.expectRevert("PaymentTransferFailed");
+
+        vm.prank(receiver1);
+        escrow.releaseEscrow(paymentId);
+    }
+
     // Event Tests
 
     // events 
@@ -1509,63 +1564,6 @@ contract PaymentEscrowTest is Test {
 
         vm.prank(receiver1);
         escrow.refundPayment(paymentId, refundAmount);
-    }
-
-    function testPaymentTransferFailedEventEmittedOnFailedNativeTransfer() public {
-        // Create a contract that reverts on receiving ETH
-        RevertingReceiver revReceiver = new RevertingReceiver();
-        bytes32 paymentId = keccak256("payment-transfer-failed-native");
-        uint256 amount = 1 ether;
-
-        _placePayment(paymentId, payer1, address(revReceiver), amount, false);
-
-        // payer releases first
-        vm.prank(payer1);
-        escrow.releaseEscrow(paymentId);
-
-        // expect a transfer fail event when receiver tries to release and send funds
-        vm.expectEmit(true, true, true, true);
-        emit PaymentTransferFailed(paymentId, address(0), amount);
-
-        vm.prank(address(revReceiver));
-        escrow.releaseEscrow(paymentId);
-    }
-
-    function testPaymentTransferFailedEventEmittedOnFailedTokenTransfer() public {
-        FailingToken failingToken = new FailingToken();
-        bytes32 paymentId = keccak256("payment-transfer-failed-token");
-        uint256 amount = 1000;
-
-        // Give payer1 some tokens so the placePayment call can succeed
-        failingToken.transfer(payer1, 2000);
-
-        // Ensure normal operations during placePayment
-        vm.prank(payer1);
-        failingToken.approve(address(escrow), amount);
-        vm.prank(payer1);
-        escrow.placePayment(
-            PaymentInput({
-                currency: address(failingToken),
-                id: paymentId,
-                receiver: receiver1,
-                payer: payer1,
-                amount: amount
-            })
-        );
-
-        // First approval succeeds; token transfers normally at this stage
-        vm.prank(payer1);
-        escrow.releaseEscrow(paymentId);
-
-        // set the token to fail on transfer
-        failingToken.setFailTransfers(true);
-
-        // Expect a PaymentTransferFailed event when the receiver1 attempts release
-        vm.expectEmit(true, true, true, true);
-        emit PaymentTransferFailed(paymentId, address(failingToken), amount);
-
-        vm.prank(receiver1);
-        escrow.releaseEscrow(paymentId);
     }
 }
 

@@ -285,6 +285,49 @@ contract EscrowMulticallTest is Test {
         vm.stopPrank();
     }
 
+    function testPaymentTransferFailedRevert() public {
+        FailingToken failingToken = new FailingToken();
+
+        address payerAccount = payer1;
+        address receiverAccount = receiver1;
+        uint256 amount = 6000 ether;
+        bytes32 paymentId = keccak256("payment6");
+
+        failingToken.transfer(payer1, amount);
+
+        // Mint failing tokens
+        vm.prank(payerAccount);
+        failingToken.approve(address(multicall), amount);
+
+        // Place payment
+        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](1);
+        arr[0] = MulticallPaymentInput({
+            contractAddress: address(escrow),
+            currency: address(failingToken),
+            id: paymentId,
+            receiver: receiverAccount,
+            payer: payerAccount,
+            amount: amount
+        });
+
+        vm.prank(payerAccount);
+        multicall.multipay(arr);
+
+        // set the failing token to fail transfers
+        vm.prank(address(this));
+        failingToken.setFailTransfers(true);
+
+        // payer to release the escrow
+        vm.prank(payerAccount);
+        escrow.releaseEscrow(paymentId);
+
+        // release the escrow and expect the PaymentTransferFailed revert
+        vm.expectRevert("PaymentTransferFailed");
+
+        vm.prank(receiverAccount);
+        escrow.releaseEscrow(paymentId);
+    }
+
     // Release Payments
     function testCannotReleasePaymentWithNoApprovals() public {
         uint256 initialContractBalance = getBalance(address(escrow), true);
@@ -1257,50 +1300,6 @@ contract EscrowMulticallTest is Test {
         vm.expectEmit(true, true, true, true);
         emit PaymentTransferred(paymentId, address(0), refundAmount);
         escrow.refundPayment(paymentId, refundAmount);
-    }
-
-    function testPaymentTransferFailedEvent() public {
-        FailingToken failingToken = new FailingToken();
-
-        address payerAccount = payer1;
-        address receiverAccount = receiver1;
-        uint256 amount = 6000 ether;
-        bytes32 paymentId = keccak256("payment6");
-
-        failingToken.transfer(payer1, amount);
-
-        // Mint failing tokens
-        vm.prank(payerAccount);
-        failingToken.approve(address(multicall), amount);
-
-        // Place payment
-        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](1);
-        arr[0] = MulticallPaymentInput({
-            contractAddress: address(escrow),
-            currency: address(failingToken),
-            id: paymentId,
-            receiver: receiverAccount,
-            payer: payerAccount,
-            amount: amount
-        });
-
-        vm.prank(payerAccount);
-        multicall.multipay(arr);
-
-        // set the failing token to fail transfers
-        vm.prank(address(this));
-        failingToken.setFailTransfers(true);
-
-        // payer to release the escrow
-        vm.prank(payerAccount);
-        escrow.releaseEscrow(paymentId);
-
-        // release the escrow and expect the PaymentTransferFailed event
-        vm.expectEmit(true, true, true, true);
-        emit PaymentTransferFailed(paymentId, address(failingToken), amount);
-
-        vm.prank(receiverAccount);
-        escrow.releaseEscrow(paymentId);
     }
 
     function testMultipleEventsEmittedForMultiplePayments() public {
