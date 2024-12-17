@@ -28,8 +28,14 @@ export type { IERC165 } from "./@openzeppelin/contracts/utils/introspection/IERC
 export { IERC165__factory } from "./factories/@openzeppelin/contracts/utils/introspection/IERC165__factory";
 export type { CarefulMath } from "./src/CarefulMath";
 export { CarefulMath__factory } from "./factories/src/CarefulMath__factory";
+export type { EscrowMulticall } from "./src/EscrowMulticall";
+export { EscrowMulticall__factory } from "./factories/src/EscrowMulticall__factory";
+export type { FailingToken } from "./src/FailingToken";
+export { FailingToken__factory } from "./factories/src/FailingToken__factory";
 export type { HasSecurityContext } from "./src/HasSecurityContext";
 export { HasSecurityContext__factory } from "./factories/src/HasSecurityContext__factory";
+export type { IEscrowContract } from "./src/IEscrowContract";
+export { IEscrowContract__factory } from "./factories/src/IEscrowContract__factory";
 export type { ISecurityContext } from "./src/ISecurityContext";
 export { ISecurityContext__factory } from "./factories/src/ISecurityContext__factory";
 export type { ISystemSettings } from "./src/ISystemSettings";
