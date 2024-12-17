@@ -279,7 +279,7 @@ contract PaymentEscrowTest is Test {
         bytes32 paymentId = keccak256("0x01");
 
         vm.prank(payer1);
-        vm.expectRevert("InsufficientAmount");
+        vm.expectRevert("InvalidAmount");
         escrow.placePayment{value: amount - 1}(
             PaymentInput({
                 currency: address(0),
@@ -1270,7 +1270,7 @@ contract PaymentEscrowTest is Test {
         bytes32 paymentId = keccak256("insufficient-eth");
 
         vm.prank(payer1);
-        vm.expectRevert("InsufficientAmount");
+        vm.expectRevert("InvalidAmount");
         escrow.placePayment{value: amount - 1}(
             PaymentInput({
                 currency: address(0),

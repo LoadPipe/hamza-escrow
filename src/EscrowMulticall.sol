@@ -47,6 +47,7 @@ contract EscrowMulticall
      */
     function multipay(MulticallPaymentInput[] calldata payments) external payable {
         for (uint256 n=0; n<payments.length; n++) {
+            // for proper msg.value handling we need to check all amounts first
             MulticallPaymentInput memory payment = payments[n];
 
             uint256 amount = payment.amount;

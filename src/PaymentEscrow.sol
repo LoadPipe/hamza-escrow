@@ -97,9 +97,9 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
 
 
         if (currency == address(0)) {
-                //check that the amount matches
-            if (msg.value < amount)
-                revert("InsufficientAmount");
+            //check that the amount matches
+            if (msg.value != amount)
+                revert("InvalidAmount");
         } 
         else {
                 //transfer to self 
