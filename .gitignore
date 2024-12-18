@@ -4,6 +4,7 @@ out/
 node_modules/
 artifacts/
 typechain-types/
+lib/
 #hardhat.config.ts
 *.sh
 

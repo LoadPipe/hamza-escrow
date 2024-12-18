@@ -1,3 +1,15 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "lib/solady"]
+	path = lib/solady
+	url = https://github.com/vectorized/solady
+[submodule "lib/solbase"]
+	path = lib/solbase
+	url = https://github.com/sol-dao/solbase
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "lib/hats-protocol"]
+	path = lib/hats-protocol
+	url = https://github.com/Hats-Protocol/hats-protocol

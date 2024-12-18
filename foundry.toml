@@ -3,6 +3,13 @@ src = "src"
 out = "out"
 libs = ["lib"]
 test = "test-foundry"
+remappings = [
+  "ds-test/=lib/forge-std/lib/ds-test/src/",
+  "forge-std/=lib/forge-std/src/",
+  "solbase/=lib/solbase/src/",
+  "solady/=lib/solady/src/",
+  "hats-protocol/=lib/hats-protocol/"
+]
 
 [rpc_endpoints]
 mainnet = "https://mainnet.infura.io/v3/${process.env.SEPOLIA_API_KEY}"
