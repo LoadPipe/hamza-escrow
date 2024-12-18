@@ -58,6 +58,7 @@ export type PaymentStructOutput = [
 };
 
 export type PaymentInputStruct = {
+  currency: AddressLike;
   id: BytesLike;
   receiver: AddressLike;
   payer: AddressLike;
@@ -65,21 +66,18 @@ export type PaymentInputStruct = {
 };
 
 export type PaymentInputStructOutput = [
+  currency: string,
   id: string,
   receiver: string,
   payer: string,
   amount: bigint
-] & { id: string; receiver: string; payer: string; amount: bigint };
-
-export type MultiPaymentInputStruct = {
-  currency: AddressLike;
-  payments: PaymentInputStruct[];
+] & {
+  currency: string;
+  id: string;
+  receiver: string;
+  payer: string;
+  amount: bigint;
 };
-
-export type MultiPaymentInputStructOutput = [
-  currency: string,
-  payments: PaymentInputStructOutput[]
-] & { currency: string; payments: PaymentInputStructOutput[] };
 
 export interface PaymentEscrowInterface extends Interface {
   getFunction(
@@ -92,7 +90,7 @@ export interface PaymentEscrowInterface extends Interface {
       | "REFUNDER_ROLE"
       | "SYSTEM_ROLE"
       | "getPayment"
-      | "placeMultiPayments"
+      | "placePayment"
       | "refundPayment"
       | "releaseEscrow"
       | "securityContext"
@@ -139,8 +137,8 @@ export interface PaymentEscrowInterface extends Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "placeMultiPayments",
-    values: [MultiPaymentInputStruct[]]
+    functionFragment: "placePayment",
+    values: [PaymentInputStruct]
   ): string;
   encodeFunctionData(
     functionFragment: "refundPayment",
@@ -183,7 +181,7 @@ export interface PaymentEscrowInterface extends Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "getPayment", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "placeMultiPayments",
+    functionFragment: "placePayment",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -392,8 +390,8 @@ export interface PaymentEscrow extends BaseContract {
     "view"
   >;
 
-  placeMultiPayments: TypedContractMethod<
-    [multiPayments: MultiPaymentInputStruct[]],
+  placePayment: TypedContractMethod<
+    [paymentInput: PaymentInputStruct],
     [void],
     "payable"
   >;
@@ -447,12 +445,8 @@ export interface PaymentEscrow extends BaseContract {
     nameOrSignature: "getPayment"
   ): TypedContractMethod<[paymentId: BytesLike], [PaymentStructOutput], "view">;
   getFunction(
-    nameOrSignature: "placeMultiPayments"
-  ): TypedContractMethod<
-    [multiPayments: MultiPaymentInputStruct[]],
-    [void],
-    "payable"
-  >;
+    nameOrSignature: "placePayment"
+  ): TypedContractMethod<[paymentInput: PaymentInputStruct], [void], "payable">;
   getFunction(
     nameOrSignature: "refundPayment"
   ): TypedContractMethod<

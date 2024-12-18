@@ -23,15 +23,16 @@ import type {
   TypedContractMethod,
 } from "../common";
 
-export interface TestTokenInterface extends Interface {
+export interface FailingTokenInterface extends Interface {
   getFunction(
     nameOrSignature:
       | "allowance"
       | "approve"
       | "balanceOf"
       | "decimals"
-      | "mint"
+      | "failTransfers"
       | "name"
+      | "setFailTransfers"
       | "symbol"
       | "test"
       | "totalSupply"
@@ -55,10 +56,14 @@ export interface TestTokenInterface extends Interface {
   ): string;
   encodeFunctionData(functionFragment: "decimals", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "mint",
-    values: [AddressLike, BigNumberish]
+    functionFragment: "failTransfers",
+    values?: undefined
   ): string;
   encodeFunctionData(functionFragment: "name", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "setFailTransfers",
+    values: [boolean]
+  ): string;
   encodeFunctionData(functionFragment: "symbol", values?: undefined): string;
   encodeFunctionData(functionFragment: "test", values?: undefined): string;
   encodeFunctionData(
@@ -78,8 +83,15 @@ export interface TestTokenInterface extends Interface {
   decodeFunctionResult(functionFragment: "approve", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "balanceOf", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "decimals", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "mint", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "failTransfers",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "name", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "setFailTransfers",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "symbol", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "test", data: BytesLike): Result;
   decodeFunctionResult(
@@ -129,11 +141,11 @@ export namespace TransferEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export interface TestToken extends BaseContract {
-  connect(runner?: ContractRunner | null): TestToken;
+export interface FailingToken extends BaseContract {
+  connect(runner?: ContractRunner | null): FailingToken;
   waitForDeployment(): Promise<this>;
 
-  interface: TestTokenInterface;
+  interface: FailingTokenInterface;
 
   queryFilter<TCEvent extends TypedContractEvent>(
     event: TCEvent,
@@ -179,7 +191,7 @@ export interface TestToken extends BaseContract {
   >;
 
   approve: TypedContractMethod<
-    [spender: AddressLike, value: BigNumberish],
+    [spender: AddressLike, amount: BigNumberish],
     [boolean],
     "nonpayable"
   >;
@@ -188,13 +200,11 @@ export interface TestToken extends BaseContract {
 
   decimals: TypedContractMethod<[], [bigint], "view">;
 
-  mint: TypedContractMethod<
-    [to: AddressLike, amount: BigNumberish],
-    [void],
-    "nonpayable"
-  >;
+  failTransfers: TypedContractMethod<[], [boolean], "view">;
 
   name: TypedContractMethod<[], [string], "view">;
+
+  setFailTransfers: TypedContractMethod<[_fail: boolean], [void], "nonpayable">;
 
   symbol: TypedContractMethod<[], [string], "view">;
 
@@ -203,13 +213,13 @@ export interface TestToken extends BaseContract {
   totalSupply: TypedContractMethod<[], [bigint], "view">;
 
   transfer: TypedContractMethod<
-    [to: AddressLike, value: BigNumberish],
+    [recipient: AddressLike, amount: BigNumberish],
     [boolean],
     "nonpayable"
   >;
 
   transferFrom: TypedContractMethod<
-    [from: AddressLike, to: AddressLike, value: BigNumberish],
+    [sender: AddressLike, recipient: AddressLike, amount: BigNumberish],
     [boolean],
     "nonpayable"
   >;
@@ -228,7 +238,7 @@ export interface TestToken extends BaseContract {
   getFunction(
     nameOrSignature: "approve"
   ): TypedContractMethod<
-    [spender: AddressLike, value: BigNumberish],
+    [spender: AddressLike, amount: BigNumberish],
     [boolean],
     "nonpayable"
   >;
@@ -239,15 +249,14 @@ export interface TestToken extends BaseContract {
     nameOrSignature: "decimals"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
-    nameOrSignature: "mint"
-  ): TypedContractMethod<
-    [to: AddressLike, amount: BigNumberish],
-    [void],
-    "nonpayable"
-  >;
+    nameOrSignature: "failTransfers"
+  ): TypedContractMethod<[], [boolean], "view">;
   getFunction(
     nameOrSignature: "name"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "setFailTransfers"
+  ): TypedContractMethod<[_fail: boolean], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "symbol"
   ): TypedContractMethod<[], [string], "view">;
@@ -260,14 +269,14 @@ export interface TestToken extends BaseContract {
   getFunction(
     nameOrSignature: "transfer"
   ): TypedContractMethod<
-    [to: AddressLike, value: BigNumberish],
+    [recipient: AddressLike, amount: BigNumberish],
     [boolean],
     "nonpayable"
   >;
   getFunction(
     nameOrSignature: "transferFrom"
   ): TypedContractMethod<
-    [from: AddressLike, to: AddressLike, value: BigNumberish],
+    [sender: AddressLike, recipient: AddressLike, amount: BigNumberish],
     [boolean],
     "nonpayable"
   >;

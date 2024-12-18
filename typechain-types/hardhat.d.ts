@@ -58,9 +58,21 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.CarefulMath__factory>;
     getContractFactory(
+      name: "EscrowMulticall",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.EscrowMulticall__factory>;
+    getContractFactory(
+      name: "FailingToken",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.FailingToken__factory>;
+    getContractFactory(
       name: "HasSecurityContext",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.HasSecurityContext__factory>;
+    getContractFactory(
+      name: "IEscrowContract",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.IEscrowContract__factory>;
     getContractFactory(
       name: "ISecurityContext",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -142,10 +154,25 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.CarefulMath>;
     getContractAt(
+      name: "EscrowMulticall",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.EscrowMulticall>;
+    getContractAt(
+      name: "FailingToken",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.FailingToken>;
+    getContractAt(
       name: "HasSecurityContext",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.HasSecurityContext>;
+    getContractAt(
+      name: "IEscrowContract",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.IEscrowContract>;
     getContractAt(
       name: "ISecurityContext",
       address: string | ethers.Addressable,
@@ -222,9 +249,21 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.CarefulMath>;
     deployContract(
+      name: "EscrowMulticall",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.EscrowMulticall>;
+    deployContract(
+      name: "FailingToken",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.FailingToken>;
+    deployContract(
       name: "HasSecurityContext",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.HasSecurityContext>;
+    deployContract(
+      name: "IEscrowContract",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IEscrowContract>;
     deployContract(
       name: "ISecurityContext",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -306,10 +345,25 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.CarefulMath>;
     deployContract(
+      name: "EscrowMulticall",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.EscrowMulticall>;
+    deployContract(
+      name: "FailingToken",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.FailingToken>;
+    deployContract(
       name: "HasSecurityContext",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.HasSecurityContext>;
+    deployContract(
+      name: "IEscrowContract",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IEscrowContract>;
     deployContract(
       name: "ISecurityContext",
       args: any[],

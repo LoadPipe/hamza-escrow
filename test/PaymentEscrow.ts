@@ -414,7 +414,7 @@ describe('PaymentEscrow', function () {
                     },
                     { value: amount - 1 }
                 )
-            ).to.be.revertedWith('InsufficientAmount');
+            ).to.be.revertedWith('InvalidAmount');
         });
 
         it('cannot place order without correct token amount approved', async function () {

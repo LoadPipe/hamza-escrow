@@ -89,14 +89,16 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * @param paymentInput Payment inputs
      */
     function placePayment(PaymentInput calldata paymentInput) public payable {
+        require(paymentInput.amount > 0, "InvalidAmount");
+        require(paymentInput.receiver != address(0), "InvalidReceiver");
         address currency = paymentInput.currency; 
         uint256 amount = paymentInput.amount;
 
 
         if (currency == address(0)) {
-                //check that the amount matches
-            if (msg.value < amount)
-                revert("InsufficientAmount");
+            //check that the amount matches
+            if (msg.value != amount)
+                revert("InvalidAmount");
         } 
         else {
                 //transfer to self 
@@ -292,7 +294,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
                 emit PaymentTransferred(paymentId, tokenAddressOrZero, amount);
             }
             else {
-                emit PaymentTransferFailed(paymentId, tokenAddressOrZero, amount);
+                revert("PaymentTransferFailed");
             }
         }
 

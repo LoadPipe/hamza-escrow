@@ -2,7 +2,10 @@
 /* tslint:disable */
 /* eslint-disable */
 export { CarefulMath__factory } from "./CarefulMath__factory";
+export { EscrowMulticall__factory } from "./EscrowMulticall__factory";
+export { FailingToken__factory } from "./FailingToken__factory";
 export { HasSecurityContext__factory } from "./HasSecurityContext__factory";
+export { IEscrowContract__factory } from "./IEscrowContract__factory";
 export { ISecurityContext__factory } from "./ISecurityContext__factory";
 export { ISystemSettings__factory } from "./ISystemSettings__factory";
 export { PaymentEscrow__factory } from "./PaymentEscrow__factory";

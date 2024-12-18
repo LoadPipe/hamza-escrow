@@ -285,6 +285,49 @@ contract EscrowMulticallTest is Test {
         vm.stopPrank();
     }
 
+    function testPaymentTransferFailedRevert() public {
+        FailingToken failingToken = new FailingToken();
+
+        address payerAccount = payer1;
+        address receiverAccount = receiver1;
+        uint256 amount = 6000 ether;
+        bytes32 paymentId = keccak256("payment6");
+
+        failingToken.transfer(payer1, amount);
+
+        // Mint failing tokens
+        vm.prank(payerAccount);
+        failingToken.approve(address(multicall), amount);
+
+        // Place payment
+        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](1);
+        arr[0] = MulticallPaymentInput({
+            contractAddress: address(escrow),
+            currency: address(failingToken),
+            id: paymentId,
+            receiver: receiverAccount,
+            payer: payerAccount,
+            amount: amount
+        });
+
+        vm.prank(payerAccount);
+        multicall.multipay(arr);
+
+        // set the failing token to fail transfers
+        vm.prank(address(this));
+        failingToken.setFailTransfers(true);
+
+        // payer to release the escrow
+        vm.prank(payerAccount);
+        escrow.releaseEscrow(paymentId);
+
+        // release the escrow and expect the PaymentTransferFailed revert
+        vm.expectRevert("PaymentTransferFailed");
+
+        vm.prank(receiverAccount);
+        escrow.releaseEscrow(paymentId);
+    }
+
     // Release Payments
     function testCannotReleasePaymentWithNoApprovals() public {
         uint256 initialContractBalance = getBalance(address(escrow), true);
@@ -1022,6 +1065,125 @@ contract EscrowMulticallTest is Test {
         vm.stopPrank();
     }
 
+    function testZeroAmountPaymentReverts() public {
+        bytes32 paymentId = keccak256("zeroAmount");
+        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](1);
+        arr[0] = MulticallPaymentInput({
+            contractAddress: address(escrow),
+            currency: address(0),
+            receiver: receiver1,
+            payer: payer1,
+            amount: 0,
+            id: paymentId
+        });
+
+        vm.startPrank(payer1);
+        vm.expectRevert("PaymentFailure");
+        multicall.multipay(arr);
+        vm.stopPrank();
+    }
+
+    function testNonTokenCurrencyReverts() public {
+        FailingToken failingToken = new FailingToken();
+
+        bytes32 paymentId = keccak256("nonTokenCurrency");
+        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](1);
+        arr[0] = MulticallPaymentInput({
+            contractAddress: address(escrow),
+            currency: address(failingToken), 
+            receiver: receiver1,
+            payer: payer1,
+            amount: 10000,
+            id: paymentId
+        });
+
+        failingToken.setFailTransfers(true);
+
+        vm.startPrank(payer1);
+        vm.expectRevert("TokenTransferFailed");
+        multicall.multipay(arr);
+        vm.stopPrank();
+    }
+
+    function testEscrowRevertsOnPlacePayment() public {
+        // contract that reverts on any call
+        address revertingContract = address(new RevertingEscrowMock());
+        
+        bytes32 paymentId = keccak256("escrowReverts");
+        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](1);
+        arr[0] = MulticallPaymentInput({
+            contractAddress: revertingContract,
+            currency: address(0),
+            receiver: receiver1,
+            payer: payer1,
+            amount: 1000,
+            id: paymentId
+        });
+
+        vm.startPrank(payer1);
+        vm.expectRevert("PaymentFailure");
+        multicall.multipay{value: 1000}(arr);
+        vm.stopPrank();
+    }
+
+    function testEscrowRevertsOnPlacePaymentNonNative() public {
+        // contract that reverts on any call
+        address revertingContract = address(new RevertingEscrowMock());
+        
+        bytes32 paymentId = keccak256("escrowReverts");
+        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](1);
+        arr[0] = MulticallPaymentInput({
+            contractAddress: revertingContract,
+            currency: address(testToken),
+            receiver: receiver1,
+            payer: payer1,
+            amount: 1000,
+            id: paymentId
+        });
+
+        vm.startPrank(payer1);
+        testToken.approve(address(multicall), 1000);
+        vm.expectRevert("TokenPaymentFailure");
+        multicall.multipay(arr);
+        vm.stopPrank();
+    }
+
+    function testOverpayingNativeCurrencyDoesNotRevert() public {
+        // test overpaying with native currency. this doesnt revert but prrobably should
+
+        uint256 overpayAmount = 20000;
+        uint256 requiredAmount = 10000;
+        bytes32 paymentId = keccak256("overpayingTest");
+
+        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](1);
+        arr[0] = MulticallPaymentInput({
+            contractAddress: address(escrow),
+            currency: address(0),
+            receiver: receiver1,
+            payer: payer1,
+            amount: requiredAmount,
+            id: paymentId
+        });
+
+        uint256 initialBalance = payer1.balance;
+        vm.startPrank(payer1);
+        multicall.multipay{value: overpayAmount}(arr);
+        vm.stopPrank();
+
+        Payment memory payment = escrow.getPayment(paymentId);
+        assertEq(payment.amount, requiredAmount);
+
+        // The payers balance should decrease by the overpayAmount
+        uint256 newBalance = payer1.balance;
+        assertEq(newBalance, initialBalance - overpayAmount, "Overpayment should be deducted from sender");
+
+        // The escrow contract should have the full overpayAmount
+        assertEq(address(escrow).balance, requiredAmount, "Escrow holds only required amount");
+        // The difference should remain in EscrowMulticall contract
+        assertEq(address(multicall).balance, overpayAmount - requiredAmount, "Multicall should hold remainder");
+    }
+
+
     // Event tests
 
     // events
@@ -1140,50 +1302,6 @@ contract EscrowMulticallTest is Test {
         escrow.refundPayment(paymentId, refundAmount);
     }
 
-    function testPaymentTransferFailedEvent() public {
-        FailingToken failingToken = new FailingToken();
-
-        address payerAccount = payer1;
-        address receiverAccount = receiver1;
-        uint256 amount = 6000 ether;
-        bytes32 paymentId = keccak256("payment6");
-
-        failingToken.transfer(payer1, amount);
-
-        // Mint failing tokens
-        vm.prank(payerAccount);
-        failingToken.approve(address(multicall), amount);
-
-        // Place payment
-        MulticallPaymentInput[] memory arr = new MulticallPaymentInput[](1);
-        arr[0] = MulticallPaymentInput({
-            contractAddress: address(escrow),
-            currency: address(failingToken),
-            id: paymentId,
-            receiver: receiverAccount,
-            payer: payerAccount,
-            amount: amount
-        });
-
-        vm.prank(payerAccount);
-        multicall.multipay(arr);
-
-        // set the failing token to fail transfers
-        vm.prank(address(this));
-        failingToken.setFailTransfers(true);
-
-        // payer to release the escrow
-        vm.prank(payerAccount);
-        escrow.releaseEscrow(paymentId);
-
-        // release the escrow and expect the PaymentTransferFailed event
-        vm.expectEmit(true, true, true, true);
-        emit PaymentTransferFailed(paymentId, address(failingToken), amount);
-
-        vm.prank(receiverAccount);
-        escrow.releaseEscrow(paymentId);
-    }
-
     function testMultipleEventsEmittedForMultiplePayments() public {
         // Setup
         uint256 amount1 = 5000;
@@ -1279,3 +1397,10 @@ contract EscrowMulticallTest is Test {
     }
     
 }
+
+contract RevertingEscrowMock {
+    function placePayment(PaymentInput calldata) external payable {
+        revert("Mocked Revert in placePayment");
+    }
+}
+
