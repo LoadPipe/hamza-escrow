@@ -3,6 +3,7 @@ cache/
 out/
 node_modules/
 artifacts/
+typechain-types/
 #hardhat.config.ts
 *.sh
 
