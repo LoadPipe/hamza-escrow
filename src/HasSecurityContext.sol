@@ -20,13 +20,13 @@ abstract contract HasSecurityContext is Context {
     ISecurityContext public securityContext; 
     
     //security roles 
-    bytes32 public constant ADMIN_ROLE = 0x0;
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");     //TODO: needed?
-    bytes32 public constant SYSTEM_ROLE = keccak256("SYSTEM_ROLE");     //TODO: not needed
-    bytes32 public constant APPROVER_ROLE = keccak256("APPROVER_ROLE"); //TODO: not needed?
-    bytes32 public constant REFUNDER_ROLE = keccak256("REFUNDER_ROLE"); //TODO: not needed?
-    bytes32 public constant ARBITER_ROLE = keccak256("ARBITER_ROLE");
-    bytes32 public constant DAO_ROLE = keccak256("DAO_ROLE");
+    bytes32 public immutable ADMIN_ROLE;
+    bytes32 public PAUSER_ROLE = keccak256("PAUSER_ROLE");     //TODO: needed?
+    bytes32 public SYSTEM_ROLE = keccak256("SYSTEM_ROLE");     //TODO: not needed
+    bytes32 public APPROVER_ROLE = keccak256("APPROVER_ROLE"); //TODO: not needed?
+    bytes32 public REFUNDER_ROLE = keccak256("REFUNDER_ROLE"); //TODO: not needed?
+    bytes32 public ARBITER_ROLE = keccak256("ARBITER_ROLE");
+    bytes32 public DAO_ROLE = keccak256("DAO_ROLE");
     
     //thrown when the onlyRole modifier reverts 
     error UnauthorizedAccess(bytes32 roleId, address addr); 
@@ -36,6 +36,8 @@ abstract contract HasSecurityContext is Context {
     
     //emitted when setSecurityContext has been called 
     event SecurityContextSet(address caller, address securityContext);
+
+    event RoleUpdated(bytes32 oldRole, bytes32 newRole);
     
     //Restricts function calls to callers that have a specified security role only 
     modifier onlyRole(bytes32 role) {
@@ -43,6 +45,49 @@ abstract contract HasSecurityContext is Context {
             revert UnauthorizedAccess(role, _msgSender());
         }
         _;
+    }
+    /**
+    * @dev Allows an authorized caller to update a role.
+     * Reverts: 
+     * - {UnauthorizedAccess}: if caller is not authorized 
+     * - {InvalidHat}: if the new role is not a child of the topHat (ADMIN_ROLE)
+     * - {ZeroAddressArgument}: if the address passed is 0x0 
+     * 
+     * @param role The role to update. 
+     * @param newRole The new role to set. 
+     */
+    function updateRole(bytes32 role, bytes32 newRole) external onlyRole(ADMIN_ROLE) {
+        _updateRole(role, newRole);
+    }
+
+    function _updateRole(bytes32 role, bytes32 newRole) internal {
+        //cannot be zero
+        if (newRole == bytes32(0)) {
+            revert ZeroAddressArgument();
+        }
+        //TODO:must be a child of the topHat (ADMIN_ROLE)
+        // need to figure out how to check this, I think I need to travaerse up the tree
+        // by checking the 'level' of the hat and then finding the local admin at that level
+        // and then walk up the tree until I arrive at the tippytop hat. 
+        // might be easier to ask spencer and co for help if there is an easier way
+
+        //update role
+        if (role == ARBITER_ROLE) {
+            ARBITER_ROLE = newRole;
+        } else if (role == PAUSER_ROLE) {
+            PAUSER_ROLE = newRole;
+        } else if (role == SYSTEM_ROLE) {
+            SYSTEM_ROLE = newRole;
+        } else if (role == APPROVER_ROLE) {
+            APPROVER_ROLE = newRole;
+        } else if (role == REFUNDER_ROLE) {
+            REFUNDER_ROLE = newRole;
+        } else if (role == DAO_ROLE) {
+            DAO_ROLE = newRole;
+        }
+
+        emit RoleUpdated(role, newRole);
+
     }
     
     /**

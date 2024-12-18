@@ -65,7 +65,7 @@ $ anvil --help
 $ cast --help
 ```
 
-# Initial Foundry Setup for Hats Integration
+# Initial Foundry Setup for Hats Integration`
 
 ```shell
 $ forge install vectorized/solady --no-commit 

@@ -28,7 +28,7 @@ contract SecurityContextTest is Test {
         vm.deal(nonAdmin2, 100 ether);
 
         vm.startPrank(admin);
-        securityContext = new SecurityContext(admin);
+        securityContext = new SecurityContext(admin, address(0), bytes32(0));
         vm.stopPrank();
     }
 

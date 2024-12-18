@@ -2,8 +2,8 @@
 pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "./ISecurityContext.sol"; 
-
+import "./ISecurityContext.sol";
+import "hats-protocol/src/Interfaces/IHats.sol";
 /**
  * @title SecurityContext 
  * 
@@ -20,13 +20,20 @@ import "./ISecurityContext.sol";
  * LoadPipe 2024
  * All rights reserved. Unauthorized use prohibited.
  */
-contract SecurityContext is AccessControl, ISecurityContext {
-    bytes32 public constant ADMIN_ROLE = 0x0;
+contract SecurityContext is AccessControl, ISecurityContext { 
+    IHats public immutable hatsContract;
+    bytes32 public immutable ADMIN_ROLE;
     
     /**
      * Constructs the instance, granting the initial role(s). 
      */
-    constructor(address admin) {
+    constructor(address admin, address _hatsContract, bytes32 _topHat) {
+        // hatsContract initialization remains the same since it's immutable
+        hatsContract = IHats(_hatsContract);
+        ADMIN_ROLE = _topHat;
+        // in this construction, the admin role is granted to the admin address AND any wearer  of the topHat
+        // to remove the admin, the admin must renounce their role, and the topHat wearer must transfer the hat
+        // ideally they transfer the topHat to the DAO.
         _grantRole(ADMIN_ROLE, admin);
     }
     
@@ -37,7 +44,7 @@ contract SecurityContext is AccessControl, ISecurityContext {
      * @param account Does this account have the specified role?
      */
     function hasRole(bytes32 role, address account) public view virtual override(AccessControl, ISecurityContext) returns (bool) {
-        return super.hasRole(role, account);
+        return hatsContract.isWearerOfHat(account, uint256(role));
     }
     
     /**

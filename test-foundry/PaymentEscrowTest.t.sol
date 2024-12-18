@@ -52,7 +52,7 @@ contract PaymentEscrowTest is Test {
         vm.deal(receiver2, 100 ether);
 
         vm.startPrank(admin);
-        securityContext = new SecurityContext(admin);
+        securityContext = new SecurityContext(admin, address(0), bytes32(0));
         testToken = new TestToken("XYZ", "ZYX");
         systemSettings = new SystemSettings(ISecurityContext(address(securityContext)), vaultAddress, 0);
 

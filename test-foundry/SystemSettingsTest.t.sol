@@ -27,7 +27,7 @@ contract SystemSettingsTest is Test {
 
         // Deploy SecurityContext with admin
         vm.startPrank(admin);
-        securityContext = new SecurityContext(admin);
+        securityContext = new SecurityContext(admin, address(0), bytes32(0));
         vm.stopPrank();
 
         // Grant dao role
