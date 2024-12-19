@@ -1,0 +1,2 @@
+testLimit: 1000000        # Number of test iterations
+seqLen: 300      # Maximum number of calls per sequence

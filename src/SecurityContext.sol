@@ -2,7 +2,7 @@
 pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "./ISecurityContext.sol"; 
+import "./ISecurityContext.sol";
 
 /**
  * @title SecurityContext 
