@@ -6,7 +6,7 @@ import "./ISystemSettings.sol";
 import "./CarefulMath.sol";
 import "./PaymentInput.sol";
 import "./IEscrowContract.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./inc/token/ERC20/IERC20.sol";
 
 /**
  * @title PaymentEscrow
@@ -208,7 +208,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      */
     function refundPayment(bytes32 paymentId, uint256 amount) external {
         Payment storage payment = payments[paymentId]; 
-        require(payment.released == false, "Payment already released");
+        //require(payment.released == false, "Payment already released");
         if (payment.amount > 0 && payment.amountRefunded <= payment.amount) {
 
             //who has permission to refund? either the receiver or the arbiter
