@@ -20,13 +20,16 @@ contract test_drain  {
     SystemSettings systemSettings;
 
     uint256 user1_initial_balance;
+    uint256 user1_paid_out;
     uint256 user1_in_escrow_balance;
 
     uint256 user2_initial_balance;
+    uint256 user2_paid_out;
     uint256 user2_in_escrow_balance;
 
-    uint256 user3_initial_balance;
-    uint256 user3_in_escrow_balance;
+    uint256 escrow_id1 = 0;
+    uint256 escrow_id2 = 9999999999999999999999999;
+    uint256 call_count = 0;
     
     constructor() {
         securityContext = new SecurityContext(admin);
@@ -35,33 +38,62 @@ contract test_drain  {
 
         user1_initial_balance = user1.balance;
         user2_initial_balance = user2.balance;
-        user3_initial_balance = user3.balance;
     }
 
-    function placePayment1(uint256 amount, bytes32 id) public {
-        PaymentInput memory input = PaymentInput(address(0), id, user1, msg.sender, amount);
-        escrow.placePayment(input);
+    function placePayment1(uint256 amount) public {
+        if (msg.sender != user1 && amount > 0) {
+            call_count++;
+            escrow_id1 += 1;
+            PaymentInput memory input = PaymentInput(address(0), bytes32(escrow_id1), user1, msg.sender, amount);
+            user1_in_escrow_balance += amount;
+            //(bool success, ) = address(escrow).call{value: amount}(
+            //        abi.encodeWithSignature("placePayment((address,bytes32,address,address,uint256))", input)
+            //);
+            address(user1).call{value:amount};
+            escrow.releaseEscrow(bytes32(escrow_id1));
+        }
     }
 
-    function placePayment2(uint256 amount, bytes32 id) public {
-        PaymentInput memory input = PaymentInput(address(0), id, user2, msg.sender, amount);
-        escrow.placePayment(input);
+/*
+    function placePayment2(uint256 amount) public {
+        if (msg.sender != user1) {
+            escrow_id2 += 1;
+            PaymentInput memory input = PaymentInput(address(0), bytes32(escrow_id2), user2, msg.sender, amount);
+            user1_in_escrow_balance += amount;
+            (bool success, ) = address(escrow).call{value: amount}(
+                    abi.encodeWithSignature("placePayment((address,bytes32,address,address,uint256))", input)
+            );
+            address(user1).call{value: amount};
+            escrow.releaseEscrow(bytes32(escrow_id2));
+        }
+    }*/
+
+    function refund1(uint256 amount) public {
+        //escrow.refundPayment(bytes32(escrow_id1), amount);
     }
 
-    function placePayment3(uint256 amount, bytes32 id) public {
-        PaymentInput memory input = PaymentInput(address(0), id, user3, msg.sender, amount);
-        escrow.placePayment(input);
+    function refund2(uint256 amount) public {
+        //escrow.refundPayment(bytes32(escrow_id2), amount);
     }
 
-    function refund1(bytes32 id, uint256 amount) public {
-        escrow.refundPayment(id, amount);
+    function release1() public {
+        //escrow.releaseEscrow(bytes32(escrow_id1));
     }
 
-    function release1(bytes32 id) public {
-        escrow.releaseEscrow(id);
+    function release2() public {
+        //escrow.releaseEscrow(bytes32(escrow_id2));
     }
     
-    function echidna_invariant() public view returns (bool) {
+    function echidna_balance_check1() public view returns (bool) {
+        //return user1.balance >0 &&  user1.balance == user1_initial_balance;
+        if (call_count > 0) {
+            return user1.balance > user1_initial_balance;
+        }
+
         return true;
+    }
+    
+    function echidna_balance_check2() public view returns (bool) {
+        return user2.balance == user2_initial_balance;
     }
 }

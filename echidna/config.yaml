@@ -32,7 +32,7 @@ format: 'text'
 #deployer is address of the contract deployer (who often is privileged owner, etc.)
 deployer: '0x30000'
 #sender is set of addresses transactions may originate from
-sender: ['0x10000', '0x20000', '0x30000']
+sender: ['0x10000', '0x20000']
 #balanceAddr is default balance for addresses
 balanceAddr: 0xffffffff
 #balanceContract overrides balanceAddr for the contract address
