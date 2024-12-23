@@ -196,9 +196,21 @@ contract test_hudson {
                 totalLocked += (payment.amount - payment.amountRefunded);
             }
         }
-
         // Compare escrow actual balance with total still locked
         return address(escrow).balance >= totalLocked;
+    }
+
+    function echidna_no_excess_refund_for_each_payment() public view returns (bool) {
+        for (uint256 i = 0; i < call_count; i++) {
+            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+            Payment memory payment = escrow.getPayment(paymentId);
+
+            // if payment exists ensure the refunded portion never exceeds its original amount
+            if (payment.amountRefunded > payment.amount) {
+                return false;
+            }
+        }
+        return true;
     }
 
 }

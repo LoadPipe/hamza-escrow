@@ -249,7 +249,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
             //transfer funds 
             if (!payment.released) {
                 if (
-                    (amountToPay == 0 && fee > 0) || 
+                    (fee > 0) || 
                     _transferAmount(
                         payment.id, 
                         payment.receiver, 
