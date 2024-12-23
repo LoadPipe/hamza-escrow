@@ -24,11 +24,10 @@ contract test_hudson {
     uint256 call_count = 0;
     bool first_call = false;
     bool first_call_released = false;
-    
+
     bool payment_success = false;
     bool release_success = false;
     bool refund_success = false;
-
 
     constructor() payable {
         require(msg.value > 0, "Initial balance required");
@@ -37,61 +36,63 @@ contract test_hudson {
         escrow = new PaymentEscrow(securityContext, systemSettings);
     }
 
-    function placePayment1(uint256 amount) public {
-        // Only proceed if we have enough balance
-        if (amount > address(this).balance) {
-            return;
+    function placePayment1(uint256 amount, bool randomizePayer, bool randomizeReceiver) public {
+            // Only proceed if we have enough balance
+            if (amount > address(this).balance) {
+                return;
+            }
+
+            // Use the bool `randomize` to determine payer and receiver
+            address payer = randomizePayer ? user1 : user5;
+            address receiver = randomizeReceiver ? user2 : user4;
+
+            // Generate the paymentId
+            bytes32 paymentId = keccak256(abi.encodePacked(call_count, address(this)));
+
+            PaymentInput memory input = PaymentInput(address(0), paymentId, receiver, payer, amount);
+
+            require(address(payer).balance >= amount, "Payer does not have enough balance");
+
+            // Simulate payer placing the payment
+            hevm.prank(payer);
+            (bool success, ) = address(escrow).call{value: amount}(
+                abi.encodeWithSignature("placePayment((address,bytes32,address,address,uint256))", input)
+            );
+
+            payment_success = success;
+            if (success) {
+                call_count++;
+            }
         }
-
-        first_call = true;
-
-        // Generate the paymentId
-        bytes32 paymentId = keccak256(abi.encodePacked(call_count, address(this)));
-
-        // Set user1 as the payer and user2 as the receiver
-        // Randomize the payer and receiver
-        address payer = (block.timestamp % 2 == 0) ? user1 : user5;
-        address receiver = (block.timestamp % 2 == 0) ? user2 : user4;
-
-        PaymentInput memory input = PaymentInput(address(0), paymentId, receiver, payer, amount);
-
-        // Simulate user1 placing the payment
-        hevm.prank(payer);
-        (bool success, ) = address(escrow).call{value: amount}(
-            abi.encodeWithSignature("placePayment((address,bytes32,address,address,uint256))", input)
-        );
-
-        payment_success = success;
-        if (success) {
-            call_count++;
-        }
-    }
 
     function releaseEscrow1(uint256 i) public {
         if (i < call_count) {
             first_call_released = true;
+
+            // Generate paymentId
             bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
 
-            // Randomly select whether the payer or receiver should attempt to release the escrow
-            address releaser = (block.timestamp % 2 == 0) ? user1 : user2;
-
-            // Use hevm.prank to set the msg.sender for the releaseEscrow call
-            hevm.prank(releaser);
+            // Release the escrow using msg.sender
+            hevm.prank(msg.sender);
             (bool success, ) = address(escrow).call(
                 abi.encodeWithSignature("releaseEscrow(bytes32)", paymentId)
             );
+
             release_success = success;
         }
     }
 
     function refundPayment1(uint256 i, uint256 amount) public {
         if (i < call_count) {
+            // Generate paymentId
             bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
 
-            hevm.prank(user2); // Receiver initiates the refund
+            // Refund the payment using msg.sender
+            hevm.prank(msg.sender);
             (bool success, ) = address(escrow).call(
                 abi.encodeWithSignature("refundPayment(bytes32,uint256)", paymentId, amount)
             );
+
             refund_success = success;
         }
     }
@@ -122,7 +123,7 @@ contract test_hudson {
         return true;
     }
 
-    // inariant: escrow funds sufficient to cover refunds
+    // Invariant: Escrow funds sufficient to cover refunds
     function echidna_escrow_funds_sufficient() public view returns (bool) {
         uint256 totalRefunded = 0;
         uint256 totalAmount = 0;
@@ -138,4 +139,19 @@ contract test_hudson {
         return true;
     }
 
+    // Payment release success invariant
+    function echidna_payment_released_success() public view returns (bool) {
+        if (first_call_released) {
+            return false;
+        }
+        return true;
+    }
+
+    // Ensure call_count never exceeds 7 (for testing)
+    function echidna_call_count_limit() public view returns (bool) {
+        if (call_count > 7) {
+            return false;
+        }
+        return true;
+    }
 }
