@@ -4,7 +4,7 @@ pragma solidity ^0.8.7;
 import "../src/PaymentEscrow.sol";
 import "../src/SecurityContext.sol";
 import "../src/SystemSettings.sol";
-import "../node_modules/@crytic/properties/contracts/util/Hevm.sol";
+import "../src/inc/utils/Hevm.sol";
 
 contract test_hudson {
     address constant admin = address(0x00001);
@@ -139,22 +139,6 @@ contract test_hudson {
         return true;
     }
 
-    // // Payment release success invariant
-    // function echidna_payment_released_success() public view returns (bool) {
-    //     if (first_call_released) {
-    //         return false;
-    //     }
-    //     return true;
-    // }
-
-    // // Ensure call_count never exceeds 7 (for testing)
-    // function echidna_call_count_limit() public view returns (bool) {
-    //     if (call_count > 6) {
-    //         return false;
-    //     }
-    //     return true;
-    // }
-
     function echidna_valid_payer_and_receiver() public view returns (bool) {
         for (uint256 i = 0; i < call_count; i++) {
             bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
@@ -169,18 +153,6 @@ contract test_hudson {
         }
         return true;
     }
-
-    // function echidna_no_refund_after_release() public view returns (bool) {
-    //     for (uint256 i = 0; i < call_count; i++) {
-    //         bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
-    //         Payment memory payment = escrow.getPayment(paymentId);
-
-    //         if (payment.released && payment.amountRefunded > 0) {
-    //             return false;
-    //         }
-    //     }
-    //     return true;
-    // }
 
     // Invariant: Escrow balance sufficient to cover locked funds. checks to see if escrow drained 
     function echidna_escrow_balance_sufficient() public view returns (bool) {
@@ -200,6 +172,7 @@ contract test_hudson {
         return address(escrow).balance >= totalLocked;
     }
 
+    //invariant: no excess refund for each payment
     function echidna_no_excess_refund_for_each_payment() public view returns (bool) {
         for (uint256 i = 0; i < call_count; i++) {
             bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
