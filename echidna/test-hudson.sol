@@ -213,4 +213,18 @@ contract test_hudson {
         return true;
     }
 
+    // invariant: no payment is both fully refunded and released
+    function echidna_no_fully_refunded_and_released_payment() public view returns (bool) {
+        for (uint256 i = 0; i < call_count; i++) {
+            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+            Payment memory payment = escrow.getPayment(paymentId);
+
+            // if fully refunded shouldnt also mark it as released
+            if (payment.amountRefunded == payment.amount && payment.released) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 }
