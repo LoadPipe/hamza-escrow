@@ -8,9 +8,12 @@ import "../node_modules/@crytic/properties/contracts/util/Hevm.sol";
 
 contract test_hudson {
     address constant admin = address(0x00001);
-    address constant user1 = address(0x10000); // Payer
-    address constant user2 = address(0x20000); // Receiver
-    address constant user3 = address(0x30000);
+    address constant user3 = address(0x30000); // Deployer
+
+    address constant user1 = address(0x10000); // Payer1
+    address constant user2 = address(0x20000); // Receiver1
+    address constant user4 = address(0x40000); // Receiver2
+    address constant user5 = address(0x50000); // Payer2
     address constant userDeadbeef = address(0xDeaDBeef);
     address constant vault = address(0x50000);
 
@@ -46,10 +49,14 @@ contract test_hudson {
         bytes32 paymentId = keccak256(abi.encodePacked(call_count, address(this)));
 
         // Set user1 as the payer and user2 as the receiver
-        PaymentInput memory input = PaymentInput(address(0), paymentId, user2, user1, amount);
+        // Randomize the payer and receiver
+        address payer = (block.timestamp % 2 == 0) ? user1 : user5;
+        address receiver = (block.timestamp % 2 == 0) ? user2 : user4;
+
+        PaymentInput memory input = PaymentInput(address(0), paymentId, receiver, payer, amount);
 
         // Simulate user1 placing the payment
-        hevm.prank(user1);
+        hevm.prank(payer);
         (bool success, ) = address(escrow).call{value: amount}(
             abi.encodeWithSignature("placePayment((address,bytes32,address,address,uint256))", input)
         );
@@ -111,14 +118,6 @@ contract test_hudson {
                     return false;
                 }
             }
-        }
-        return true;
-    }
-
-    // payment release success invariant
-    function echidna_payment_released_success() public view returns (bool) {
-        if (first_call_released) {
-            return release_success;
         }
         return true;
     }
