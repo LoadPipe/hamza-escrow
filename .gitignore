@@ -4,7 +4,7 @@ out/
 node_modules/
 artifacts/
 typechain-types/
-crytic-export/
+
 #hardhat.config.ts
 *.sh
 
@@ -18,3 +18,5 @@ docs/
 
 # Dotenv file
 .env
+
+crytic-export/
