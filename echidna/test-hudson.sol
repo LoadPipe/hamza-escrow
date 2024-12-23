@@ -139,19 +139,66 @@ contract test_hudson {
         return true;
     }
 
-    // Payment release success invariant
-    function echidna_payment_released_success() public view returns (bool) {
-        if (first_call_released) {
-            return false;
+    // // Payment release success invariant
+    // function echidna_payment_released_success() public view returns (bool) {
+    //     if (first_call_released) {
+    //         return false;
+    //     }
+    //     return true;
+    // }
+
+    // // Ensure call_count never exceeds 7 (for testing)
+    // function echidna_call_count_limit() public view returns (bool) {
+    //     if (call_count > 6) {
+    //         return false;
+    //     }
+    //     return true;
+    // }
+
+    function echidna_valid_payer_and_receiver() public view returns (bool) {
+        for (uint256 i = 0; i < call_count; i++) {
+            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+            Payment memory payment = escrow.getPayment(paymentId);
+
+            bool validPayer = (payment.payer == user1 || payment.payer == user5);
+            bool validReceiver = (payment.receiver == user2 || payment.receiver == user4);
+
+            if (!validPayer || !validReceiver) {
+                return false;
+            }
         }
         return true;
     }
 
-    // Ensure call_count never exceeds 7 (for testing)
-    function echidna_call_count_limit() public view returns (bool) {
-        if (call_count > 7) {
-            return false;
+    // function echidna_no_refund_after_release() public view returns (bool) {
+    //     for (uint256 i = 0; i < call_count; i++) {
+    //         bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+    //         Payment memory payment = escrow.getPayment(paymentId);
+
+    //         if (payment.released && payment.amountRefunded > 0) {
+    //             return false;
+    //         }
+    //     }
+    //     return true;
+    // }
+
+    // Invariant: Escrow balance sufficient to cover locked funds. checks to see if escrow drained 
+    function echidna_escrow_balance_sufficient() public view returns (bool) {
+        uint256 totalLocked = 0;
+
+        // Sum up amounts that are still locked for all payments
+        for (uint256 i = 0; i < call_count; i++) {
+            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+            Payment memory payment = escrow.getPayment(paymentId);
+
+            // If payment not fully released add to total locked
+            if (!payment.released) {
+                totalLocked += (payment.amount - payment.amountRefunded);
+            }
         }
-        return true;
+
+        // Compare escrow actual balance with total still locked
+        return address(escrow).balance >= totalLocked;
     }
+
 }

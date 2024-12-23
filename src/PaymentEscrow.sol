@@ -208,7 +208,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      */
     function refundPayment(bytes32 paymentId, uint256 amount) external {
         Payment storage payment = payments[paymentId]; 
-        //require(payment.released == false, "Payment already released");
+        require(payment.released == false, "Payment already released");
         if (payment.amount > 0 && payment.amountRefunded <= payment.amount) {
 
             //who has permission to refund? either the receiver or the arbiter
