@@ -21,8 +21,10 @@ contract test_hudson {
     uint256 call_count = 0;
     bool first_call = false;
     bool first_call_released = false;
+    
     bool payment_success = false;
     bool release_success = false;
+    bool refund_success = false;
 
 
     constructor() payable {
@@ -75,6 +77,18 @@ contract test_hudson {
         }
     }
 
+    function refundPayment1(uint256 i, uint256 amount) public {
+        if (i < call_count) {
+            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+
+            hevm.prank(user2); // Receiver initiates the refund
+            (bool success, ) = address(escrow).call(
+                abi.encodeWithSignature("refundPayment(bytes32,uint256)", paymentId, amount)
+            );
+            refund_success = success;
+        }
+    }
+
     // Invariant: No zero payment amount
     function echidna_no_zero_payment_amount() public view returns (bool) {
         for (uint256 i = 0; i < call_count; i++) {
@@ -108,4 +122,21 @@ contract test_hudson {
         }
         return true;
     }
+
+    // inariant: escrow funds sufficient to cover refunds
+    function echidna_escrow_funds_sufficient() public view returns (bool) {
+        uint256 totalRefunded = 0;
+        uint256 totalAmount = 0;
+        for (uint256 i = 0; i < call_count; i++) {
+            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+            Payment memory payment = escrow.getPayment(paymentId);
+            totalRefunded += payment.amountRefunded;
+            totalAmount += payment.amount;
+            if (totalAmount < totalRefunded) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 }
