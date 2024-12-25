@@ -71,15 +71,18 @@ describe('EscrowMulticall', function () {
             await hre.ethers.getContractFactory('PaymentEscrow');
         escrow = await PaymentEscrowFactory.deploy(
             securityContext.target,
-            systemSettings.target
+            systemSettings.target,
+            false
         );
         escrow2 = await PaymentEscrowFactory.deploy(
             securityContext.target,
-            systemSettings.target
+            systemSettings.target,
+            false
         );
         escrow3 = await PaymentEscrowFactory.deploy(
             securityContext.target,
-            systemSettings.target
+            systemSettings.target,
+            false
         );
         escrow1 = escrow;
 
