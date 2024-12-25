@@ -233,6 +233,10 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         }
     }
 
+    function setAutoReleaseFlag(bool value) external onlyRole(SYSTEM_ROLE) {
+        autoReleaseFlag = value;
+    }
+
 
     //NON-PUBLIC METHODS
 
