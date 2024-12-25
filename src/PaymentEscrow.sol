@@ -123,6 +123,9 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         payment.amount = paymentInput.amount;
         payment.id = paymentInput.id;
 
+        //if auto release flag is set, set receiverReleased
+        payment.receiverReleased = autoReleaseFlag;
+
         //emit event
         emit PaymentReceived(
             payment.id, 

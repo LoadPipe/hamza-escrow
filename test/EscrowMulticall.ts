@@ -82,7 +82,7 @@ describe('EscrowMulticall', function () {
         escrow3 = await PaymentEscrowFactory.deploy(
             securityContext.target,
             systemSettings.target,
-            false
+            true
         );
         escrow1 = escrow;
 
