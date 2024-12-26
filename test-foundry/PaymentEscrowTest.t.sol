@@ -56,7 +56,7 @@ contract PaymentEscrowTest is Test {
         testToken = new TestToken("XYZ", "ZYX");
         systemSettings = new SystemSettings(ISecurityContext(address(securityContext)), vaultAddress, 0);
 
-        escrow = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)));
+        escrow = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
 
         securityContext.grantRole(ARBITER_ROLE, vaultAddress);
         securityContext.grantRole(ARBITER_ROLE, arbiter);

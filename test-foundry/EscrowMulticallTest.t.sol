@@ -60,10 +60,10 @@ contract EscrowMulticallTest is Test {
         testToken = new TestToken("XYZ", "ZYX");
         systemSettings = new SystemSettings(ISecurityContext(address(securityContext)), vaultAddress, 0);
 
-        escrow = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)));
+        escrow = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
         escrow1 = escrow;
-        escrow2 = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)));
-        escrow3 = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)));
+        escrow2 = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
+        escrow3 = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
 
         multicall = new EscrowMulticall();
 

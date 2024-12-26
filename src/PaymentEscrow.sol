@@ -22,6 +22,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
 {
     ISystemSettings private settings;
     mapping(bytes32 => Payment) private payments;
+    bool private autoReleaseFlag;
 
     //EVENTS 
 
@@ -70,9 +71,10 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * @param securityContext Contract which will define & manage secure access for this contract. 
      * @param settings_ Address of contract that holds system settings. 
      */
-    constructor(ISecurityContext securityContext, ISystemSettings settings_) {
+    constructor(ISecurityContext securityContext, ISystemSettings settings_, bool autoRelease) {
         _setSecurityContext(securityContext);
         settings = settings_;
+        autoReleaseFlag = autoRelease;
     }
     
     /**
@@ -120,6 +122,9 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         payment.currency = paymentInput.currency;
         payment.amount = paymentInput.amount;
         payment.id = paymentInput.id;
+
+        //if auto release flag is set, set receiverReleased
+        payment.receiverReleased = autoReleaseFlag;
 
         //emit event
         emit PaymentReceived(
@@ -226,6 +231,10 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
                     payment.amountRefunded += amount;
             }
         }
+    }
+
+    function setAutoReleaseFlag(bool value) external onlyRole(SYSTEM_ROLE) {
+        autoReleaseFlag = value;
     }
 
 

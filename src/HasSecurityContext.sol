@@ -23,8 +23,6 @@ abstract contract HasSecurityContext is Context {
     bytes32 public constant ADMIN_ROLE = 0x0;
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");     //TODO: needed?
     bytes32 public constant SYSTEM_ROLE = keccak256("SYSTEM_ROLE");     //TODO: not needed
-    bytes32 public constant APPROVER_ROLE = keccak256("APPROVER_ROLE"); //TODO: not needed?
-    bytes32 public constant REFUNDER_ROLE = keccak256("REFUNDER_ROLE"); //TODO: not needed?
     bytes32 public constant ARBITER_ROLE = keccak256("ARBITER_ROLE");
     bytes32 public constant DAO_ROLE = keccak256("DAO_ROLE");
     
