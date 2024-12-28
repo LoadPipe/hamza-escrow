@@ -83,8 +83,8 @@ describe('PaymentEscrow', function () {
         currency: any
     ): Promise<string> {
         const amount: number = randomWholeNum(1, getBalance(payer));
-        const paymentId: string = generatePaymentId(); 
-        
+        const paymentId: string = generatePaymentId();
+        return '';
     }
 
     const ARBITER_ROLE =
@@ -127,7 +127,8 @@ describe('PaymentEscrow', function () {
             await hre.ethers.getContractFactory('PaymentEscrow');
         escrow = await PaymentEscrowFactory.deploy(
             securityContext.target,
-            systemSettings.target
+            systemSettings.target,
+            false
         );
         await securityContext
             .connect(admin)

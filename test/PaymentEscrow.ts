@@ -65,7 +65,8 @@ describe('PaymentEscrow', function () {
             await hre.ethers.getContractFactory('PaymentEscrow');
         escrow = await PaymentEscrowFactory.deploy(
             securityContext.target,
-            systemSettings.target
+            systemSettings.target,
+            false
         );
         await securityContext
             .connect(admin)
@@ -604,7 +605,7 @@ describe('PaymentEscrow', function () {
             await escrow.connect(receiver1).releaseEscrow(paymentId);
             await escrow.connect(payer1).releaseEscrow(paymentId);
 
-            //ensure that nothing has been released
+            //ensure that payment has been released
             const payment = convertPayment(await escrow.getPayment(paymentId));
             verifyPayment(payment, {
                 id: paymentId,
@@ -662,7 +663,7 @@ describe('PaymentEscrow', function () {
             await escrow.connect(receiver1).releaseEscrow(paymentId);
             await escrow.connect(payer1).releaseEscrow(paymentId);
 
-            //ensure that nothing has been released
+            //ensure that payment has been released
             const payment = convertPayment(await escrow.getPayment(paymentId));
             verifyPayment(payment, {
                 id: paymentId,
@@ -730,7 +731,7 @@ describe('PaymentEscrow', function () {
             await escrow.connect(receiver1).releaseEscrow(paymentId);
             await escrow.connect(arbiter).releaseEscrow(paymentId);
 
-            //ensure that nothing has been released
+            //ensure that payment has been released
             const payment = convertPayment(await escrow.getPayment(paymentId));
             verifyPayment(payment, {
                 id: paymentId,
@@ -1317,7 +1318,7 @@ describe('PaymentEscrow', function () {
             await escrow.connect(payer1).releaseEscrow(paymentId);
             await escrow.connect(payer1).releaseEscrow(paymentId);
 
-            //ensure that nothing has been released
+            //ensure that payment has been released
             const payment = convertPayment(await escrow.getPayment(paymentId));
             verifyPayment(payment, {
                 id: paymentId,
@@ -1334,6 +1335,172 @@ describe('PaymentEscrow', function () {
             //check the balance
             const finalPayerBalance = await getBalance(payer1.address, true);
             expect(finalPayerBalance).to.equal(initialPayerBalance);
+        });
+    });
+
+    describe('AutoRelease Flag', function () {
+        let escrow_auto_release: any;
+        let escrow_manual_release: any;
+
+        this.beforeEach(async () => {
+            //grant roles
+            const PaymentEscrowFactory =
+                await hre.ethers.getContractFactory('PaymentEscrow');
+
+            escrow_auto_release = await PaymentEscrowFactory.deploy(
+                securityContext.target,
+                systemSettings.target,
+                true
+            );
+
+            escrow_manual_release = await PaymentEscrowFactory.deploy(
+                securityContext.target,
+                systemSettings.target,
+                false
+            );
+        });
+
+        it('autorelease does what it says', async function () {
+            const initialContractBalance = await getBalance(
+                escrow_auto_release.target
+            );
+            const initialReceiverBalance = await getBalance(receiver1.address);
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await escrow_auto_release.placePayment(
+                {
+                    currency: ethers.ZeroAddress,
+                    id: paymentId,
+                    receiver: receiver1.address,
+                    payer: payer1.address,
+                    amount,
+                },
+                { value: amount }
+            );
+
+            //verify that receiverReleased is already true, but payerReleased is not
+            const payment1 = convertPayment(
+                await escrow_auto_release.getPayment(paymentId)
+            );
+            verifyPayment(payment1, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: false,
+                receiverReleased: true,
+                released: false,
+                currency: ethers.ZeroAddress,
+            });
+
+            //check the balance
+            const newContractBalance = await getBalance(
+                escrow_auto_release.target
+            );
+            const newReceiverBalance = await getBalance(receiver1.address);
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+            expect(newReceiverBalance).to.equal(initialReceiverBalance);
+
+            //try to release the payment
+            await escrow_auto_release.connect(payer1).releaseEscrow(paymentId);
+
+            //ensure that payment is now released
+            const payment2 = convertPayment(
+                await escrow_auto_release.getPayment(paymentId)
+            );
+            verifyPayment(payment2, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: true,
+                receiverReleased: true,
+                released: true,
+                currency: ethers.ZeroAddress,
+            });
+
+            //check the balance
+            const finalContractBalance = await getBalance(
+                escrow_auto_release.target
+            );
+            const finalReceiverBalance = await getBalance(receiver1.address);
+            expect(finalContractBalance).to.equal(
+                newContractBalance - BigInt(amount)
+            );
+        });
+
+        it('without autorelease flag set, behavior is different', async function () {
+            const initialContractBalance = await getBalance(
+                escrow_manual_release.target
+            );
+            const initialReceiverBalance = await getBalance(receiver1.address);
+            const amount = 10000000;
+
+            //place the payment
+            const paymentId = ethers.keccak256('0x01');
+            await escrow_manual_release.placePayment(
+                {
+                    currency: ethers.ZeroAddress,
+                    id: paymentId,
+                    receiver: receiver1.address,
+                    payer: payer1.address,
+                    amount,
+                },
+                { value: amount }
+            );
+
+            //verify that receiverReleased is not true, and payerReleased is also not true
+            const payment1 = convertPayment(
+                await escrow_manual_release.getPayment(paymentId)
+            );
+            verifyPayment(payment1, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: false,
+                receiverReleased: false,
+                released: false,
+                currency: ethers.ZeroAddress,
+            });
+
+            //check the balance
+            const newContractBalance = await getBalance(
+                escrow_manual_release.target
+            );
+            const newReceiverBalance = await getBalance(receiver1.address);
+            expect(newContractBalance).to.equal(
+                initialContractBalance + BigInt(amount)
+            );
+            expect(newReceiverBalance).to.equal(initialReceiverBalance);
+
+            //try to release the payment
+            await escrow_manual_release
+                .connect(payer1)
+                .releaseEscrow(paymentId);
+
+            //ensure that nothing has been released
+            const payment2 = convertPayment(
+                await escrow_manual_release.getPayment(paymentId)
+            );
+            verifyPayment(payment2, {
+                id: paymentId,
+                payer: payer1.address,
+                receiver: receiver1.address,
+                amount,
+                amountRefunded: 0,
+                payerReleased: true,
+                receiverReleased: false,
+                released: false,
+                currency: ethers.ZeroAddress,
+            });
         });
     });
 });

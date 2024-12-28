@@ -22,6 +22,8 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
 {
     ISystemSettings private settings;
     mapping(bytes32 => Payment) private payments;
+    bool private autoReleaseFlag;
+    bool public paused;
 
     //EVENTS 
 
@@ -57,6 +59,21 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         address currency, 
         uint256 amount 
     );
+
+    event PaymentRefunded (
+        bytes32 indexed paymentId, 
+        uint256 amount 
+    );
+
+    modifier whenNotPaused() {
+        require(!paused, 'Paused');
+        _;
+    }
+
+    modifier whenPaused() {
+        require(paused, 'NotPaused');
+        _;
+    }
     
     /**
      * Constructor. 
@@ -70,9 +87,10 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * @param securityContext Contract which will define & manage secure access for this contract. 
      * @param settings_ Address of contract that holds system settings. 
      */
-    constructor(ISecurityContext securityContext, ISystemSettings settings_) {
+    constructor(ISecurityContext securityContext, ISystemSettings settings_, bool autoRelease) {
         _setSecurityContext(securityContext);
         settings = settings_;
+        autoReleaseFlag = autoRelease;
     }
     
     /**
@@ -88,7 +106,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * 
      * @param paymentInput Payment inputs
      */
-    function placePayment(PaymentInput calldata paymentInput) public payable {
+    function placePayment(PaymentInput calldata paymentInput) public payable whenNotPaused {
         require(paymentInput.amount > 0, "InvalidAmount");
         require(paymentInput.receiver != address(0), "InvalidReceiver");
         address currency = paymentInput.currency; 
@@ -120,6 +138,9 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         payment.currency = paymentInput.currency;
         payment.amount = paymentInput.amount;
         payment.id = paymentInput.id;
+
+        //if auto release flag is set, set receiverReleased
+        payment.receiverReleased = autoReleaseFlag;
 
         //emit event
         emit PaymentReceived(
@@ -155,7 +176,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * 
      * @param paymentId A unique payment id
      */
-    function releaseEscrow(bytes32 paymentId) external {
+    function releaseEscrow(bytes32 paymentId) external whenNotPaused {
         Payment storage payment = payments[paymentId];
 
         if (msg.sender != payment.receiver && 
@@ -189,7 +210,6 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         }
     }
 
-    //TODO: need event here
     /**
      * Partially or fully refunds the payment. Can be called only by arbiter or receiver. 
 
@@ -202,11 +222,12 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * Emits: 
      * - {PaymentEscrow-PaymentTransferred} 
      * - {PaymentEscrow-PaymentTransferFailed} 
+     * - {PaymentEscrow-PaymentRefunded} 
      * 
      * @param paymentId Identifies the payment to refund. 
      * @param amount The amount to refund, can't be more than the remaining amount.
      */
-    function refundPayment(bytes32 paymentId, uint256 amount) external {
+    function refundPayment(bytes32 paymentId, uint256 amount) external whenNotPaused {
         Payment storage payment = payments[paymentId]; 
         require(payment.released == false, "Payment already released");
         if (payment.amount > 0 && payment.amountRefunded <= payment.amount) {
@@ -222,10 +243,37 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
 
             //transfer amount back to payer 
             if (amount > 0) {
-                if (_transferAmount(payment.id, payment.payer, payment.currency, amount))
+                if (_transferAmount(payment.id, payment.payer, payment.currency, amount)) {
                     payment.amountRefunded += amount;
+                    emit PaymentRefunded(paymentId, amount);
+                }
             }
         }
+    }
+
+    /**
+     * Sets the default value of the receiverReleased flag on new payments. 
+     * True: new payments will automatically have receiverReleased set to TRUE. The ramification of 
+     * this is that the escrow does not need to be released by the receiver. 
+     * False: new payments will have receiverReleased set to false; this means that the escrow requires
+     * both parties to release it.
+     */
+    function setAutoReleaseFlag(bool value) external onlyRole(SYSTEM_ROLE) {
+        autoReleaseFlag = value;
+    }
+
+    /**
+     * Pauses the contract.
+     */
+    function pause() external whenNotPaused onlyRole(SYSTEM_ROLE) {
+        paused = true;
+    }
+
+    /**
+     * Unpauses the contract, if paused.
+     */
+    function unpause() external whenPaused onlyRole(SYSTEM_ROLE) {
+        paused = false;
     }
 
 

@@ -27,11 +27,14 @@ contract PaymentEscrowTest is Test {
     address internal vaultAddress;
     address internal arbiter;
     address internal dao;
+    address internal system;
 
     bytes32 internal constant ARBITER_ROLE =
         0xbb08418a67729a078f87bbc8d02a770929bb68f5bfdf134ae2ead6ed38e2f4ae;
     bytes32 internal constant DAO_ROLE =
         0x3b5d4cc60d3ec3516ee8ae083bd60934f6eb2a6c54b1229985c41bfb092b2603;
+    bytes32 internal constant SYSTEM_ROLE =
+        0x5719df9ef2c4678b547f89e4f5ae410dbf400fc51cf3ded434c55f6adea2c43f;
 
     function setUp() public {
         admin = address(1);
@@ -43,6 +46,7 @@ contract PaymentEscrowTest is Test {
         receiver2 = address(7);
         arbiter = address(8);
         dao = address(9);
+        system = address(10);
 
         vm.deal(admin, 100 ether);
         vm.deal(nonOwner, 100 ether);
@@ -56,11 +60,12 @@ contract PaymentEscrowTest is Test {
         testToken = new TestToken("XYZ", "ZYX");
         systemSettings = new SystemSettings(ISecurityContext(address(securityContext)), vaultAddress, 0);
 
-        escrow = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)));
+        escrow = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
 
         securityContext.grantRole(ARBITER_ROLE, vaultAddress);
         securityContext.grantRole(ARBITER_ROLE, arbiter);
         securityContext.grantRole(DAO_ROLE, dao);
+        securityContext.grantRole(SYSTEM_ROLE, system);
 
         testToken.mint(nonOwner, 10_000_000_000);
         testToken.mint(payer1, 10_000_000_000);
@@ -126,6 +131,11 @@ contract PaymentEscrowTest is Test {
         balances[3] = _getBalance(receiver2, false); // Receiver2 balance
         balances[4] = _getBalance(payer2, false); // Payer2 balance
         return balances;
+    }
+
+    function _pauseContract() internal {
+        vm.prank(system);
+        escrow.pause();
     }
 
 
@@ -867,7 +877,6 @@ contract PaymentEscrowTest is Test {
         escrow.refundPayment(paymentId, amount / 2);
     }
 
-
     function testZeroAmountRefundNoStateChange() public {
         uint256 amount = 1 ether;
         bytes32 paymentId = keccak256("zero-amount-refund-test");
@@ -1210,9 +1219,6 @@ contract PaymentEscrowTest is Test {
         assertEq(paymentAfterRelease.amountRefunded, partialRefundAmount, "Refunded amount should match");
     }
 
-
-
-
     function testContractCanReceiveEthDirectly() public {
         uint256 initialBalance = address(escrow).balance;
         uint256 transferAmount = 1 ether;
@@ -1413,6 +1419,97 @@ contract PaymentEscrowTest is Test {
         escrow.releaseEscrow(paymentId);
     }
 
+    // Pausability Tests 
+    function testContractCanBePausedByAuthorizedAccount() public {
+        assertFalse(escrow.paused());
+        _pauseContract();
+        assertTrue(escrow.paused());
+    }
+
+    function testContractCanBeUnpausedByAuthorizedAccount() public {
+        //pause contract 
+        _pauseContract();
+        assertTrue(escrow.paused());
+
+        //unpause contract
+        vm.prank(system);
+        escrow.unpause();
+        assertFalse(escrow.paused());
+    }
+
+    function testPlacePaymentCannotBeCalledWhenPaused() public {
+        //pause contract 
+        _pauseContract();
+        assertTrue(escrow.paused());
+
+        //attempt to place a payment when paused
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("payment-id");
+
+        vm.prank(payer1);
+        vm.expectRevert("Paused");
+        escrow.placePayment{value: amount}(
+            PaymentInput({
+                currency: address(0),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+    }
+
+    function testRefundCannotBeCalledWhenPaused() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("payment-id");
+
+        //place payment
+        vm.prank(payer1);
+        escrow.placePayment{value: amount}(
+            PaymentInput({
+                currency: address(0),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+
+        //pause contract 
+        _pauseContract();
+        assertTrue(escrow.paused());
+
+        //attempt to refund when paused 
+        vm.expectRevert("Paused");
+        escrow.refundPayment(paymentId, amount);
+    }
+
+    function testReleaseCannotBeCalledWhenPaused() public {
+        uint256 amount = 1 ether;
+        bytes32 paymentId = keccak256("payment-id");
+
+        //place payment
+        vm.prank(payer1);
+        escrow.placePayment{value: amount}(
+            PaymentInput({
+                currency: address(0),
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+
+        //pause contract 
+        _pauseContract();
+        assertTrue(escrow.paused());
+
+        //attempt to refund when paused 
+        vm.expectRevert("Paused");
+        escrow.releaseEscrow(paymentId);
+    }
+
+
     // Event Tests
 
     // events 
@@ -1441,6 +1538,11 @@ contract PaymentEscrowTest is Test {
     event PaymentTransferred (
         bytes32 indexed paymentId, 
         address currency, 
+        uint256 amount 
+    );
+
+    event PaymentRefunded (
+        bytes32 indexed paymentId,
         uint256 amount 
     );
 
@@ -1606,6 +1708,21 @@ contract PaymentEscrowTest is Test {
 
         vm.expectEmit(true, true, true, true);
         emit PaymentTransferred(paymentId, address(testToken), refundAmount);
+
+        vm.prank(receiver1);
+        escrow.refundPayment(paymentId, refundAmount);
+    }
+
+    function testPaymentRefundedEventEmittedOnSuccessfulRefund() public {
+        bytes32 paymentId = keccak256("payment-transferred-success-refund");
+        uint256 amount = 10_000;
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        // reciever issues refund
+        uint256 refundAmount = 1_000;
+
+        vm.expectEmit(true, true, true, true);
+        emit PaymentRefunded(paymentId, refundAmount);
 
         vm.prank(receiver1);
         escrow.refundPayment(paymentId, refundAmount);
