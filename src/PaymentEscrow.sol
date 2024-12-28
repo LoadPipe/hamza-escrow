@@ -58,6 +58,11 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         address currency, 
         uint256 amount 
     );
+
+    event PaymentRefunded (
+        bytes32 indexed paymentId, 
+        uint256 amount 
+    );
     
     /**
      * Constructor. 
@@ -194,7 +199,6 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         }
     }
 
-    //TODO: need event here
     /**
      * Partially or fully refunds the payment. Can be called only by arbiter or receiver. 
 
@@ -207,6 +211,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * Emits: 
      * - {PaymentEscrow-PaymentTransferred} 
      * - {PaymentEscrow-PaymentTransferFailed} 
+     * - {PaymentEscrow-PaymentRefunded} 
      * 
      * @param paymentId Identifies the payment to refund. 
      * @param amount The amount to refund, can't be more than the remaining amount.
@@ -227,8 +232,10 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
 
             //transfer amount back to payer 
             if (amount > 0) {
-                if (_transferAmount(payment.id, payment.payer, payment.currency, amount))
+                if (_transferAmount(payment.id, payment.payer, payment.currency, amount)) {
                     payment.amountRefunded += amount;
+                    emit PaymentRefunded(paymentId, amount);
+                }
             }
         }
     }
