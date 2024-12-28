@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
 import "../src/SecurityContext.sol";
-import "../src/TestToken.sol";
 import "../src/SystemSettings.sol";
 import "../src/PaymentEscrow.sol";
 import "../src/EscrowMulticall.sol";
@@ -12,6 +11,7 @@ import { EscrowMulticall } from "../src/EscrowMulticall.sol";
 import { Payment } from "../src/PaymentInput.sol";
 import {MulticallPaymentInput} from "../src/EscrowMulticall.sol";
 import {FailingToken} from "../src/FailingToken.sol";
+import {TestToken} from "../src/TestToken.sol";
 
 contract EscrowMulticallTest is Test {
     SecurityContext securityContext;
