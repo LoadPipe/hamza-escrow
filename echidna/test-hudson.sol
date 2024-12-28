@@ -33,7 +33,7 @@ contract test_hudson {
         require(msg.value > 0, "Initial balance required");
         securityContext = new SecurityContext(admin);
         systemSettings = new SystemSettings(securityContext, vault, 0);
-        escrow = new PaymentEscrow(securityContext, systemSettings);
+        escrow = new PaymentEscrow(securityContext, systemSettings, false);
     }
 
     function placePayment1(uint256 amount, bool randomizePayer, bool randomizeReceiver) public {
