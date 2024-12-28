@@ -23,7 +23,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     ISystemSettings private settings;
     mapping(bytes32 => Payment) private payments;
     bool private autoReleaseFlag;
-    bool private paused;
+    bool public paused;
 
     //EVENTS 
 
