@@ -5,8 +5,9 @@ node_modules/
 artifacts/
 typechain-types/
 
-#hardhat.config.ts
-*.sh
+# Ignore specific shell scripts and hardhat configuration
+hardhat.config.ts
+scripts/*.sh
 
 # Ignores development broadcast logs
 !/broadcast

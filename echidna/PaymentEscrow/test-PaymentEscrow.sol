@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "../src/PaymentEscrow.sol";
-import "../src/SecurityContext.sol";
-import "../src/SystemSettings.sol";
-import "../src/inc/utils/Hevm.sol";
+import "../../src/PaymentEscrow.sol";
+import "../../src/SecurityContext.sol";
+import "../../src/SystemSettings.sol";
+import "../../src/inc/utils/Hevm.sol";
 
-contract test_hudson {
+contract test_PaymentEscrow {
     address constant admin = address(0x00001);
     address constant user3 = address(0x30000); // Deployer
 
