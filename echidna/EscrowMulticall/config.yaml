@@ -14,15 +14,15 @@ testMaxGas: 16000030
 #maxGasprice is the maximum gas price
 maxGasprice: 0
 #testLimit is the number of test sequences to run
-testLimit: 80000
+testLimit: 90000
 #stopOnFail makes echidna terminate as soon as any property fails and has been shrunk
 stopOnFail: true
 #estimateGas makes echidna perform analysis of maximum gas costs for functions (experimental)
 estimateGas: false
 #seqLen defines how many transactions are in a test sequence
-seqLen: 50
+seqLen: 75
 #shrinkLimit determines how much effort is spent shrinking failing sequences
-shrinkLimit: 5000
+shrinkLimit: 4000
 #coverage controls coverage guided testing
 coverage: true
 #format can be "text" or "json" for different output (human or machine readable)
@@ -72,9 +72,9 @@ maxBlockDelay: 60480
 # Enable function filtering to limit the functions being tested
 filterBlacklist: false
 filterFunctions:
-  - "test_hudson.placePayment1(uint256,bool,bool)"
-  - "test_hudson.releaseEscrow1(uint256)"
-  - "test_hudson.refundPayment1(uint256,uint256)"
+  - "test_EscrowMulticallInvariants.multiPay1(uint256,bool,bool,uint256)"
+  - "test_EscrowMulticallInvariants.releaseEscrow1(uint256)"
+  - "test_EscrowMulticallInvariants.refundPayment1(uint256,uint256)"
 
 #directory to save the corpus; by default is disabled
 corpusDir: null
