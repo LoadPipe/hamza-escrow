@@ -1402,5 +1402,7 @@ contract RevertingEscrowMock {
     function placePayment(PaymentInput calldata) external payable {
         revert("Mocked Revert in placePayment");
     }
+
+    function test() public {}
 }
 
