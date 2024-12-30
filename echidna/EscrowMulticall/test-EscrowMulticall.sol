@@ -69,71 +69,92 @@ contract test_EscrowMulticallInvariants {
     }
 
     /**
-     * Simulates a multi-payment transaction through EscrowMulticall.
-     *
-     * @param amount The amount for the payment.
-     * @param randomizePayer Whether to randomize the payer.
-     * @param randomizeReceiver Whether to randomize the receiver.
-     * @param escrowIndex The index of the target escrow.
-     */
+    * @dev multiPay1 that pays multiple escrows at once in one multipay call.
+    *
+    * @param totalAmount        The total amount to be distributed across multiple escrows.
+    * @param randomizePayer     Whether to randomize the payer (user1 or user5).
+    * @param randomizeReceiver  Whether to randomize the receiver (user2 or user4).
+    * @param numberOfEscrows    How many escrow contracts to pay in this single transaction.
+    */
     function multiPay1(
-        uint256 amount, 
-        bool randomizePayer, 
-        bool randomizeReceiver, 
-        uint256 escrowIndex
+        uint256 totalAmount,
+        bool randomizePayer,
+        bool randomizeReceiver,
+        uint256 numberOfEscrows
     ) public {
-        // Ensure the escrow index is valid
-        if (escrowIndex >= escrows.length) return;
+        // Ensure there's enough balance in this contract
+        if (totalAmount > address(this).balance) {
+            return;
+        }
 
-        // Ensure sufficient balance to make the payment
-        if (amount > address(this).balance) return;
+        // Use modulo to restrict 'numberOfEscrows' to the length of the escrows array
+        if (escrows.length > 0) {
+            numberOfEscrows = (numberOfEscrows % escrows.length) + 1; 
+        } else {
+            return; // If no escrows exist, exit the function
+        }
+
+        // Calculate how much goes to each escrow
+        uint256 amountPerEscrow = totalAmount / numberOfEscrows;
+
+        // If integer division yields 0, avoid zero-amount payments
+        if (amountPerEscrow == 0) {
+            return;
+        }
 
         // Select payer and receiver
         address payer = randomizePayer ? user1 : user5;
         address receiver = randomizeReceiver ? user2 : user4;
 
-        // Target the specified PaymentEscrow instance
-        PaymentEscrow target = escrows[escrowIndex];
+        // Build MulticallPaymentInput array
+        MulticallPaymentInput[] memory inputs = new MulticallPaymentInput[](numberOfEscrows);
 
-        // Generate a unique payment ID
-        bytes32 paymentId = keccak256(
-            abi.encodePacked(
-                allPayments.length, 
-                address(this),
-                escrowIndex
-            )
-        );
+        for (uint256 i = 0; i < numberOfEscrows; i++) {
+            // Generate a unique payment ID
+            bytes32 paymentId = keccak256(
+                abi.encodePacked(
+                    allPayments.length,
+                    address(this),
+                    i,
+                    block.timestamp // extra entropy
+                )
+            );
 
-        // Prepare input for the multipay function
-        MulticallPaymentInput[] memory inputs = new MulticallPaymentInput[](1);
+            inputs[i] = MulticallPaymentInput({
+                contractAddress: address(escrows[i % escrows.length]), // Ensure valid index
+                currency: address(0),    // native currency
+                id: paymentId,
+                receiver: receiver,
+                payer: payer,
+                amount: amountPerEscrow
+            });
+        }
 
-        inputs[0] = MulticallPaymentInput({
-            contractAddress: address(target),
-            currency: address(0), // use native currency
-            id: paymentId,
-            receiver: receiver,
-            payer: payer,
-            amount: amount
-        });
-
-        // Perform the multipay operation
+        // Invoke the multipay function in a single call
         hevm.prank(payer);
-        (bool success, ) = address(multi).call{value: amount}(
-            abi.encodeWithSignature("multipay((address,address,bytes32,address,address,uint256)[])", inputs)
+        (bool success, ) = address(multi).call{value: totalAmount}(
+            abi.encodeWithSignature(
+                "multipay((address,address,bytes32,address,address,uint256)[])",
+                inputs
+            )
         );
 
         payment_success = success;
 
+        // Record all payments if successful
         if (success) {
-            // Record the successful payment
-            allPayments.push(
-                PaymentRecord({
-                    escrow: target,
-                    paymentId: paymentId
-                })
-            );
+            for (uint256 i = 0; i < numberOfEscrows; i++) {
+                allPayments.push(
+                    PaymentRecord({
+                        escrow: PaymentEscrow(payable(inputs[i].contractAddress)),
+                        paymentId: inputs[i].id
+                    })
+                );
+            }
         }
     }
+
+
 
     /**
      * Simulates releasing funds for a specific payment.
@@ -141,7 +162,7 @@ contract test_EscrowMulticallInvariants {
      * @param index The index of the payment to release.
      */
     function releaseEscrow1(uint256 index) public {
-        if (index < allPayments.length) {
+            index = index % allPayments.length;
             PaymentRecord memory record = allPayments[index];
 
             hevm.prank(msg.sender);
@@ -150,7 +171,6 @@ contract test_EscrowMulticallInvariants {
             );
 
             release_success = success;
-        }
     }
 
     /**
@@ -160,7 +180,7 @@ contract test_EscrowMulticallInvariants {
      * @param amount The amount to refund.
      */
     function refundPayment1(uint256 index, uint256 amount) public {
-        if (index < allPayments.length) {
+            index = index % allPayments.length;
             PaymentRecord memory record = allPayments[index];
 
             hevm.prank(msg.sender);
@@ -169,8 +189,8 @@ contract test_EscrowMulticallInvariants {
             );
 
             refund_success = success;
-        }
     }
+    
 
     /**
      * Invariant: Ensures no payment has a zero amount.

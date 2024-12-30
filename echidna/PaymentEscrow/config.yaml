@@ -20,7 +20,7 @@ stopOnFail: true
 #estimateGas makes echidna perform analysis of maximum gas costs for functions (experimental)
 estimateGas: false
 #seqLen defines how many transactions are in a test sequence
-seqLen: 50
+seqLen: 55
 #shrinkLimit determines how much effort is spent shrinking failing sequences
 shrinkLimit: 4000
 #coverage controls coverage guided testing

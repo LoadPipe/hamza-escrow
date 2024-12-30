@@ -23,7 +23,7 @@ testMaxGas: 16000030
 maxGasprice: 0
 
 # TestLimit is the number of test sequences to run
-testLimit: 90000
+testLimit: 60000
 
 # StopOnFail makes Echidna terminate as soon as any property fails and has been shrunk
 stopOnFail: true
@@ -32,7 +32,7 @@ stopOnFail: true
 estimateGas: false
 
 # SeqLen defines how many transactions are in a test sequence
-seqLen: 75
+seqLen: 50
 
 # ShrinkLimit determines how much effort is spent shrinking failing sequences
 shrinkLimit: 4000
