@@ -1509,6 +1509,84 @@ contract PaymentEscrowTest is Test {
         escrow.releaseEscrow(paymentId);
     }
 
+    // Auto Release Test
+    function testAutoReleaseFlagTrueBehavior() public {
+
+        vm.startPrank(admin);
+        PaymentEscrow escrowAutoRelease = new PaymentEscrow(
+            ISecurityContext(address(securityContext)),
+            ISystemSettings(address(systemSettings)),
+            true // autoReleaseFlag = true
+        );
+        vm.stopPrank();
+
+        bytes32 paymentId = keccak256("autoRelease-test");
+        uint256 amount = 1 ether;
+
+        // Record initial balances
+        uint256 payerInitialBalance = payer1.balance;
+        uint256 receiverInitialBalance = receiver1.balance;
+
+        // Place the payment in the new escrow
+        vm.prank(payer1);
+        escrowAutoRelease.placePayment{value: amount}(
+            PaymentInput({
+                currency: address(0),   // Native ETH
+                id: paymentId,
+                receiver: receiver1,
+                payer: payer1,
+                amount: amount
+            })
+        );
+
+        // Check stored payment state
+        Payment memory payment = escrowAutoRelease.getPayment(paymentId);
+        assertEq(payment.payer, payer1,            "Payer mismatch");
+        assertEq(payment.receiver, receiver1,      "Receiver mismatch");
+        assertEq(payment.amount, amount,           "Amount mismatch");
+        assertEq(payment.currency, address(0),     "Currency mismatch");
+        
+        // Because autoRelease is true the receiver is considered to have approved
+        assertTrue(payment.receiverReleased,        "Receiver should be auto-released");
+        assertFalse(payment.payerReleased,         "Payer should not yet be released");
+        assertFalse(payment.released,              "Payment should not be fully released yet");
+
+        // Verify actual escrow contract balance 
+        assertEq(address(escrowAutoRelease).balance, amount, "Escrow contract balance should hold the funds");
+
+        // Release from the payer only
+        vm.prank(payer1);
+        escrowAutoRelease.releaseEscrow(paymentId);
+
+        // Check final payment state
+        Payment memory paymentAfter = escrowAutoRelease.getPayment(paymentId);
+        assertTrue(paymentAfter.payerReleased,     "Payer should have released");
+        assertTrue(paymentAfter.receiverReleased,  "Receiver is auto-released");
+        assertTrue(paymentAfter.released,          "Payment should now be fully released");
+
+        // Confirm final balances
+        uint256 feeBps = systemSettings.feeBps();
+        uint256 fee = (amount * feeBps) / 10_000;
+        if (fee > amount) {
+            fee = 0;
+        }
+        uint256 expectedReceiverGain = amount - fee;
+
+        // Receiver’s final balance should have increased by the net
+        uint256 receiverFinalBalance = receiver1.balance;
+        assertEq(
+            receiverFinalBalance, 
+            receiverInitialBalance + expectedReceiverGain,
+            "Receiver did not get the correct net amount"
+        );
+
+        // check balances
+        uint256 escrowFinalBalance = address(escrowAutoRelease).balance;
+        assertEq(escrowFinalBalance, 0, "Escrow should be fully drained for that payment");
+
+    }
+
+
 
     // Event Tests
 

@@ -1,0 +1,121 @@
+# Echidna Test Configuration
+
+# Select the mode to test, which can be property, assertion, overflow, exploration, optimization
+testMode: 'property'
+
+# Check if some contract was destructed or not
+testDestruction: false
+
+# Psender is the sender for property transactions; by default, intentionally
+# the same as the contract deployer
+psender: '0x30000'
+
+# Prefix is the prefix for Boolean functions that are properties to be checked
+prefix: 'echidna_'
+
+# PropMaxGas defines gas cost at which a property fails
+propMaxGas: 16000030
+
+# TestMaxGas is a gas limit; does not cause failure, but terminates sequence
+testMaxGas: 16000030
+
+# MaxGasprice is the maximum gas price
+maxGasprice: 0
+
+# TestLimit is the number of test sequences to run
+testLimit: 60000
+
+# StopOnFail makes Echidna terminate as soon as any property fails and has been shrunk
+stopOnFail: true
+
+# EstimateGas makes Echidna perform analysis of maximum gas costs for functions (experimental)
+estimateGas: false
+
+# SeqLen defines how many transactions are in a test sequence
+seqLen: 50
+
+# ShrinkLimit determines how much effort is spent shrinking failing sequences
+shrinkLimit: 4000
+
+# Coverage controls coverage-guided testing
+coverage: true
+
+# Format can be "text" or "json" for different output (human or machine-readable)
+#format: 'text'
+
+# Deployer is the address of the contract deployer (who often is a privileged owner, etc.)
+deployer: '0x30000'
+
+# Sender is the set of addresses transactions may originate from
+sender:
+  - '0xA1'  # Admin (ADMIN_ROLE)
+  - '0xB1'  # DAO_ROLE
+  - '0xC1'  # SYSTEM_ROLE
+  - '0xD1'  # ARBITER_ROLE
+  - '0x9991'  # Random user1
+  - '0x9992'  # Random user2
+
+# BalanceAddr is the default balance for addresses
+balanceAddr: 1000000000000000000 # 1 ETH
+
+# BalanceContract overrides balanceAddr for the contract address
+balanceContract: 10000000000000000000 # 10 ETH
+
+# CodeSize max code size for deployed contracts (default 24576, per EIP-170)
+codeSize: 24576
+
+# SolcArgs allows special args to solc
+solcArgs: ''
+
+# SolcLibs is solc libraries
+solcLibs: []
+
+# CryticArgs allows special args to Crytic
+cryticArgs: []
+
+# Quiet produces (much) less verbose output
+quiet: false
+
+# Initialize the blockchain with some data
+initialize: null
+
+# Initialize the blockchain with some predeployed contracts in some addresses
+deployContracts: []
+
+# Initialize the blockchain with some bytecode in some addresses
+deployBytecodes: []
+
+# Whether or not to use the multi-ABI mode of testing
+multi-abi: true
+
+# Timeout controls test timeout settings
+timeout: null
+
+# DictFreq controls how often to use Echidna's internal dictionary vs random values
+dictFreq: 0.40
+
+# MaxTimeDelay: Maximum time between generated transactions; default is one week
+maxTimeDelay: 604800
+
+# MaxBlockDelay: Maximum number of blocks elapsed between generated transactions; default is one week
+maxBlockDelay: 60480
+
+# FilterBlacklist: Enables or disables filtering of methods in tests
+filterBlacklist: false
+
+# FilterFunctions: Specify the list of methods to test or exclude
+filterFunctions:
+  - "test_RoleInvariants.tryPauseEscrow(address)"
+  - "test_RoleInvariants.tryUnpauseEscrow(address)"
+  - "test_RoleInvariants.trySetVaultAddress(address,address)"
+  - "test_RoleInvariants.trySetFeeBps(address,uint256)"
+  - "test_RoleInvariants.trySetAutoReleaseFlag(address,bool)"
+
+# Directory to save the corpus; by default, this is disabled
+corpusDir: null
+
+# Constants for corpus mutations (for experimentation only)
+mutConsts: [1, 2, 3, 4]
+
+# Maximum value to send to payable functions
+maxValue: 1000000000000000000 # 1 ETH

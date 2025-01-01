@@ -6,7 +6,7 @@ import "./ISystemSettings.sol";
 import "./CarefulMath.sol";
 import "./PaymentInput.sol";
 import "./IEscrowContract.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./inc/token/ERC20/IERC20.sol";
 
 /**
  * @title PaymentEscrow
@@ -327,7 +327,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     }
 
     function _transferAmount(bytes32 paymentId, address to, address tokenAddressOrZero, uint256 amount) internal returns (bool) {
-        bool success = false; 
+        bool success = false;
 
         if (amount > 0) {
             if (tokenAddressOrZero == address(0)) {
