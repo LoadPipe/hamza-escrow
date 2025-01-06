@@ -1,58 +1,46 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.7;
 
-import "./inc/utils/Context.sol";
-import "./ISecurityContext.sol"; 
+import "./ISecurityContext.sol";
 
 /**
- * @title HasSecurityContext 
- * 
- * This is an abstract base class for contracts whose security is managed by { SecurityContext }. It exposes 
- * the modifier which calls back to the associated { SecurityContext } contract. 
- * 
- * See also { SecurityContext }
- * 
- * @author John R. Kosinski
- * LoadPipe 2024
- * All rights reserved. Unauthorized use prohibited.
+ * @title HasSecurityContext
+ *
+ * Abstract base contract for contracts using Hats-based security context.
  */
-abstract contract HasSecurityContext is Context { 
-    ISecurityContext public securityContext; 
-    
-    //security roles 
+abstract contract HasSecurityContext {
+    ISecurityContext public securityContext;
+
+    // Predefined roles
     bytes32 public constant ADMIN_ROLE = 0x0;
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");     //TODO: needed?
-    bytes32 public constant SYSTEM_ROLE = keccak256("SYSTEM_ROLE");     //TODO: not needed
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant SYSTEM_ROLE = keccak256("SYSTEM_ROLE");
     bytes32 public constant ARBITER_ROLE = keccak256("ARBITER_ROLE");
     bytes32 public constant DAO_ROLE = keccak256("DAO_ROLE");
-    
-    //thrown when the onlyRole modifier reverts 
-    error UnauthorizedAccess(bytes32 roleId, address addr); 
-    
-    //thrown if zero-address argument passed for securityContext
-    error ZeroAddressArgument(); 
-    
-    //emitted when setSecurityContext has been called 
-    event SecurityContextSet(address caller, address securityContext);
-    
-    //Restricts function calls to callers that have a specified security role only 
+
+    // Error messages
+    error UnauthorizedAccess(bytes32 roleId, address addr);
+    error ZeroAddressArgument();
+
+    // Event emitted when security context is updated
+    event SecurityContextSet(address indexed caller, address indexed securityContext);
+
+    /**
+     * @notice Modifier to restrict access to specific roles.
+     * @param role The `bytes32` identifier of the role.
+     */
     modifier onlyRole(bytes32 role) {
-        if (!securityContext.hasRole(role, _msgSender())) {
-            revert UnauthorizedAccess(role, _msgSender());
+        if (!securityContext.hasRole(role, msg.sender)) {
+            revert UnauthorizedAccess(role, msg.sender);
         }
         _;
     }
-    
-    /**
-     * Allows an authorized caller to set the securityContext address. 
-     * 
-     * Reverts: 
-     * - {UnauthorizedAccess}: if caller is not authorized 
-     * - {ZeroAddressArgument}: if the address passed is 0x0
-     * - 'Address: low-level delegate call failed' (if `_securityContext` is not legit)
-     * 
-     * @param _securityContext Address of an ISecurityContext. 
-     */
+
+    // Returns the address of the caller. Can be overridden for meta-transactions or proxies.
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
+
     function setSecurityContext(ISecurityContext _securityContext) external onlyRole(ADMIN_ROLE) {
         _setSecurityContext(_securityContext);
     }
@@ -80,7 +68,4 @@ abstract contract HasSecurityContext is Context {
             emit SecurityContextSet(_msgSender(), address(_securityContext));
         }
     }
-    
-    //future-proof, as this is inherited by upgradeable contracts
-    uint256[50] private __gap;
 }
