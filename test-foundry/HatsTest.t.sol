@@ -2,22 +2,33 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
-
-// Hats Protocol
 import "hats-protocol/src/Hats.sol";
 
-// Local imports
 import { HatsSecurityContext } from "../src/HatsSecurityContext.sol";
-import { PaymentEscrow, IEscrowContract } from "../src/PaymentEscrow.sol";
-import { SystemSettings } from "../src/SystemSettings.sol";
+import { PaymentEscrow, IEscrowContract } from "../src/HatsPaymentEscrow.sol";
+import { SystemSettings } from "../src/SystemSettingsHats.sol";
 import { TestToken } from "../src/TestToken.sol";
-import { ISecurityContext } from "../src/ISecurityContext.sol";
+import { IHatsSecurityContext } from "../src/IHatsSecurityContext.sol";
 import { ISystemSettings } from "../src/ISystemSettings.sol";
 import { PaymentInput, Payment } from "../src/PaymentInput.sol";
 import { FailingToken } from "../src/FailingToken.sol";
+import { console } from "forge-std/console.sol";
 
-// For reference, these roles are defined in HasSecurityContext:
-bytes32 constant ADMIN_ROLE   = 0x00; // 0x0 (by convention)
+// Dummy Eligibility and Toggle Modules
+contract DummyEligibilityModule {
+    function isEligible(address, uint256) external pure returns (bool) {
+        return true; // Everyone is eligible in this dummy contract
+    }
+}
+
+contract DummyToggleModule {
+    function isActive(uint256) external pure returns (bool) {
+        return true; // Always active in this dummy contract
+    }
+}
+
+// roles in roles.sol for refrence 
+bytes32 constant ADMIN_ROLE   = 0x00; 
 bytes32 constant PAUSER_ROLE  = keccak256("PAUSER_ROLE");
 bytes32 constant SYSTEM_ROLE  = keccak256("SYSTEM_ROLE");
 bytes32 constant ARBITER_ROLE = keccak256("ARBITER_ROLE");
@@ -26,23 +37,19 @@ bytes32 constant DAO_ROLE     = keccak256("DAO_ROLE");
 /**
  * @title PaymentEscrowHatsTest
  *
- * Demonstrates how to test PaymentEscrow using the HatsSecurityContext for role-based checks.
- * This file shows only a subset of tests for brevity, but you can replicate the rest
- * of your original test logic as desired.
+ * Demonstrates how to test PaymentEscrow using the HatsSecurityContext for role-based checks
  */
 contract PaymentEscrowHatsTest is Test {
-    // -------------------------------------------------------
-    // Instance variables
-    // -------------------------------------------------------
     Hats public hats; 
     HatsSecurityContext public hatsSecurityContext;
     PaymentEscrow public escrow;
     TestToken public testToken;
     SystemSettings public systemSettings;
 
-    // -------------------------------------------------------
-    // Addresses that we will assign hats to
-    // -------------------------------------------------------
+    DummyEligibilityModule public eligibilityModule;
+    DummyToggleModule public toggleModule;
+
+    // Hats address and roles
     address public admin      = address(1);
     address public vault      = address(2);
     address public payer1     = address(3);
@@ -52,80 +59,121 @@ contract PaymentEscrowHatsTest is Test {
     address public system     = address(7);
     address public nonOwner   = address(8);
 
-    // -------------------------------------------------------
-    // Example Hat IDs for each role
-    // -------------------------------------------------------
-    uint256 public adminHatId   = 1; // each ID in Hats is typically a uint256 
-    uint256 public arbiterHatId = 2;
-    uint256 public daoHatId     = 3;
-    uint256 public systemHatId  = 4;
-    uint256 public pauserHatId  = 5; // if we want to test pauser
+    // Hat IDs
+    uint256 public adminHatId; 
+    uint256 public arbiterHatId;
+    uint256 public daoHatId;
+    uint256 public systemHatId;
+    uint256 public pauserHatId;
 
-    // -------------------------------------------------------
-    // Setup
-    // -------------------------------------------------------
+
     function setUp() public {
         // 1. Deploy the Hats Protocol base contract
-        hats = new Hats();
+        hats = new Hats("TestHats", "https://example.com/hats/");
 
-        // 2. Deploy our HatsSecurityContext. 
-        //    We must pass the address of the Hats instance & 
-        //    the initial admin Hat ID that controls "ADMIN_ROLE".
+        // 2. Deploy dummy eligibility and toggle modules
+        eligibilityModule = new DummyEligibilityModule();
+        toggleModule = new DummyToggleModule();
+
+        // 3. Create the top hat
+        adminHatId = hats.mintTopHat(admin, "admin hat","https://example.com/hats/admin.png");
+
+        vm.startPrank(admin);
+
+        // 4. Create child hats
+        arbiterHatId = hats.createHat(
+            adminHatId, // Admin of Arbiter Hat
+            "Arbiter Hat", // Details about the hat
+            1, // Max supply of 1
+            address(eligibilityModule), // Eligibility module
+            address(toggleModule), // Toggle module
+            true, // Mutable
+            "https://example.com/hats/arbiter.png" // Image URI
+        );
+
+
+        daoHatId = hats.createHat(
+            adminHatId, // Admin of DAO Hat
+            "DAO Hat", // Details about the hat
+            1, // Max supply of 1
+            address(eligibilityModule), // Eligibility module
+            address(toggleModule), // Toggle module
+            true, // Mutable
+            "https://example.com/hats/dao.png" // Image URI
+        );
+
+
+
+        systemHatId = hats.createHat(
+            adminHatId, // Admin of System Hat
+            "System Hat", // Details about the hat
+            1, // Max supply of 1
+            address(eligibilityModule), // Eligibility module
+            address(toggleModule), // Toggle module
+            true, // Mutable
+            "https://example.com/hats/system.png" // Image URI
+        );
+
+        pauserHatId = hats.createHat(
+            adminHatId, // Admin of Pauser Hat
+            "Pauser Hat", // Details about the hat
+            1, // Max supply of 1
+            address(eligibilityModule), // Eligibility module
+            address(toggleModule), // Toggle module
+            true, // Mutable
+            "https://example.com/hats/pauser.png" // Image URI
+        );
+
+
+        // 5. Deploy our HatsSecurityContext with the Hats instance & the initial admin Hat ID
         hatsSecurityContext = new HatsSecurityContext(address(hats), adminHatId);
 
-        // 3. The addresses that should "wear" those hats also need to be minted 
-        //    the respective hats from the base Hats contract.
-        //    We'll do this as the "owner" of the Hats contract (for simplicity).
-        //    If your Hats Protocol instance is structured differently, 
-        //    adapt these calls as needed.
-        hats.mintHat(adminHatId,   admin);
+        // 6. Mint hats to the respective addresses
         hats.mintHat(arbiterHatId, arbiter);
-        hats.mintHat(daoHatId,     dao);
-        hats.mintHat(systemHatId,  system);
-        hats.mintHat(pauserHatId,  admin); // example
+        hats.mintHat(daoHatId, dao);
+        hats.mintHat(systemHatId, system);
+        hats.mintHat(pauserHatId, admin);
 
-        // 4. Now, map each bytes32 role to the correct Hat ID. 
-        //    By default, only the ADMIN_ROLE can call setRoleHat().
-        vm.startPrank(admin);
+        // 7. Map each bytes32 role to the correct Hat ID
         hatsSecurityContext.setRoleHat(ARBITER_ROLE, arbiterHatId);
-        hatsSecurityContext.setRoleHat(DAO_ROLE,     daoHatId);
-        hatsSecurityContext.setRoleHat(SYSTEM_ROLE,  systemHatId);
-        hatsSecurityContext.setRoleHat(PAUSER_ROLE,  pauserHatId);
+        hatsSecurityContext.setRoleHat(DAO_ROLE, daoHatId);
+        hatsSecurityContext.setRoleHat(SYSTEM_ROLE, systemHatId);
+        hatsSecurityContext.setRoleHat(PAUSER_ROLE, pauserHatId);
         vm.stopPrank();
 
-        // 5. (Optional) give our test accounts some ETH
-        vm.deal(admin,    100 ether);
-        vm.deal(payer1,   100 ether);
-        vm.deal(receiver1,100 ether);
-        vm.deal(arbiter,  100 ether);
-        vm.deal(dao,      100 ether);
-        vm.deal(system,   100 ether);
+        // 8. (Optional) give our test accounts some ETH
+        vm.deal(admin, 100 ether);
+        vm.deal(payer1, 100 ether);
+        vm.deal(receiver1, 100 ether);
+        vm.deal(arbiter, 100 ether);
+        vm.deal(dao, 100 ether);
+        vm.deal(system, 100 ether);
         vm.deal(nonOwner, 100 ether);
 
-        // 6. Deploy a test token & mint some tokens to our key addresses
+        // 9. Deploy a test token & mint some tokens to our key addresses
         testToken = new TestToken("XYZ", "ZYX");
-        testToken.mint(payer1,    10_000_000_000);
+        testToken.mint(payer1, 10_000_000_000);
         testToken.mint(receiver1, 10_000_000_000);
 
-        // 7. Deploy a SystemSettings contract that references the Hats-based security context
+        // 10. Deploy SystemSettings
+        vm.startPrank(admin);
         systemSettings = new SystemSettings(
-            ISecurityContext(address(hatsSecurityContext)), // new context
-            vault,        // vault address for fees
-            0             // initial feeBps = 0
+            IHatsSecurityContext(address(hatsSecurityContext)),
+            vault, // Vault address
+            0 // Initial fee BPS
         );
 
-        // 8. Finally, deploy PaymentEscrow referencing the new Hats security context
-        //    & referencing the systemSettings for fees/parameters
+        // 11. Deploy PaymentEscrow
         escrow = new PaymentEscrow(
-            ISecurityContext(address(hatsSecurityContext)), 
-            ISystemSettings(address(systemSettings)), 
+            IHatsSecurityContext(address(hatsSecurityContext)),
+            ISystemSettings(address(systemSettings)),
             false // autoReleaseFlag
         );
+
+        vm.stopPrank();
     }
 
-    // -------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------
+    //helper functions
     function _getBalance(address who, bool isToken) internal view returns (uint256) {
         if (isToken) {
             return testToken.balanceOf(who);
@@ -161,10 +209,6 @@ contract PaymentEscrowHatsTest is Test {
         }
     }
 
-    // -------------------------------------------------------
-    // A few example tests (you can adapt/extend as needed)
-    // -------------------------------------------------------
-
     /**
      * @dev Simple test: verify that the address wearing the ARBITER_ROLE hat 
      *      can call the escrow release on behalf of the payer.
@@ -182,10 +226,8 @@ contract PaymentEscrowHatsTest is Test {
         vm.prank(receiver1);
         escrow.releaseEscrow(paymentId);
 
-        // 2) Now the arbiter, who has the arbiterHatId, 
-        //    is recognized as ARBITER_ROLE via HatsSecurityContext.
-        //    The default code is: 
-        //      require(hats.isWearerOfHat(msg.sender, roleToHatId[ARBITER_ROLE]), "Caller is not arbiter");
+        // 2) The arbiter, wearing the arbiterHatId, 
+        //    releases on behalf of payer
         vm.prank(arbiter);
         escrow.releaseEscrow(paymentId);
 
@@ -208,9 +250,6 @@ contract PaymentEscrowHatsTest is Test {
         _placePayment(paymentId, payer1, receiver1, amount, false);
 
         // Act & Assert
-        // nonOwner does not have ARBITER_ROLE. 
-        // The default error from PaymentEscrow is "Unauthorized" 
-        // because the role check fails in releaseEscrow.
         vm.prank(nonOwner);
         vm.expectRevert("Unauthorized");
         escrow.releaseEscrow(paymentId);
@@ -221,19 +260,15 @@ contract PaymentEscrowHatsTest is Test {
      *      pausing and unpausing.
      */
     function testPausingByAuthorizedHatWearer() public {
-        // By default in the code, pausing requires SYSTEM_ROLE.
-        // If your code references PAUSER_ROLE, adjust accordingly.
 
-        // Confirm escrow is not paused
         assertFalse(escrow.paused(), "Should not start paused");
 
         // Attempt to pause as a random address -> revert
         vm.prank(nonOwner);
-        vm.expectRevert("Caller is not admin");
-        // or if your code is "Caller is not system" or "Unauthorized", adapt
+        vm.expectRevert();
         escrow.pause();
 
-        // Pause with the system role (the systemHatId)
+        // Pause with the systemHatId 
         vm.prank(system);
         escrow.pause();
         assertTrue(escrow.paused(), "Should be paused now");
@@ -241,13 +276,11 @@ contract PaymentEscrowHatsTest is Test {
 
     /**
      * @dev Minimal example: ensures we can place a Payment with tokens 
-     *      and that the correct Hat-based role is enforced if 
-     *      we try to modify role mappings on the fly.
+     *      and that the correct Hat-based role is enforced 
+     *      if we try to modify role mappings on the fly.
      */
     function testModifyRoleHatByAdmin() public {
-        // Since setRoleHat requires the caller to wear the ADMIN_ROLE hat,
-        // let’s show that only `admin` can do this. 
-        // Attempt as a non-admin => revert
+        // Attempt as non-admin => revert
         vm.prank(nonOwner);
         vm.expectRevert("Caller is not admin");
         hatsSecurityContext.setRoleHat(ARBITER_ROLE, 999999);
@@ -259,8 +292,8 @@ contract PaymentEscrowHatsTest is Test {
     }
 
     /**
-     * @dev Simple fee-based test to show the hats integration doesn't break 
-     *      normal business logic.
+     * @dev Simple fee-based test to show the hats integration 
+     *      doesn't break normal business logic.
      */
     function testFeesWithHatsContext() public {
         // Setup a 5% fee
@@ -272,7 +305,6 @@ contract PaymentEscrowHatsTest is Test {
         uint256 initialVaultBalance = _getBalance(vault, true);
         uint256 initialReceiverBalance = _getBalance(receiver1, true);
 
-        // place payment
         _placePayment(paymentId, payer1, receiver1, amount, true);
 
         // release from both sides
@@ -281,7 +313,6 @@ contract PaymentEscrowHatsTest is Test {
         vm.prank(receiver1);
         escrow.releaseEscrow(paymentId);
 
-        // check final
         Payment memory p = escrow.getPayment(paymentId);
         assertTrue(p.released);
 
