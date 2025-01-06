@@ -1,3 +1,6 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "lib/hats-protocol"]
+	path = lib/hats-protocol
+	url = https://github.com/Hats-Protocol/hats-protocol
