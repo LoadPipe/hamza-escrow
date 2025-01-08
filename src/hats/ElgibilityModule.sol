@@ -2,11 +2,14 @@
 pragma solidity ^0.8.19;
 
 /**
- * @title MyEligibilityModule
+ * @title EligibilityModule
  * @notice An ownership-based module for configuring eligibility and standing
  *         on a per-hat basis in the Hats Protocol. controlled by the admin.
  */
-contract MyEligibilityModule {
+
+ //TODO: make specific to wearers
+ 
+contract EligibilityModule {
     /// @notice The admin who can update eligibility settings
     address public admin;
 
@@ -27,7 +30,7 @@ contract MyEligibilityModule {
      * @dev Set the admin 
      */
     constructor(address _admin) {
-        admin = msg.sender;
+        admin = _admin;
     }
 
     /**
