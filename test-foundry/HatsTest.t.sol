@@ -16,10 +16,32 @@ import { console } from "forge-std/console.sol";
 
 // Dummy Eligibility and Toggle Modules
 contract DummyEligibilityModule {
-    function isEligible(address, uint256) external pure returns (bool) {
-        return true; // Everyone is eligible in this dummy contract
+    // Storage to dynamically control eligibility and standing
+    bool public isEligible; // Controls eligibility
+    bool public isInGoodStanding; // Controls standing
+
+    // Allow updating eligibility dynamically
+    function setEligibility(bool _isEligible) external {
+        isEligible = _isEligible;
+    }
+
+    // Allow updating standing dynamically
+    function setStanding(bool _isInGoodStanding) external {
+        isInGoodStanding = _isInGoodStanding;
+    }
+
+    // Return eligibility and standing dynamically based on storage variables
+    function getWearerStatus(address, uint256)
+        external
+        view
+        returns (uint256 eligible, uint256 standing)
+    {
+        // Convert bool to uint256: true = 1, false = 0
+        eligible = isEligible ? 1 : 0;
+        standing = isInGoodStanding ? 1 : 0;
     }
 }
+
 
 contract DummyToggleModule {
     function isActive(uint256) external pure returns (bool) {
@@ -73,6 +95,8 @@ contract PaymentEscrowHatsTest is Test {
 
         // 2. Deploy dummy eligibility and toggle modules
         eligibilityModule = new DummyEligibilityModule();
+        eligibilityModule.setEligibility(true); // Set initial eligibility to true
+        eligibilityModule.setStanding(true); // Set initial standing to true
         toggleModule = new DummyToggleModule();
 
         // 3. Create the top hat
@@ -84,9 +108,9 @@ contract PaymentEscrowHatsTest is Test {
         arbiterHatId = hats.createHat(
             adminHatId, // Admin of Arbiter Hat
             "Arbiter Hat", // Details about the hat
-            1, // Max supply of 1
+            2, // Max supply of 1
             address(eligibilityModule), // Eligibility module
-            address(toggleModule), // Toggle module
+            admin, // Toggle module
             true, // Mutable
             "https://example.com/hats/arbiter.png" // Image URI
         );
@@ -95,9 +119,9 @@ contract PaymentEscrowHatsTest is Test {
         daoHatId = hats.createHat(
             adminHatId, // Admin of DAO Hat
             "DAO Hat", // Details about the hat
-            1, // Max supply of 1
+            2, // Max supply of 1
             address(eligibilityModule), // Eligibility module
-            address(toggleModule), // Toggle module
+            admin, // Toggle module
             true, // Mutable
             "https://example.com/hats/dao.png" // Image URI
         );
@@ -107,9 +131,9 @@ contract PaymentEscrowHatsTest is Test {
         systemHatId = hats.createHat(
             adminHatId, // Admin of System Hat
             "System Hat", // Details about the hat
-            1, // Max supply of 1
+            2, // Max supply of 1
             address(eligibilityModule), // Eligibility module
-            address(toggleModule), // Toggle module
+            admin, // Toggle module
             true, // Mutable
             "https://example.com/hats/system.png" // Image URI
         );
@@ -117,9 +141,9 @@ contract PaymentEscrowHatsTest is Test {
         pauserHatId = hats.createHat(
             adminHatId, // Admin of Pauser Hat
             "Pauser Hat", // Details about the hat
-            1, // Max supply of 1
+            2, // Max supply of 1
             address(eligibilityModule), // Eligibility module
-            address(toggleModule), // Toggle module
+            admin, // Toggle module
             true, // Mutable
             "https://example.com/hats/pauser.png" // Image URI
         );
@@ -320,4 +344,42 @@ contract PaymentEscrowHatsTest is Test {
         assertEq(_getBalance(vault, true), initialVaultBalance + expectedFee);
         assertEq(_getBalance(receiver1, true), initialReceiverBalance + (amount - expectedFee));
     }
+
+    function testUnauthorizedCannotMintHat() public {
+        address testAddress = address(9); // Random test address
+        uint256 testHatId = arbiterHatId; // Arbiter Hat ID
+
+        // Act & Assert
+        vm.prank(testAddress); // Simulate an unauthorized user
+        vm.expectRevert();
+        hats.mintHat(testHatId, testAddress);
+    }
+
+    function testAdminMintsHat() public {
+        address testAddress = address(9); // Random test address
+        uint256 testHatId = arbiterHatId; // Arbiter Hat ID
+
+        vm.startPrank(admin);
+        hats.mintHat(testHatId, testAddress);
+        vm.stopPrank();
+
+        assertTrue(hats.isWearerOfHat(testAddress, testHatId), "Test address should now own the hat");
+    }
+
+    function testIneligibleCannotMintHat() public {
+        address testAddress = address(9); // Random test address
+        uint256 testHatId = arbiterHatId; // Arbiter Hat ID
+
+        // Set the eligibility to false (ineligible)
+        eligibilityModule.setEligibility(false);
+
+        // Act & Assert
+        vm.prank(admin); // Admin attempts to mint the hat to the test address
+        vm.expectRevert(); // Revert expected due to ineligibility
+        hats.mintHat(testHatId, testAddress);
+
+        // Ensure the hat was not minted
+        assertFalse(hats.isWearerOfHat(testAddress, testHatId), "Test address should not own the hat");
+    }
+
 }
