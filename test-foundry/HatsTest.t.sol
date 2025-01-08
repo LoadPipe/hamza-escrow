@@ -44,8 +44,23 @@ contract DummyEligibilityModule {
 
 
 contract DummyToggleModule {
-    function isActive(uint256) external pure returns (bool) {
-        return true; // Always active in this dummy contract
+    address public immutable admin;
+    bool public globalActive; // if false => all hats that use this module are inactive
+
+    constructor(address _admin) {
+        admin = _admin;
+        globalActive = true; // default to active
+    }
+
+    function setStatus(bool _status) external {
+        require(msg.sender == admin, "Not the admin");
+        globalActive = _status;
+    }
+
+    // The Hats contract calls `getHatStatus(uint256)` to check whether a hat is active.
+    // Return `1` for active, `0` for inactive, ignoring the specific hatId.
+    function getHatStatus(uint256) external view returns (uint256) {
+        return globalActive ? 1 : 0;
     }
 }
 
@@ -97,7 +112,7 @@ contract PaymentEscrowHatsTest is Test {
         eligibilityModule = new DummyEligibilityModule();
         eligibilityModule.setEligibility(true); // Set initial eligibility to true
         eligibilityModule.setStanding(true); // Set initial standing to true
-        toggleModule = new DummyToggleModule();
+        toggleModule = new DummyToggleModule(admin);
 
         // 3. Create the top hat
         adminHatId = hats.mintTopHat(admin, "admin hat","https://example.com/hats/admin.png");
@@ -110,7 +125,7 @@ contract PaymentEscrowHatsTest is Test {
             "Arbiter Hat", // Details about the hat
             2, // Max supply of 1
             address(eligibilityModule), // Eligibility module
-            admin, // Toggle module
+            address(toggleModule), // Toggle module
             true, // Mutable
             "https://example.com/hats/arbiter.png" // Image URI
         );
@@ -121,7 +136,7 @@ contract PaymentEscrowHatsTest is Test {
             "DAO Hat", // Details about the hat
             2, // Max supply of 1
             address(eligibilityModule), // Eligibility module
-            admin, // Toggle module
+            address(toggleModule), // Toggle module
             true, // Mutable
             "https://example.com/hats/dao.png" // Image URI
         );
@@ -133,7 +148,7 @@ contract PaymentEscrowHatsTest is Test {
             "System Hat", // Details about the hat
             2, // Max supply of 1
             address(eligibilityModule), // Eligibility module
-            admin, // Toggle module
+            address(toggleModule), // Toggle module
             true, // Mutable
             "https://example.com/hats/system.png" // Image URI
         );
@@ -143,7 +158,7 @@ contract PaymentEscrowHatsTest is Test {
             "Pauser Hat", // Details about the hat
             2, // Max supply of 1
             address(eligibilityModule), // Eligibility module
-            admin, // Toggle module
+            address(toggleModule), // Toggle module
             true, // Mutable
             "https://example.com/hats/pauser.png" // Image URI
         );
@@ -381,5 +396,79 @@ contract PaymentEscrowHatsTest is Test {
         // Ensure the hat was not minted
         assertFalse(hats.isWearerOfHat(testAddress, testHatId), "Test address should not own the hat");
     }
+
+    function testToggleModule_DefaultsToActive() public {
+        bool arbiterIsActive = hats.isActive(arbiterHatId);
+        assertTrue(arbiterIsActive, "Arbiter Hat should be active by default");
+
+        bool daoIsActive = hats.isActive(daoHatId);
+        assertTrue(daoIsActive, "DAO Hat should be active by default");
+
+        bool systemIsActive = hats.isActive(systemHatId);
+        assertTrue(systemIsActive, "System Hat should be active by default");
+    }
+
+    function testAdminCanToggleAllHatsOff() public {
+        // 1) Confirm hats are active initially
+        assertTrue(hats.isActive(arbiterHatId), "Should start active");
+        assertTrue(hats.isActive(daoHatId), "Should start active");
+        assertTrue(hats.isActive(systemHatId), "Should start active");
+        assertTrue(hats.isActive(pauserHatId), "Should start active");
+
+        // 2) Admin toggles them off
+        vm.startPrank(admin);
+        toggleModule.setStatus(false);
+        vm.stopPrank();
+
+        // 3) Now all hats referencing this module are inactive
+        assertFalse(hats.isActive(arbiterHatId), "Arbiter Hat should be inactive");
+        assertFalse(hats.isActive(daoHatId), "DAO Hat should be inactive");
+        assertFalse(hats.isActive(systemHatId), "System Hat should be inactive");
+        assertFalse(hats.isActive(pauserHatId), "Pauser Hat should be inactive");
+    }
+
+    function testNonAdminCannotToggle() public {
+        // Attempting to toggle from a non-admin address should revert
+        vm.prank(nonOwner);
+        vm.expectRevert("Not the admin");
+        toggleModule.setStatus(false);
+
+        // Confirm the hats remain active
+        assertTrue(hats.isActive(arbiterHatId), "Arbiter Hat should still be active");
+        assertTrue(hats.isActive(daoHatId), "DAO Hat should still be active");
+    }
+
+    function testCannotMintWhenHatsToggledOff() public {
+        // 1) Admin toggles off
+        vm.startPrank(admin);
+        toggleModule.setStatus(false);
+        vm.stopPrank();
+
+        // 2) attempt to mint any hat should revert with HatNotActive
+        vm.startPrank(admin);
+        vm.expectRevert();
+        hats.mintHat(daoHatId, address(9));
+        vm.stopPrank();
+
+        // Confirm the user did not receive the hat
+        assertFalse(hats.isWearerOfHat(address(9), daoHatId), "Should not be minted when inactive");
+    }
+
+    function testCanReToggleOnAndMintAgain() public {
+        // 1) Admin toggles off then on again
+        vm.startPrank(admin);
+        toggleModule.setStatus(false);
+        toggleModule.setStatus(true);
+        vm.stopPrank();
+
+        // 2) Attempt to mint => should succeed now
+        vm.startPrank(admin);
+        hats.mintHat(daoHatId, address(9));
+        vm.stopPrank();
+
+        // Confirm the user now has the hat
+        assertTrue(hats.isWearerOfHat(address(9), daoHatId), "Should be minted after reactivating");
+    }
+
 
 }
