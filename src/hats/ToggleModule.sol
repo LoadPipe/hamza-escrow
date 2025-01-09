@@ -8,7 +8,7 @@ pragma solidity ^0.8.19;
  *         The Hats Protocol calls getHatStatus(uint256) and expects a uint256:
  *         1 indicates "active," and 0 indicates "inactive."
  */
-contract MToggleModule {
+contract ToggleModule {
     /// @notice The amdin who can toggle hat status
     address public admin;
 
