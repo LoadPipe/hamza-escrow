@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.7;
 
-import "hats-protocol/src/Hats.sol";
+import "../lib/hats-protocol/src/Hats.sol";
 
 interface IHatsSecurityContext {
     /**

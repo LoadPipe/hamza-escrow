@@ -2,11 +2,11 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
-import "hats-protocol/src/Hats.sol";
+import "../lib/hats-protocol/src/Hats.sol";
 
 import { HatsSecurityContext } from "../src/HatsSecurityContext.sol";
-import { PaymentEscrow, IEscrowContract } from "../src/HatsPaymentEscrow.sol";
-import { SystemSettings } from "../src/SystemSettingsHats.sol";
+import { PaymentEscrow, IEscrowContract } from "../src/PaymentEscrow.sol";
+import { SystemSettings } from "../src/SystemSettings.sol";
 import { TestToken } from "../src/TestToken.sol";
 import { IHatsSecurityContext } from "../src/IHatsSecurityContext.sol";
 import { ISystemSettings } from "../src/ISystemSettings.sol";
