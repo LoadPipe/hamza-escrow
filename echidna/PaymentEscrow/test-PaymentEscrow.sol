@@ -1,52 +1,79 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.19;
 
+// --- Add these if they are not already in your repo structure or import paths ---
+import "../../lib/hats-protocol/src/Hats.sol";
+import "../../src/HatsSecurityContext.sol";
 import "../../src/PaymentEscrow.sol";
-import "../../src/SecurityContext.sol";
 import "../../src/SystemSettings.sol";
+import "../../src/IHatsSecurityContext.sol";
+import "../../src/ISystemSettings.sol";
+import "../../src/PaymentInput.sol";
+
+// Use the same cheat-code interface you were using, e.g. for hevm
 import "../../src/inc/utils/Hevm.sol";
 
 /**
  * @title test_PaymentEscrow
  *
- * Simulates escrow workflows for testing purposes. Includes methods for placing payments, releasing funds, and refunds.
- * Contains invariants to validate the correctness of escrow behaviors during fuzz testing.
- *
- * @author Hudson Headley
- * LoadPipe 2024
- * All rights reserved. Unauthorized use prohibited.
+ * Example Echidna test that integrates Hats, referencing the Foundry-based PaymentEscrowTest.
  */
 contract test_PaymentEscrow {
-    address constant admin = address(0x00001); // privileged admin account
-    address constant user3 = address(0x30000); // deployer of the contract
+    // --------------------//
+    // Addresses Used      //
+    // --------------------//
+    address constant admin     = address(0x00001);
+    address constant user3     = address(0x30000); // deployer
+    address constant user1     = address(0x10000); // payer 1
+    address constant user2     = address(0x20000); // receiver 1
+    address constant user4     = address(0x40000); // receiver 2
+    address constant user5     = address(0x50000); // payer 2
+    address constant userDeadbeef = address(0xDeaDBeef);
+    address constant vault     = address(0xF0005);  // vault for fees
 
-    address constant user1 = address(0x10000); // payer 1
-    address constant user2 = address(0x20000); // receiver 1
-    address constant user4 = address(0x40000); // receiver 2
-    address constant user5 = address(0x50000); // payer 2
-    address constant userDeadbeef = address(0xDeaDBeef); // placeholder address
-    address constant vault = address(0x50000); // address where fees are sent
+    // --------------------//
+    // Contracts           //
+    // --------------------//
+    PaymentEscrow public escrow;
+    HatsSecurityContext public securityContext;
+    SystemSettings public systemSettings;
+    Hats public hats; // the Hats protocol itself
 
-    PaymentEscrow escrow; // instance of the PaymentEscrow contract
-    SecurityContext securityContext; // instance of the SecurityContext contract
-    SystemSettings systemSettings; // instance of the SystemSettings contract
+    // Example counters/flags used in your tests
+    uint256 public call_count;
+    bool public first_call;
+    bool public first_call_released;
 
-    uint256 call_count = 0; // keeps track of the number of payments made
-    bool first_call = false; // whether the first payment has been placed
-    bool first_call_released = false; // whether the first payment has been released
-
-    bool payment_success = false; // tracks the success of payment placements
-    bool release_success = false; // tracks the success of payment releases
-    bool refund_success = false; // tracks the success of payment refunds
+    bool public payment_success;
+    bool public release_success;
+    bool public refund_success;
 
     /**
-     * @dev Constructor initializes required contracts and ensures the contract has an initial balance.
+     * @dev Deploy Hats, HatsSecurityContext, SystemSettings, and PaymentEscrow in the constructor.
+     *      Then fund this contract with some Ether for testing flows that require native currency.
      */
     constructor() payable {
+        // We assume you run echidna with some initial contract balance, e.g.:
+        //   echidna test_PaymentEscrow.sol --contract test_PaymentEscrow --test-limit 1000 --fund-amount 1000000000000000000
         require(msg.value > 0, "Initial balance required");
-        securityContext = new SecurityContext(admin);
-        systemSettings = new SystemSettings(securityContext, vault, 0);
-        escrow = new PaymentEscrow(securityContext, systemSettings, false);
+
+        // 1. Deploy a Hats instance
+        hats = new Hats("Test Hats", "ipfs://");
+
+        // 2. Deploy your security context, passing in the hats address and some "admin hat" ID.
+        //    For simplicity, we just pass `1` here, but in a more advanced scenario you'd first
+        //    mint a top-hat to an admin and record that ID.
+        securityContext = new HatsSecurityContext(address(hats), 1);
+
+        // 3. Deploy system settings, referencing the security context
+        systemSettings = new SystemSettings(IHatsSecurityContext(address(securityContext)), vault, 0);
+
+        // 4. Deploy your PaymentEscrow with autoRelease = false (you can set this to true if desired)
+        escrow = new PaymentEscrow(
+            IHatsSecurityContext(address(securityContext)),
+            ISystemSettings(address(systemSettings)),
+            false
+        );
     }
 
     /**
@@ -57,17 +84,27 @@ contract test_PaymentEscrow {
      * @param randomizeReceiver Determines which receiver will be used.
      */
     function placePayment1(uint256 amount, bool randomizePayer, bool randomizeReceiver) public {
+        // skip if insufficient balance in this contract
         if (amount > address(this).balance) {
-            return; // skip if insufficient balance
+            return; 
         }
 
-        address payer = randomizePayer ? user1 : user5;
+        address payer    = randomizePayer    ? user1 : user5;
         address receiver = randomizeReceiver ? user2 : user4;
 
         bytes32 paymentId = keccak256(abi.encodePacked(call_count, address(this)));
-        PaymentInput memory input = PaymentInput(address(0), paymentId, receiver, payer, amount);
+        PaymentInput memory input = PaymentInput({
+            currency: address(0), // assume native for now
+            id: paymentId,
+            receiver: receiver,
+            payer: payer,
+            amount: amount
+        });
 
-        require(address(payer).balance >= amount, "Payer does not have enough balance");
+        // Make sure payer has enough balance for test
+        if (payer.balance < amount) {
+            return;
+        }
 
         hevm.prank(payer);
         (bool success, ) = address(escrow).call{value: amount}(
@@ -140,6 +177,7 @@ contract test_PaymentEscrow {
         for (uint256 i = 0; i < call_count; i++) {
             bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
             Payment memory payment = escrow.getPayment(paymentId);
+            // If `payment.released == true` then it must be that both payerReleased and receiverReleased are true
             if (payment.released && !(payment.payerReleased && payment.receiverReleased)) {
                 return false;
             }
@@ -152,12 +190,12 @@ contract test_PaymentEscrow {
      */
     function echidna_escrow_funds_sufficient() public view returns (bool) {
         uint256 totalRefunded = 0;
-        uint256 totalAmount = 0;
+        uint256 totalAmount   = 0;
         for (uint256 i = 0; i < call_count; i++) {
             bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
             Payment memory payment = escrow.getPayment(paymentId);
             totalRefunded += payment.amountRefunded;
-            totalAmount += payment.amount;
+            totalAmount   += payment.amount;
             if (totalAmount < totalRefunded) {
                 return false;
             }
@@ -166,14 +204,14 @@ contract test_PaymentEscrow {
     }
 
     /**
-     * Invariant: Ensures payers and receivers are valid addresses.
+     * Invariant: Ensures payers and receivers are valid addresses among user1, user2, user4, user5 only.
      */
     function echidna_valid_payer_and_receiver() public view returns (bool) {
         for (uint256 i = 0; i < call_count; i++) {
             bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
             Payment memory payment = escrow.getPayment(paymentId);
 
-            bool validPayer = (payment.payer == user1 || payment.payer == user5);
+            bool validPayer    = (payment.payer == user1 || payment.payer == user5);
             bool validReceiver = (payment.receiver == user2 || payment.receiver == user4);
 
             if (!validPayer || !validReceiver) {
@@ -193,6 +231,7 @@ contract test_PaymentEscrow {
             bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
             Payment memory payment = escrow.getPayment(paymentId);
 
+            // If not released, the escrow is still holding payment.amount - payment.amountRefunded
             if (!payment.released) {
                 totalLocked += (payment.amount - payment.amountRefunded);
             }
@@ -223,6 +262,8 @@ contract test_PaymentEscrow {
             bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
             Payment memory payment = escrow.getPayment(paymentId);
 
+            // If amountRefunded == payment.amount, then it's fully refunded. 
+            // That payment must not also be 'released'.
             if (payment.amountRefunded == payment.amount && payment.released) {
                 return false;
             }

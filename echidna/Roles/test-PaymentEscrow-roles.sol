@@ -50,27 +50,28 @@ contract test_RoleInvariants {
         require(msg.value > 0, "Needs initial ETH for escrow tests if needed.");
 
         // Deploy SecurityContext and grant roles
-        securityContext = new SecurityContext(admin);
+
+        securityContext = new SecurityContext(msg.sender);
 
         // Deploy SystemSettings with initial vault and fee settings
         systemSettings = new SystemSettings(
-            securityContext,
+            IHatsSecurityContext(address(securityContext)),
             admin, // Placeholder vault address
             100 // 1% fee in basis points
         );
 
         // Deploy PaymentEscrow with the system settings
         escrow = new PaymentEscrow(
-            securityContext,
-            systemSettings,
+            IHatsSecurityContext(address(securityContext)),
+            ISystemSettings(address(systemSettings)),
             false // autoReleaseFlag disabled
         );
 
         // Grant required roles to respective addresses
         _grantRole(0x00, admin); // Grant default admin role
-        _grantRole(escrow.DAO_ROLE(), dao);
-        _grantRole(escrow.SYSTEM_ROLE(), system);
-        _grantRole(escrow.ARBITER_ROLE(), arbiter);
+        _grantRole(keccak256("DAO_ROLE"), dao);
+        _grantRole(keccak256("SYSTEM_ROLE"), system);
+        _grantRole(keccak256("ARBITER_ROLE"), arbiter);
     }
 
     /**
@@ -165,7 +166,7 @@ contract test_RoleInvariants {
         address[6] memory testAddrs = [admin, dao, system, arbiter, rando1, rando2];
         for (uint256 i = 0; i < testAddrs.length; i++) {
             address a = testAddrs[i];
-            if (setVaultAddressSucceeded[a] && !securityContext.hasRole(escrow.DAO_ROLE(), a)) {
+            if (setVaultAddressSucceeded[a] && !securityContext.hasRole(keccak256("DAO_ROLE"), a)) {
                 return false;
             }
         }
@@ -179,7 +180,7 @@ contract test_RoleInvariants {
         address[6] memory testAddrs = [admin, dao, system, arbiter, rando1, rando2];
         for (uint256 i = 0; i < testAddrs.length; i++) {
             address a = testAddrs[i];
-            if (setFeeBpsSucceeded[a] && !securityContext.hasRole(escrow.DAO_ROLE(), a)) {
+            if (setFeeBpsSucceeded[a] && !securityContext.hasRole(keccak256("DAO_ROLE"), a)) {
                 return false;
             }
         }
@@ -193,7 +194,7 @@ contract test_RoleInvariants {
         address[6] memory testAddrs = [admin, dao, system, arbiter, rando1, rando2];
         for (uint256 i = 0; i < testAddrs.length; i++) {
             address a = testAddrs[i];
-            if (pauseSucceeded[a] && !securityContext.hasRole(escrow.SYSTEM_ROLE(), a)) {
+            if (pauseSucceeded[a] && !securityContext.hasRole(keccak256("SYSTEM_ROLE"), a)) {
                 return false;
             }
         }
@@ -207,7 +208,7 @@ contract test_RoleInvariants {
         address[6] memory testAddrs = [admin, dao, system, arbiter, rando1, rando2];
         for (uint256 i = 0; i < testAddrs.length; i++) {
             address a = testAddrs[i];
-            if (unpauseSucceeded[a] && !securityContext.hasRole(escrow.SYSTEM_ROLE(), a)) {
+            if (unpauseSucceeded[a] && !securityContext.hasRole(keccak256("SYSTEM_ROLE"), a)) {
                 return false;
             }
         }
@@ -221,7 +222,7 @@ contract test_RoleInvariants {
         address[6] memory testAddrs = [admin, dao, system, arbiter, rando1, rando2];
         for (uint256 i = 0; i < testAddrs.length; i++) {
             address a = testAddrs[i];
-            if (setAutoReleaseSucceeded[a] && !securityContext.hasRole(escrow.SYSTEM_ROLE(), a)) {
+            if (setAutoReleaseSucceeded[a] && !securityContext.hasRole(keccak256("SYSTEM_ROLE"), a)) {
                 return false;
             }
         }

@@ -3,7 +3,7 @@ pragma solidity ^0.8.7;
 
 import "../../src/PaymentEscrow.sol";
 import "../../src/EscrowMulticall.sol";
-import "../../src/SecurityContext.sol";
+import "../../src/HatsSecurityContext.sol";
 import "../../src/SystemSettings.sol";
 import "../../src/inc/utils/Hevm.sol";
 
@@ -30,7 +30,7 @@ contract test_EscrowMulticallInvariants {
 
     // Contracts used in the test setup
     EscrowMulticall public multi; // instance of EscrowMulticall contract
-    SecurityContext public securityContext; // instance of SecurityContext contract
+    HatsSecurityContext public securityContext; // instance of SecurityContext contract
     SystemSettings public systemSettings; // instance of SystemSettings contract
     PaymentEscrow[] public escrows; // list of PaymentEscrow instances
 
@@ -55,7 +55,7 @@ contract test_EscrowMulticallInvariants {
         require(msg.value > 0, "Initial balance required");
 
         // Initialize security context and system settings
-        securityContext = new SecurityContext(admin);
+        securityContext = new HatsSecurityContext(address(new Hats("Test Hats", "ipfs://")), 1);
         systemSettings = new SystemSettings(securityContext, vault, 0);
 
         // Deploy multiple PaymentEscrow contracts
