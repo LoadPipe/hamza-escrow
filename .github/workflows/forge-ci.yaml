@@ -13,16 +13,18 @@ jobs:
       # Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v4
+        with: 
+          submodules: recursive
 
       # Install Foundry
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          version: stable
 
       # Run Foundry tests
       - name: Run Foundry Tests
-        run: forge test --via-ir --optimizer-runs 200
+        run: forge test -vvv --via-ir --optimizer-runs 200 
 
       # # Run coverage and ensure it's above 85%
       # - name: Check Coverage
