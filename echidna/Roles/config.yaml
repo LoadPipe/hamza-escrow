@@ -110,6 +110,8 @@ filterFunctions:
   - "test_RoleInvariants.trySetVaultAddress(address,address)"
   - "test_RoleInvariants.trySetFeeBps(address,uint256)"
   - "test_RoleInvariants.trySetAutoReleaseFlag(address,bool)"
+  - "test_RoleInvariants.trySetHatRules(address,uint256,bool,bool)"
+  - "test_RoleInvariants.trySetHatStatus(address,uint256,bool)"
 
 # Directory to save the corpus; by default, this is disabled
 corpusDir: null

@@ -54,8 +54,12 @@ contract test_EscrowMulticallInvariants {
     constructor() payable {
         require(msg.value > 0, "Initial balance required");
 
+        Hats hats = new Hats("Test Hats", "ipfs://");
+        
+        uint256 topHatId = hats.mintTopHat(address(this), "Test Admin Hat", "ipfs://image");
+
         // Initialize security context and system settings
-        securityContext = new HatsSecurityContext(address(new Hats("Test Hats", "ipfs://")), 1);
+        securityContext = new HatsSecurityContext(address(hats), topHatId);
         systemSettings = new SystemSettings(securityContext, vault, 0);
 
         // Deploy multiple PaymentEscrow contracts
