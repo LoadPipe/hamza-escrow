@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.2;
 
 import "../../src/PaymentEscrow.sol";
 import "../../src/EscrowMulticall.sol";
 import "../../src/HatsSecurityContext.sol";
 import "../../src/SystemSettings.sol";
-import "../../src/inc/utils/Hevm.sol";
+import "@crytic/properties/contracts/util/Hevm.sol";
 
 /**
  * @title test_EscrowMulticallInvariants

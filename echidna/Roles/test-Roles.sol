@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "../../lib/hats-protocol/src/Hats.sol";
+import "@hats-protocol/Hats.sol";
 import "../../src/HatsSecurityContext.sol";
 import "../../src/PaymentEscrow.sol";
 import "../../src/SystemSettings.sol";
@@ -10,7 +10,7 @@ import "../../src/ISystemSettings.sol";
 import "../../src/PaymentInput.sol";
 import "../../src/hats/EligibilityModule.sol";
 import "../../src/hats/ToggleModule.sol";
-import "../../src/inc/utils/Hevm.sol";
+import "@openzeppelin/contracts/utils/Hevm.sol";
 // Roles
 bytes32 constant DAO_ROLE     = keccak256("DAO_ROLE");
 bytes32 constant SYSTEM_ROLE  = keccak256("SYSTEM_ROLE");

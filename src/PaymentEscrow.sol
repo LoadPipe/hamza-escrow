@@ -6,7 +6,7 @@ import "./ISystemSettings.sol";
 import "./CarefulMath.sol";
 import "./PaymentInput.sol";
 import "./IEscrowContract.sol";
-import "./inc/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./Roles.sol";
 
 /**

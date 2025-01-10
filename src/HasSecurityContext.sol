@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.20;
 
 import "./IHatsSecurityContext.sol";
-import "../lib/hats-protocol/src/Hats.sol";
+import "@hats-protocol/Hats.sol";
 import "./Roles.sol";
 
 /**

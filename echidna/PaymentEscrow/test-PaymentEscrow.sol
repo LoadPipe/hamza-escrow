@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "../../lib/hats-protocol/src/Hats.sol";
 import "../../src/HatsSecurityContext.sol";
