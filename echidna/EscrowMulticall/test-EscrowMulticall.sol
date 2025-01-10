@@ -5,7 +5,7 @@ import "../../src/PaymentEscrow.sol";
 import "../../src/EscrowMulticall.sol";
 import "../../src/HatsSecurityContext.sol";
 import "../../src/SystemSettings.sol";
-import "@crytic/properties/contracts/util/Hevm.sol";
+import "hevm/Hevm.sol";
 
 /**
  * @title test_EscrowMulticallInvariants

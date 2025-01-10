@@ -10,7 +10,7 @@ import "../../src/ISystemSettings.sol";
 import "../../src/PaymentInput.sol";
 import "../../src/hats/EligibilityModule.sol";
 import "../../src/hats/ToggleModule.sol";
-import "@openzeppelin/contracts/utils/Hevm.sol";
+import "hevm/Hevm.sol";
 // Roles
 bytes32 constant DAO_ROLE     = keccak256("DAO_ROLE");
 bytes32 constant SYSTEM_ROLE  = keccak256("SYSTEM_ROLE");

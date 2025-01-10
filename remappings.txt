@@ -1,4 +1,4 @@
 @openzeppelin/=lib/openzeppelin-contracts
 lib/ERC1155/=lib/hats-protocol/lib/ERC1155/
 @hats-protocol/=lib/hats-protocol/src
-hevm/=lib/hats-protocol/lib/solbase/test/utils/
+hevm/=lib/properties/contracts/util/

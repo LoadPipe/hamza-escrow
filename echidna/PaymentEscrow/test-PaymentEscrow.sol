@@ -8,7 +8,7 @@ import "../../src/SystemSettings.sol";
 import "../../src/IHatsSecurityContext.sol";
 import "../../src/ISystemSettings.sol";
 import "../../src/PaymentInput.sol";
-import "../../src/inc/utils/Hevm.sol";
+import "hevm/Hevm.sol";
 
 /**
  * @title test_PaymentEscrow
