@@ -22,7 +22,7 @@ jobs:
 
       # Run Foundry tests
       - name: Run Foundry Tests
-        run: forge test --via-ir
+        run: forge test --via-ir --optimizer-runs 200
 
       # # Run coverage and ensure it's above 85%
       # - name: Check Coverage
