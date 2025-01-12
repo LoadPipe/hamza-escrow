@@ -25,21 +25,35 @@ import { Roles } from "../src/Roles.sol";
 contract FullEscrowDeployment is Script {
   address internal adminAddress   = address(0x10);     // The admin address
   address internal vaultAddress   = address(0x11);     // The vault that will receive fees
+  address internal arbiterAddress = address(0x12);     // The arbiter address
+  address internal daoAddress     = address(0x13);     // The DAO address
   bool    internal autoRelease    = false;             // Whether PaymentEscrow starts with autoRelease
+
+  Hats public hats;
+  EligibilityModule public eligibilityModule;
+  ToggleModule public toggleModule;
+  HatsSecurityContext public securityContext;
+  SystemSettings public systemSettings;
+  PaymentEscrow public paymentEscrow;
+  EscrowMulticall public escrowMulticall;
+
+  uint256 public adminHatId;
+  uint256 public arbiterHatId;
+  uint256 public daoHatId;
 
   function run() external {
     vm.startBroadcast();
 
     // 1. Deploy the Hats base contract
-    Hats hats = new Hats("HamzaHats", "https://example.com/metadata/");
+    hats = new Hats("HamzaHats", "https://example.com/metadata/");
 
     // 2. Deploy Eligibility & Toggle Modules 
     // pass admin address to each module’s constructor
-    EligibilityModule eligibilityModule = new EligibilityModule(adminAddress);
-    ToggleModule toggleModule           = new ToggleModule(adminAddress);
+    eligibilityModule = new EligibilityModule(adminAddress);
+    toggleModule = new ToggleModule(adminAddress);
 
     // 3. Mint the Top Hat to admin 
-    uint256 adminHatId = hats.mintTopHat(
+    adminHatId = hats.mintTopHat(
       adminAddress, 
       "Hamza Admin", 
       "https://example.com/hats/top-hat.json"
@@ -50,7 +64,7 @@ contract FullEscrowDeployment is Script {
     vm.stopBroadcast();
     vm.startBroadcast(adminAddress);
 
-    uint256 arbiterHatId = hats.createHat(
+    arbiterHatId = hats.createHat(
       adminHatId,
       "Arbiter Hat",
       2,                      // maxSupply
@@ -60,7 +74,7 @@ contract FullEscrowDeployment is Script {
       "https://example.com/hats/arbiter-hat.png"
     );
 
-    uint256 daoHatId = hats.createHat(
+    daoHatId = hats.createHat(
       adminHatId,
       "DAO Hat",
       1, 
@@ -96,10 +110,28 @@ contract FullEscrowDeployment is Script {
     console.log("Pauser Hat ID:", pauserHatId);
 
     // 5. Deploy HatsSecurityContext & set role hats
-    HatsSecurityContext securityContext = new HatsSecurityContext(
+    securityContext = new HatsSecurityContext(
       address(hats),
       adminHatId
     );
+
+    // 6. Set the eligibility and toggle module
+    eligibilityModule.setHatRules(arbiterHatId, true, true);
+    eligibilityModule.setHatRules(daoHatId, true, true);
+    eligibilityModule.setHatRules(systemHatId, true, true);
+    eligibilityModule.setHatRules(pauserHatId, true, true);
+
+    toggleModule.setHatStatus(arbiterHatId, true);
+    toggleModule.setHatStatus(daoHatId, true);
+    toggleModule.setHatStatus(systemHatId, true);
+    toggleModule.setHatStatus(pauserHatId, true);
+
+    // 7. Mint the hats to the respective addresses
+    // Mint the arbiter hat to the arbiter address
+    hats.mintHat(arbiterHatId, arbiterAddress);
+
+    // Mint the DAO hat to the DAO address
+    hats.mintHat(daoHatId, daoAddress);
 
     // Map each role to the correct hat
     securityContext.setRoleHat(Roles.ARBITER_ROLE, arbiterHatId);
@@ -108,35 +140,35 @@ contract FullEscrowDeployment is Script {
     securityContext.setRoleHat(Roles.PAUSER_ROLE,  pauserHatId);
 
     //--------------------------------------//
-    // 6. Deploy SystemSettings             //
+    // 8. Deploy SystemSettings             //
     //--------------------------------------//
     // The SystemSettings constructor requires:
     //   IHatsSecurityContext
     //   vaultAddress
     //   initialFeeBps
-    SystemSettings systemSettings = new SystemSettings(
+    systemSettings = new SystemSettings(
       IHatsSecurityContext(address(securityContext)),
       vaultAddress,
       0 // feeBps (0 for now)
     );
 
     //--------------------------------------//
-    // 7. Deploy PaymentEscrow              //
+    // 9. Deploy PaymentEscrow              //
     //--------------------------------------//
     // PaymentEscrow requires:
     //   IHatsSecurityContext
     //   ISystemSettings
     //   autoReleaseFlag
-    PaymentEscrow paymentEscrow = new PaymentEscrow(
+    paymentEscrow = new PaymentEscrow(
       IHatsSecurityContext(address(securityContext)),
       ISystemSettings(address(systemSettings)),
       autoRelease
     );
 
     // ----------------------//
-    // 8. Deploy EscrowMulticall
+    // 10. Deploy EscrowMulticall
     // ----------------------//
-    EscrowMulticall escrowMulticall = new EscrowMulticall();
+    escrowMulticall = new EscrowMulticall();
 
     vm.stopBroadcast();
 
@@ -146,5 +178,6 @@ contract FullEscrowDeployment is Script {
     console.log("HatsSecurityContext deployed: ", address(securityContext));
     console.log("SystemSettings deployed:      ", address(systemSettings));
     console.log("PaymentEscrow deployed:       ", address(paymentEscrow));
+    console.log("EscrowMulticall deployed:     ", address(escrowMulticall));
   }
 }
