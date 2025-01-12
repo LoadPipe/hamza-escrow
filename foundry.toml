@@ -4,6 +4,9 @@ out = "out"
 libs = ["lib"]
 test = "test-foundry"
 solc = "0.8.20"
+viaIR = true
+optimizer = true
+optimizerRuns = 200
 
 
 [rpc_endpoints]
