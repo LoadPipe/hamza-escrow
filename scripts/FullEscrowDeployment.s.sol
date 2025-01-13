@@ -59,9 +59,8 @@ contract FullEscrowDeployment is Script {
     // {"type":"1.0","data":{"name":"sxxs","description":"xssxsxsx"}}
     adminHatId = hats.mintTopHat(
       adminAddress,
-     "ipfs://bafkreihkqeopolm7yzsr3iz6xec5vwjblc54tj5jijvdnfa5qzwjhcsnqa",
-     "https://example.com/hats/top-hat.png"
-      
+     "ipfs://bafkreih3vqseitn7pijlkl2jcawbjrhae3dfb2pakqtgd4epvxxfulwoqq", //from ipfs/admin.json
+     "" 
     );
     console.log("Top hat ID (adminHatId):", adminHatId);
 
@@ -69,43 +68,42 @@ contract FullEscrowDeployment is Script {
 
     arbiterHatId = hats.createHat(
       adminHatId,
-      "ipfs://bafkreihkqeopolm7yzsr3iz6xec5vwjblc54tj5jijvdnfa5qzwjhcsnqa",
+      "ipfs://bafkreicbhbvddt2f475inukntzh6n72ehm4iyljstyyjsmizdsojmbdase", //from ipfs/arbiter.json
       2,                      // maxSupply
       address(eligibilityModule),
       address(toggleModule),
       true,                   // mutable
-      "https://example.com/hats/arbiter-hat.png"
+      ""
     );
 
-    // {"type":"1.0","data":{"name":"Arbiter","description":"this arbitrates studf ","responsibilities":[],"authorities":[],"eligibility":{"manual":true,"criteria":[]},"toggle":{"manual":true,"criteria":[]}}}
     daoHatId = hats.createHat(
       adminHatId,
-      "ipfs://bafkreihkqeopolm7yzsr3iz6xec5vwjblc54tj5jijvdnfa5qzwjhcsnqa",
+      "ipfs://bafkreic2f5b6ykdvafs5nhkouruvlql73caou5etgdrx67yt6ofp6pwf24", //from ipfs/dao.json
       1, 
       address(eligibilityModule),
       address(toggleModule),
       true, 
-      "https://example.com/hats/dao-hat.png"
+      ""
     );
 
     uint256 systemHatId = hats.createHat(
       adminHatId,
-      "ipfs://bafkreihkqeopolm7yzsr3iz6xec5vwjblc54tj5jijvdnfa5qzwjhcsnqa",
+      "ipfs://bafkreie2vxohaw7cneknlwv6hq7h4askkv6jfcadho6efz5bxfx66fqu3q", //from ipfs/system.json
       1, 
       address(eligibilityModule),
       address(toggleModule),
       true, 
-      "https://example.com/hats/system-hat.png"
+      ""
     );
 
     uint256 pauserHatId = hats.createHat(
       adminHatId,
-      "ipfs://bafkreihkqeopolm7yzsr3iz6xec5vwjblc54tj5jijvdnfa5qzwjhcsnqa",
+      "ipfs://bafkreiczfbtftesggzcfnumcy7rfru665a77uyznbabdk5b6ftfo2hvjw4", //from ipfs/pauser.json
       1, 
       address(eligibilityModule),
       address(toggleModule),
       true, 
-      "https://example.com/hats/pauser-hat.png"
+      ""
     );
 
     console.log("Arbiter Hat ID:", arbiterHatId);

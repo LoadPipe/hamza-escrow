@@ -1,8 +1,8 @@
 {
     "type": "1.0",
     "data": {
-      "name": "Hamza Admin",
-      "description": "This is the top-level hat with administrative privileges.",
+      "name": "System",
+      "description": "This is the system hat for Hamza",
       "responsibilities": [],
       "authorities": [],
       "eligibility": {
