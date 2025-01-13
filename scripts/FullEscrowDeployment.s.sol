@@ -23,7 +23,7 @@ import {EscrowMulticall} from "../src/EscrowMulticall.sol";
 import { Roles } from "../src/Roles.sol";
 
 contract FullEscrowDeployment is Script {
-  address internal adminAddress   = address(0x10);     // The admin address
+  address internal adminAddress   = 0x1310cEdD03Cc8F6aE50F2Fb93848070FACB042b8;    // The admin address
   address internal vaultAddress   = address(0x11);     // The vault that will receive fees
   address internal arbiterAddress = address(0x12);     // The arbiter address
   address internal daoAddress     = address(0x13);     // The DAO address
@@ -40,12 +40,13 @@ contract FullEscrowDeployment is Script {
   uint256 public adminHatId;
   uint256 public arbiterHatId;
   uint256 public daoHatId;
+  
 
   function run() external {
     vm.startBroadcast();
 
     // 1. Deploy the Hats base contract
-    hats = new Hats("HamzaHats", "https://example.com/metadata/");
+    hats = Hats(0x3bc1A0Ad72417f2d411118085256fC53CBdDd137);
 
     // 2. Deploy Eligibility & Toggle Modules 
     // pass admin address to each module’s constructor
@@ -53,20 +54,22 @@ contract FullEscrowDeployment is Script {
     toggleModule = new ToggleModule(adminAddress);
 
     // 3. Mint the Top Hat to admin 
+
+    // details in json format uploaded to IPFS
+    // {"type":"1.0","data":{"name":"sxxs","description":"xssxsxsx"}}
     adminHatId = hats.mintTopHat(
-      adminAddress, 
-      "Hamza Admin", 
-      "https://example.com/hats/top-hat.json"
+      adminAddress,
+     "ipfs://bafkreihkqeopolm7yzsr3iz6xec5vwjblc54tj5jijvdnfa5qzwjhcsnqa",
+     "https://example.com/hats/top-hat.png"
+      
     );
     console.log("Top hat ID (adminHatId):", adminHatId);
 
     // 4. Create child hats
-    vm.stopBroadcast();
-    vm.startBroadcast(adminAddress);
 
     arbiterHatId = hats.createHat(
       adminHatId,
-      "Arbiter Hat",
+      "ipfs://bafkreihkqeopolm7yzsr3iz6xec5vwjblc54tj5jijvdnfa5qzwjhcsnqa",
       2,                      // maxSupply
       address(eligibilityModule),
       address(toggleModule),
@@ -74,9 +77,10 @@ contract FullEscrowDeployment is Script {
       "https://example.com/hats/arbiter-hat.png"
     );
 
+    // {"type":"1.0","data":{"name":"Arbiter","description":"this arbitrates studf ","responsibilities":[],"authorities":[],"eligibility":{"manual":true,"criteria":[]},"toggle":{"manual":true,"criteria":[]}}}
     daoHatId = hats.createHat(
       adminHatId,
-      "DAO Hat",
+      "ipfs://bafkreihkqeopolm7yzsr3iz6xec5vwjblc54tj5jijvdnfa5qzwjhcsnqa",
       1, 
       address(eligibilityModule),
       address(toggleModule),
@@ -86,7 +90,7 @@ contract FullEscrowDeployment is Script {
 
     uint256 systemHatId = hats.createHat(
       adminHatId,
-      "System Hat",
+      "ipfs://bafkreihkqeopolm7yzsr3iz6xec5vwjblc54tj5jijvdnfa5qzwjhcsnqa",
       1, 
       address(eligibilityModule),
       address(toggleModule),
@@ -96,7 +100,7 @@ contract FullEscrowDeployment is Script {
 
     uint256 pauserHatId = hats.createHat(
       adminHatId,
-      "Pauser Hat",
+      "ipfs://bafkreihkqeopolm7yzsr3iz6xec5vwjblc54tj5jijvdnfa5qzwjhcsnqa",
       1, 
       address(eligibilityModule),
       address(toggleModule),
