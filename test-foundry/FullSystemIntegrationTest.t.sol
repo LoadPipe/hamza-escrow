@@ -30,18 +30,27 @@ contract FullSystemIntegrationTest is Test {
     uint256 internal adminHatId;
     uint256 internal arbiterHatId;
     uint256 internal daoHatId;
+    
+    address internal adminAddress;
+    address internal daoAddress;
+    address internal arbiterAddress;
+    address internal vaultAddress;
 
-    address internal adminAddress   = address(0x10);
-    address internal vaultAddress   = address(0x11);
-    address internal arbiterAddress = address(0x12);
-    address internal daoAddress     = address(0x13);
+    address constant HATS_ADDRESS = 0x3bc1A0Ad72417f2d411118085256fC53CBdDd137;
 
     function setUp() public {
-        // 1) Create and run the script
+        // 1) Deploy a local Hats instance
+        hats = new Hats("Hats", "HATS"); 
+        bytes memory hatsCode = address(hats).code;
+
+        // 2) Overwrite the hardcoded Hats address in the script
+        vm.etch(HATS_ADDRESS, hatsCode);
+
+        // 3) Now instantiate and run the real script
         deploymentScript = new FullEscrowDeployment();
         deploymentScript.run();
 
-        // 2) Retrieve the references from the script’s public variables
+        // 3) Retrieve the references from the script’s public variables
         hats = deploymentScript.hats();
         securityContext = deploymentScript.securityContext();
         systemSettings = deploymentScript.systemSettings();
@@ -51,6 +60,11 @@ contract FullSystemIntegrationTest is Test {
         adminHatId = deploymentScript.adminHatId();
         arbiterHatId = deploymentScript.arbiterHatId();
         daoHatId = deploymentScript.daoHatId();
+        
+        adminAddress = deploymentScript.adminAddress();
+        daoAddress = deploymentScript.daoAddress();
+        arbiterAddress = deploymentScript.arbiterAddress();
+        vaultAddress = deploymentScript.vaultAddress();
     }
 
     // test that the script minted a top hat for the admin

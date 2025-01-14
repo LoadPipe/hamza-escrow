@@ -23,10 +23,10 @@ import {EscrowMulticall} from "../src/EscrowMulticall.sol";
 import { Roles } from "../src/Roles.sol";
 
 contract FullEscrowDeployment is Script {
-  address internal adminAddress   = 0x1310cEdD03Cc8F6aE50F2Fb93848070FACB042b8;    // The admin address
-  address internal vaultAddress   = address(0x11);     // The vault that will receive fees
-  address internal arbiterAddress = address(0x12);     // The arbiter address
-  address internal daoAddress     = address(0x13);     // The DAO address
+  address public adminAddress   = 0x1310cEdD03Cc8F6aE50F2Fb93848070FACB042b8;    // The admin address
+  address public vaultAddress   = address(0x11);     // The vault that will receive fees
+  address public arbiterAddress = address(0x12);     // The arbiter address
+  address public daoAddress     = address(0x13);     // The DAO address
   bool    internal autoRelease    = false;             // Whether PaymentEscrow starts with autoRelease
 
   Hats public hats;
@@ -43,10 +43,10 @@ contract FullEscrowDeployment is Script {
   
 
   function run() external {
-    vm.startBroadcast();
-
+    vm.startBroadcast(adminAddress);
+    console.log("Starting FullEscrowDeployment");
     // 1. Deploy the Hats base contract
-    hats = Hats(0x3bc1A0Ad72417f2d411118085256fC53CBdDd137);
+    hats = Hats(0x3bc1A0Ad72417f2d411118085256fC53CBdDd137);// this is the hats contract on all chains
 
     // 2. Deploy Eligibility & Toggle Modules 
     // pass admin address to each module’s constructor
@@ -60,7 +60,7 @@ contract FullEscrowDeployment is Script {
     adminHatId = hats.mintTopHat(
       adminAddress,
      "ipfs://bafkreih3vqseitn7pijlkl2jcawbjrhae3dfb2pakqtgd4epvxxfulwoqq", //from ipfs/admin.json
-     "" 
+     ""
     );
     console.log("Top hat ID (adminHatId):", adminHatId);
 
@@ -73,7 +73,7 @@ contract FullEscrowDeployment is Script {
       address(eligibilityModule),
       address(toggleModule),
       true,                   // mutable
-      ""
+      ""// no image 
     );
 
     daoHatId = hats.createHat(
@@ -134,6 +134,12 @@ contract FullEscrowDeployment is Script {
 
     // Mint the DAO hat to the DAO address
     hats.mintHat(daoHatId, daoAddress);
+
+    // Mint the system hat to the admin address
+    hats.mintHat(systemHatId, adminAddress);
+
+    // Mint the pauser hat to the admin address
+    hats.mintHat(pauserHatId, adminAddress);
 
     // Map each role to the correct hat
     securityContext.setRoleHat(Roles.ARBITER_ROLE, arbiterHatId);
