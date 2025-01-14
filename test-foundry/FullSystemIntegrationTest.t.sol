@@ -31,10 +31,8 @@ contract FullSystemIntegrationTest is Test {
     uint256 internal arbiterHatId;
     uint256 internal daoHatId;
     
-    address internal adminAddress;
-    address internal daoAddress;
-    address internal arbiterAddress;
-    address internal vaultAddress;
+    address internal adminAddress1;
+    address internal adminAddress2;
 
     address constant HATS_ADDRESS = 0x3bc1A0Ad72417f2d411118085256fC53CBdDd137;
 
@@ -61,16 +59,14 @@ contract FullSystemIntegrationTest is Test {
         arbiterHatId = deploymentScript.arbiterHatId();
         daoHatId = deploymentScript.daoHatId();
         
-        adminAddress = deploymentScript.adminAddress();
-        daoAddress = deploymentScript.daoAddress();
-        arbiterAddress = deploymentScript.arbiterAddress();
-        vaultAddress = deploymentScript.vaultAddress();
+        adminAddress1 = deploymentScript.adminAddress1();
+        adminAddress2 = deploymentScript.adminAddress2();
     }
 
     // test that the script minted a top hat for the admin
     function testAdminHatMinted() public {
         // The admin hat ID should have minted to adminAddress
-        bool isWearer = hats.isWearerOfHat(adminAddress, adminHatId);
+        bool isWearer = hats.isWearerOfHat(adminAddress2, adminHatId);
         assertTrue(isWearer, "Admin address should wear the top hat");
     }
 
@@ -86,7 +82,7 @@ contract FullSystemIntegrationTest is Test {
         uint256 oldFee = systemSettings.feeBps();
         assertEq(oldFee, 0, "Default feeBps should be 0");
 
-        vm.startPrank(daoAddress);
+        vm.startPrank(adminAddress1);
 
         systemSettings.setFeeBps(500); // set to 5%
         vm.stopPrank();
