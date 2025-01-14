@@ -2,19 +2,24 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
-import "../src/SecurityContext.sol";
+import "../lib/hats-protocol/src/Hats.sol";
+import "../src/HatsSecurityContext.sol";
 import "../src/SystemSettings.sol";
 import "../src/PaymentEscrow.sol";
 import "../src/EscrowMulticall.sol";
 import { EscrowMulticall } from "../src/EscrowMulticall.sol";
 
 import { Payment } from "../src/PaymentInput.sol";
-import {MulticallPaymentInput} from "../src/EscrowMulticall.sol";
-import {FailingToken} from "../src/FailingToken.sol";
-import {TestToken} from "../src/TestToken.sol";
+import { MulticallPaymentInput } from "../src/EscrowMulticall.sol";
+import { FailingToken } from "../src/FailingToken.sol";
+import { TestToken } from "../src/TestToken.sol";
+import { IHatsSecurityContext } from "../src/IHatsSecurityContext.sol";
+import "../src/hats/EligibilityModule.sol";
+import "../src/hats/ToggleModule.sol";
 
 contract EscrowMulticallTest is Test {
-    SecurityContext securityContext;
+    Hats hats;
+    HatsSecurityContext securityContext;
     PaymentEscrow escrow;
     PaymentEscrow escrow1;
     PaymentEscrow escrow2;
@@ -22,6 +27,8 @@ contract EscrowMulticallTest is Test {
     TestToken testToken;
     SystemSettings systemSettings;
     EscrowMulticall multicall;
+    EligibilityModule eligibilityModule;
+    ToggleModule toggleModule;
 
     address admin;
     address nonOwner;
@@ -35,8 +42,13 @@ contract EscrowMulticallTest is Test {
     address arbiter;
     address dao;
 
-    bytes32 constant ARBITER_ROLE = 0xbb08418a67729a078f87bbc8d02a770929bb68f5bfdf134ae2ead6ed38e2f4ae;
-    bytes32 constant DAO_ROLE = 0x3b5d4cc60d3ec3516ee8ae083bd60934f6eb2a6c54b1229985c41bfb092b2603;
+    // Hat IDs
+    uint256 adminHatId;
+    uint256 arbiterHatId;
+    uint256 daoHatId;
+
+    bytes32 constant ARBITER_ROLE = keccak256("ARBITER_ROLE");
+    bytes32 constant DAO_ROLE = keccak256("DAO_ROLE");
 
     function setUp() public {
         admin = address(0x10);
@@ -55,21 +67,68 @@ contract EscrowMulticallTest is Test {
         vm.deal(payer2, 1 ether);
         vm.deal(payer3, 1 ether);
 
-        vm.startPrank(admin);
-        securityContext = new SecurityContext(admin);
-        testToken = new TestToken("XYZ", "ZYX");
-        systemSettings = new SystemSettings(ISecurityContext(address(securityContext)), vaultAddress, 0);
+        // Deploy modules
+        eligibilityModule = new EligibilityModule(admin);
+        toggleModule = new ToggleModule(admin);
 
-        escrow = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
+        // Deploy Hats Protocol
+        hats = new Hats("Test Hats", "ipfs://");
+        
+        // Create admin hat
+        adminHatId = hats.mintTopHat(admin, "Admin Hat", "ipfs://admin.hat");
+        
+        vm.startPrank(admin);
+        
+        // Create role hats with real modules
+        arbiterHatId = hats.createHat(
+            adminHatId,
+            "Arbiter Hat",
+            2, // Max supply of 2 for vault and arbiter
+            address(eligibilityModule),
+            address(toggleModule),
+            true,
+            "ipfs://arbiter.hat"
+        );
+
+        daoHatId = hats.createHat(
+            adminHatId,
+            "DAO Hat",
+            1,
+            address(eligibilityModule),
+            address(toggleModule),
+            true,
+            "ipfs://dao.hat"
+        );
+
+        // Set eligibility and standing for all hats
+        eligibilityModule.setHatRules(arbiterHatId, true, true);
+        eligibilityModule.setHatRules(daoHatId, true, true);
+
+        // Set all hats as active
+        toggleModule.setHatStatus(arbiterHatId, true);
+        toggleModule.setHatStatus(daoHatId, true);
+
+        // Deploy HatsSecurityContext
+        securityContext = new HatsSecurityContext(address(hats), adminHatId);
+        
+        // Map roles to hats
+        securityContext.setRoleHat(ARBITER_ROLE, arbiterHatId);
+        securityContext.setRoleHat(DAO_ROLE, daoHatId);
+
+        // Mint hats to addresses
+        hats.mintHat(arbiterHatId, arbiter);
+        hats.mintHat(arbiterHatId, vaultAddress);
+        hats.mintHat(daoHatId, dao);
+
+        testToken = new TestToken("XYZ", "ZYX");
+        systemSettings = new SystemSettings(IHatsSecurityContext(address(securityContext)), vaultAddress, 0);
+
+        escrow = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
         escrow1 = escrow;
-        escrow2 = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
-        escrow3 = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
+        escrow2 = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
+        escrow3 = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
 
         multicall = new EscrowMulticall();
-
-        securityContext.grantRole(ARBITER_ROLE, vaultAddress);
-        securityContext.grantRole(ARBITER_ROLE, arbiter);
-        securityContext.grantRole(DAO_ROLE, dao);
 
         testToken.mint(nonOwner, 10000000000);
         testToken.mint(payer1, 10000000000);
@@ -146,13 +205,17 @@ contract EscrowMulticallTest is Test {
 
     // Deployment
     function testDeploymentArbiterRole() public {
-        bool hasArbiter = securityContext.hasRole(ARBITER_ROLE, arbiter);
-        bool hasNonOwnerArbiter = securityContext.hasRole(ARBITER_ROLE, nonOwner);
-        bool hasVaultArbiter = securityContext.hasRole(ARBITER_ROLE, vaultAddress);
+        bool hasArbiter = hats.isWearerOfHat(arbiter, arbiterHatId);
+        bool hasNonOwnerArbiter = hats.isWearerOfHat(nonOwner, arbiterHatId);
+        bool hasVaultArbiter = hats.isWearerOfHat(vaultAddress, arbiterHatId);
 
-        assertTrue(hasArbiter);
-        assertFalse(hasNonOwnerArbiter);
-        assertTrue(hasVaultArbiter);
+        assertTrue(hasArbiter, "Arbiter should wear arbiter hat");
+        assertFalse(hasNonOwnerArbiter, "Non-owner should not wear arbiter hat");
+        assertTrue(hasVaultArbiter, "Vault should wear arbiter hat");
+
+        // Verify role mapping
+        assertEq(securityContext.roleToHatId(ARBITER_ROLE), arbiterHatId, "Arbiter role should map to correct hat");
+        assertEq(securityContext.roleToHatId(DAO_ROLE), daoHatId, "DAO role should map to correct hat");
     }
 
     // Place Payments

@@ -1,0 +1,18 @@
+{
+    "type": "1.0",
+    "data": {
+      "name": "Pauser",
+      "description": "This is the pauser hat for Hamza",
+      "responsibilities": [],
+      "authorities": [],
+      "eligibility": {
+        "manual": true,
+        "criteria": []
+      },
+      "toggle": {
+        "manual": true,
+        "criteria": []
+      }
+    }
+  }
+  

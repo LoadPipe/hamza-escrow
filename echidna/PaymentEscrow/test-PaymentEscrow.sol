@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.20;
 
+import "../../lib/hats-protocol/src/Hats.sol";
+import "../../src/HatsSecurityContext.sol";
 import "../../src/PaymentEscrow.sol";
-import "../../src/SecurityContext.sol";
 import "../../src/SystemSettings.sol";
-import "../../src/inc/utils/Hevm.sol";
+import "../../src/IHatsSecurityContext.sol";
+import "../../src/ISystemSettings.sol";
+import "../../src/PaymentInput.sol";
+import "hevm/Hevm.sol";
 
 /**
  * @title test_PaymentEscrow
@@ -17,87 +21,110 @@ import "../../src/inc/utils/Hevm.sol";
  * All rights reserved. Unauthorized use prohibited.
  */
 contract test_PaymentEscrow {
-    address constant admin = address(0x00001); // privileged admin account
-    address constant user3 = address(0x30000); // deployer of the contract
+    address constant admin     = address(0x00001);
+    address constant user3     = address(0x30000); // deployer
+    address constant user1     = address(0x10000); // payer 1
+    address constant user2     = address(0x20000); // receiver 1
+    address constant user4     = address(0x40000); // receiver 2
+    address constant user5     = address(0x50000); // payer 2
+    address constant userDeadbeef = address(0xDeaDBeef);
+    address constant vault     = address(0xF0005);  // vault for fees
 
-    address constant user1 = address(0x10000); // payer 1
-    address constant user2 = address(0x20000); // receiver 1
-    address constant user4 = address(0x40000); // receiver 2
-    address constant user5 = address(0x50000); // payer 2
-    address constant userDeadbeef = address(0xDeaDBeef); // placeholder address
-    address constant vault = address(0x50000); // address where fees are sent
+    PaymentEscrow public escrow;
+    HatsSecurityContext public securityContext;
+    SystemSettings public systemSettings;
+    Hats public hats; 
 
-    PaymentEscrow escrow; // instance of the PaymentEscrow contract
-    SecurityContext securityContext; // instance of the SecurityContext contract
-    SystemSettings systemSettings; // instance of the SystemSettings contract
+    bytes32[] public allPayments; 
+    bool public first_call;
+    bool public first_call_released;
 
-    uint256 call_count = 0; // keeps track of the number of payments made
-    bool first_call = false; // whether the first payment has been placed
-    bool first_call_released = false; // whether the first payment has been released
-
-    bool payment_success = false; // tracks the success of payment placements
-    bool release_success = false; // tracks the success of payment releases
-    bool refund_success = false; // tracks the success of payment refunds
+    bool public payment_success;
+    bool public release_success;
+    bool public refund_success;
 
     /**
-     * @dev Constructor initializes required contracts and ensures the contract has an initial balance.
+     * @dev Deploy Hats, HatsSecurityContext, SystemSettings, and PaymentEscrow in the constructor.
+     *   Then deploy the escrow with autoRelease = false.
      */
     constructor() payable {
         require(msg.value > 0, "Initial balance required");
-        securityContext = new SecurityContext(admin);
-        systemSettings = new SystemSettings(securityContext, vault, 0);
-        escrow = new PaymentEscrow(securityContext, systemSettings, false);
+
+        // 1. Deploy a Hats instance
+        hats = new Hats("Test Hats", "ipfs://");
+
+        uint256 topHatId = hats.mintTopHat(address(this), "Test Admin Hat", "ipfs://image");
+
+        // 2. Deploy your security context, passing in the hats address and some "admin hat" ID.
+        securityContext = new HatsSecurityContext(address(hats), topHatId);
+
+        // 3. Deploy system settings, referencing the security context
+        systemSettings = new SystemSettings(IHatsSecurityContext(address(securityContext)), vault, 0);
+
+        // 4. Deploy your PaymentEscrow with autoRelease = false (you can set this to true if desired)
+        escrow = new PaymentEscrow(
+            IHatsSecurityContext(address(securityContext)),
+            ISystemSettings(address(systemSettings)),
+            false
+        );
     }
 
     /**
-     * Places a payment into the escrow.
-     *
-     * @param amount The amount of the payment to be placed.
-     * @param randomizePayer Determines which payer will be used.
-     * @param randomizeReceiver Determines which receiver will be used.
+     * Places a payment into the escrow and saves the paymentId in allPayments.
      */
     function placePayment1(uint256 amount, bool randomizePayer, bool randomizeReceiver) public {
+        // skip if insufficient balance in this contract
         if (amount > address(this).balance) {
-            return; // skip if insufficient balance
+            return; 
         }
 
-        address payer = randomizePayer ? user1 : user5;
+        address payer    = randomizePayer    ? user1 : user5;
         address receiver = randomizeReceiver ? user2 : user4;
 
-        bytes32 paymentId = keccak256(abi.encodePacked(call_count, address(this)));
-        PaymentInput memory input = PaymentInput(address(0), paymentId, receiver, payer, amount);
+        // Generate a new ID
+        bytes32 paymentId = keccak256(abi.encodePacked(allPayments.length, address(this)));
 
-        require(address(payer).balance >= amount, "Payer does not have enough balance");
+        // Ensure the payer has enough balance for test
+        if (payer.balance < amount) {
+            return;
+        }
 
+        // Actually place the payment
         hevm.prank(payer);
-        (bool success, ) = address(escrow).call{value: amount}(
-            abi.encodeWithSignature("placePayment((address,bytes32,address,address,uint256))", input)
+        (bool success,) = address(escrow).call{value: amount}(
+            abi.encodeWithSignature(
+                "placePayment((address,bytes32,address,address,uint256))",
+                PaymentInput({
+                    currency: address(0),
+                    id: paymentId,
+                    receiver: receiver,
+                    payer: payer,
+                    amount: amount
+                })
+            )
         );
 
-        payment_success = success;
         if (success) {
-            call_count++;
+            // Only push this ID if the call succeeded
+            allPayments.push(paymentId);
         }
     }
 
     /**
-     * Releases funds from the escrow for a specific payment.
-     *
-     * @param i The index of the payment to be released.
+     * Picks a real payment from allPayments by doing i = i % allPayments.length
+     * so we never skip out of range.
      */
     function releaseEscrow1(uint256 i) public {
-        if (i < call_count) {
-            first_call_released = true;
+        if (allPayments.length == 0) return;
 
-            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+        // wrap i around the current length of allPayments
+        i = i % allPayments.length;
+        bytes32 paymentId = allPayments[i];
 
-            hevm.prank(msg.sender);
-            (bool success, ) = address(escrow).call(
-                abi.encodeWithSignature("releaseEscrow(bytes32)", paymentId)
-            );
-
-            release_success = success;
-        }
+        hevm.prank(msg.sender);
+        (bool success,) = address(escrow).call(
+            abi.encodeWithSignature("releaseEscrow(bytes32)", paymentId)
+        );
     }
 
     /**
@@ -107,8 +134,8 @@ contract test_PaymentEscrow {
      * @param amount The amount to be refunded.
      */
     function refundPayment1(uint256 i, uint256 amount) public {
-        if (i < call_count) {
-            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+        if (i < allPayments.length) {
+            bytes32 paymentId = allPayments[i];
 
             hevm.prank(msg.sender);
             (bool success, ) = address(escrow).call(
@@ -123,8 +150,8 @@ contract test_PaymentEscrow {
      * Invariant: Ensures no payment has a zero amount.
      */
     function echidna_no_zero_payment_amount() public view returns (bool) {
-        for (uint256 i = 0; i < call_count; i++) {
-            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+        for (uint256 i = 0; i < allPayments.length; i++) {
+            bytes32 paymentId = allPayments[i];
             Payment memory payment = escrow.getPayment(paymentId);
             if (payment.amount == 0) {
                 return false;
@@ -137,9 +164,10 @@ contract test_PaymentEscrow {
      * Invariant: Ensures payments are not marked as released unless both payer and receiver agree.
      */
     function echidna_no_incorrectly_released_payments() public view returns (bool) {
-        for (uint256 i = 0; i < call_count; i++) {
-            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+        for (uint256 i = 0; i < allPayments.length; i++) {
+            bytes32 paymentId = allPayments[i];
             Payment memory payment = escrow.getPayment(paymentId);
+            // If `payment.released == true` then it must be that both payerReleased and receiverReleased are true
             if (payment.released && !(payment.payerReleased && payment.receiverReleased)) {
                 return false;
             }
@@ -152,12 +180,12 @@ contract test_PaymentEscrow {
      */
     function echidna_escrow_funds_sufficient() public view returns (bool) {
         uint256 totalRefunded = 0;
-        uint256 totalAmount = 0;
-        for (uint256 i = 0; i < call_count; i++) {
-            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+        uint256 totalAmount   = 0;
+        for (uint256 i = 0; i < allPayments.length; i++) {
+            bytes32 paymentId = allPayments[i];
             Payment memory payment = escrow.getPayment(paymentId);
             totalRefunded += payment.amountRefunded;
-            totalAmount += payment.amount;
+            totalAmount   += payment.amount;
             if (totalAmount < totalRefunded) {
                 return false;
             }
@@ -166,14 +194,14 @@ contract test_PaymentEscrow {
     }
 
     /**
-     * Invariant: Ensures payers and receivers are valid addresses.
+     * Invariant: Ensures payers and receivers are valid addresses among user1, user2, user4, user5 only.
      */
     function echidna_valid_payer_and_receiver() public view returns (bool) {
-        for (uint256 i = 0; i < call_count; i++) {
-            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+        for (uint256 i = 0; i < allPayments.length; i++) {
+            bytes32 paymentId = allPayments[i];
             Payment memory payment = escrow.getPayment(paymentId);
 
-            bool validPayer = (payment.payer == user1 || payment.payer == user5);
+            bool validPayer    = (payment.payer == user1 || payment.payer == user5);
             bool validReceiver = (payment.receiver == user2 || payment.receiver == user4);
 
             if (!validPayer || !validReceiver) {
@@ -189,10 +217,11 @@ contract test_PaymentEscrow {
     function echidna_escrow_balance_sufficient() public view returns (bool) {
         uint256 totalLocked = 0;
 
-        for (uint256 i = 0; i < call_count; i++) {
-            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+        for (uint256 i = 0; i < allPayments.length; i++) {
+            bytes32 paymentId = allPayments[i];
             Payment memory payment = escrow.getPayment(paymentId);
 
+            // If not released, the escrow is still holding payment.amount - payment.amountRefunded
             if (!payment.released) {
                 totalLocked += (payment.amount - payment.amountRefunded);
             }
@@ -204,8 +233,8 @@ contract test_PaymentEscrow {
      * Invariant: Ensures no refund exceeds the original payment amount.
      */
     function echidna_no_excess_refund_for_each_payment() public view returns (bool) {
-        for (uint256 i = 0; i < call_count; i++) {
-            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+        for (uint256 i = 0; i < allPayments.length; i++) {
+            bytes32 paymentId = allPayments[i];
             Payment memory payment = escrow.getPayment(paymentId);
 
             if (payment.amountRefunded > payment.amount) {
@@ -219,10 +248,12 @@ contract test_PaymentEscrow {
      * Invariant: Ensures no payment is both fully refunded and released.
      */
     function echidna_no_fully_refunded_and_released_payment() public view returns (bool) {
-        for (uint256 i = 0; i < call_count; i++) {
-            bytes32 paymentId = keccak256(abi.encodePacked(i, address(this)));
+        for (uint256 i = 0; i < allPayments.length; i++) {
+            bytes32 paymentId = allPayments[i];
             Payment memory payment = escrow.getPayment(paymentId);
 
+            // If amountRefunded == payment.amount, then it's fully refunded. 
+            // That payment must not also be 'released'.
             if (payment.amountRefunded == payment.amount && payment.released) {
                 return false;
             }

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.20;
 
 import "./HasSecurityContext.sol"; 
 import "./ISystemSettings.sol"; 
 import "./CarefulMath.sol";
 import "./PaymentInput.sol";
 import "./IEscrowContract.sol";
-import "./inc/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./Roles.sol";
 
 /**
  * @title PaymentEscrow
@@ -87,12 +88,35 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * @param securityContext Contract which will define & manage secure access for this contract. 
      * @param settings_ Address of contract that holds system settings. 
      */
-    constructor(ISecurityContext securityContext, ISystemSettings settings_, bool autoRelease) {
+    constructor(IHatsSecurityContext securityContext, ISystemSettings settings_, bool autoRelease) {
         _setSecurityContext(securityContext);
         settings = settings_;
         autoReleaseFlag = autoRelease;
     }
     
+    /**
+     * Helper function to handle token transfer
+     * 
+     * @param currency The token address
+     * @param from The sender address
+     * @param amount The amount to transfer
+     * @return bool True if the transfer is successful, false otherwise
+     */
+    function _handleTokenTransfer(address currency, address from, uint256 amount) internal returns (bool) {
+        IERC20 token = IERC20(currency);
+        return token.transferFrom(from, address(this), amount);
+    }
+
+    /**
+     * Helper function to validate payment input
+     * 
+     * @param input The payment input
+     */
+    function _validatePaymentInput(PaymentInput calldata input) internal pure {
+        require(input.amount > 0, "InvalidAmount");
+        require(input.receiver != address(0), "InvalidReceiver");
+    }
+
     /**
      * Allows multiple payments to be processed. 
      * 
@@ -107,47 +131,32 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * @param paymentInput Payment inputs
      */
     function placePayment(PaymentInput calldata paymentInput) public payable whenNotPaused {
-        require(paymentInput.amount > 0, "InvalidAmount");
-        require(paymentInput.receiver != address(0), "InvalidReceiver");
-        address currency = paymentInput.currency; 
-        uint256 amount = paymentInput.amount;
+        _validatePaymentInput(paymentInput);
 
+        // Check for existing payment
+        require(payments[paymentInput.id].id != paymentInput.id, "DuplicatePayment");
 
-        if (currency == address(0)) {
-            //check that the amount matches
-            if (msg.value != amount)
-                revert("InvalidAmount");
-        } 
-        else {
-                //transfer to self 
-            IERC20 token = IERC20(currency);
-            if (!token.transferFrom(msg.sender, address(this), amount)){
-                revert("TokenPaymentFailed"); 
-            }
+        // Handle payment transfer
+        if (paymentInput.currency == address(0)) {
+            require(msg.value == paymentInput.amount, "InvalidAmount");
+        } else {
+            require(_handleTokenTransfer(paymentInput.currency, msg.sender, paymentInput.amount), "TokenPaymentFailed");
         }
 
-        //check for existing, and revert if exists already
-        if (payments[paymentInput.id].id == paymentInput.id) {
-            revert("DuplicatePayment");
-        }
-
-        //add payments to internal map, emit events for each individual payment
+        // Store payment
         Payment storage payment = payments[paymentInput.id];
         payment.payer = paymentInput.payer;
         payment.receiver = paymentInput.receiver;
         payment.currency = paymentInput.currency;
         payment.amount = paymentInput.amount;
         payment.id = paymentInput.id;
-
-        //if auto release flag is set, set receiverReleased
         payment.receiverReleased = autoReleaseFlag;
 
-        //emit event
         emit PaymentReceived(
-            payment.id, 
-            payment.receiver, 
-            payment.payer, 
-            payment.currency, 
+            payment.id,
+            payment.receiver,
+            payment.payer,
+            payment.currency,
             payment.amount
         );
     }
@@ -181,7 +190,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
 
         if (msg.sender != payment.receiver && 
             msg.sender != payment.payer && 
-            !securityContext.hasRole(ARBITER_ROLE, msg.sender))
+            !securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender))
         {
             revert("Unauthorized");
         }
@@ -199,7 +208,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
                     emit ReleaseAssentGiven(paymentId, msg.sender, 2);
                 }
             }
-            if (securityContext.hasRole(ARBITER_ROLE, msg.sender)) {
+            if (securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender)) {
                 if (!payment.payerReleased) {
                     payment.payerReleased = true;
                     emit ReleaseAssentGiven(paymentId, msg.sender, 3);
@@ -233,7 +242,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         if (payment.amount > 0 && payment.amountRefunded <= payment.amount) {
 
             //who has permission to refund? either the receiver or the arbiter
-            if (payment.receiver != msg.sender && !securityContext.hasRole(ARBITER_ROLE, msg.sender))
+            if (payment.receiver != msg.sender && !securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender))
                 revert("Unauthorized");
 
             uint256 activeAmount = payment.amount - payment.amountRefunded; 
@@ -258,70 +267,63 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * False: new payments will have receiverReleased set to false; this means that the escrow requires
      * both parties to release it.
      */
-    function setAutoReleaseFlag(bool value) external onlyRole(SYSTEM_ROLE) {
+    function setAutoReleaseFlag(bool value) external onlyRole(Roles.SYSTEM_ROLE) {
         autoReleaseFlag = value;
     }
 
     /**
      * Pauses the contract.
      */
-    function pause() external whenNotPaused onlyRole(SYSTEM_ROLE) {
+    function pause() external whenNotPaused onlyRole(Roles.SYSTEM_ROLE) {
         paused = true;
     }
 
     /**
      * Unpauses the contract, if paused.
      */
-    function unpause() external whenPaused onlyRole(SYSTEM_ROLE) {
+    function unpause() external whenPaused onlyRole(Roles.SYSTEM_ROLE) {
         paused = false;
     }
 
 
     //NON-PUBLIC METHODS
 
+    // Helper function to calculate fee and remaining amount
+    function _calculateFeeAndAmount(uint256 amount) internal view returns (uint256 fee, uint256 amountToPay) {
+        fee = 0;
+        uint256 feeBps = _getFeeBps();
+        if (feeBps > 0) {
+            fee = CarefulMath.mulDiv(amount, feeBps, 10000);
+            if (fee > amount) {
+                fee = 0;
+            }
+        }
+        amountToPay = amount - fee;
+    }
+
+    // Helper function to handle fee transfer
+    function _handleFeeTransfer(bytes32 paymentId, address currency, uint256 fee) internal returns (bool) {
+        if (fee == 0) return true;
+        return _transferAmount(paymentId, _getvaultAddress(), currency, fee);
+    }
+
     function _releaseEscrowPayment(bytes32 paymentId) internal {
         Payment storage payment = payments[paymentId];
-        if (payment.payerReleased && payment.receiverReleased && !payment.released) {
-            uint256 amount = payment.amount - payment.amountRefunded;
+        if (!payment.payerReleased || !payment.receiverReleased || payment.released) {
+            return;
+        }
 
-            //break off fee 
-            uint256 fee = 0;
-            uint256 feeBps = _getFeeBps();
-            if (feeBps > 0) {
-                fee = CarefulMath.mulDiv(amount, feeBps, 10000);
-                if (fee > amount)
-                    fee = 0;
-            }
-            uint256 amountToPay = amount - fee; 
+        uint256 amount = payment.amount - payment.amountRefunded;
+        (uint256 fee, uint256 amountToPay) = _calculateFeeAndAmount(amount);
 
-            //transfer funds 
-            if (!payment.released) {
-                if (
-                    (amountToPay == 0 && fee > 0) || 
-                    _transferAmount(
-                        payment.id, 
-                        payment.receiver, 
-                        payment.currency, 
-                        amountToPay
-                    )
-                ) {
-                    //also transfer fee to vault 
-                    if (fee > 0) {
-                        if (_transferAmount(
-                            payment.id, 
-                            _getvaultAddress(), 
-                            payment.currency, 
-                            fee
-                        )) { 
-                            payment.released = true;
-                            emit EscrowReleased(paymentId, amountToPay, fee);
-                        }
-                    }
-                    else {
-                        payment.released = true;
-                        emit EscrowReleased(paymentId, amountToPay, fee);
-                    }
-                }
+        // If there's no amount to pay but there is a fee, or if the transfer succeeds
+        if ((amountToPay == 0 && fee > 0) || 
+            _transferAmount(payment.id, payment.receiver, payment.currency, amountToPay)) {
+            
+            // Handle fee transfer
+            if (_handleFeeTransfer(payment.id, payment.currency, fee)) {
+                payment.released = true;
+                emit EscrowReleased(paymentId, amountToPay, fee);
             }
         }
     }

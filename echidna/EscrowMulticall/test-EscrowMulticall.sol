@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.2;
 
 import "../../src/PaymentEscrow.sol";
 import "../../src/EscrowMulticall.sol";
-import "../../src/SecurityContext.sol";
+import "../../src/HatsSecurityContext.sol";
 import "../../src/SystemSettings.sol";
-import "../../src/inc/utils/Hevm.sol";
+import "hevm/Hevm.sol";
 
 /**
  * @title test_EscrowMulticallInvariants
@@ -30,7 +30,7 @@ contract test_EscrowMulticallInvariants {
 
     // Contracts used in the test setup
     EscrowMulticall public multi; // instance of EscrowMulticall contract
-    SecurityContext public securityContext; // instance of SecurityContext contract
+    HatsSecurityContext public securityContext; // instance of SecurityContext contract
     SystemSettings public systemSettings; // instance of SystemSettings contract
     PaymentEscrow[] public escrows; // list of PaymentEscrow instances
 
@@ -54,8 +54,12 @@ contract test_EscrowMulticallInvariants {
     constructor() payable {
         require(msg.value > 0, "Initial balance required");
 
+        Hats hats = new Hats("Test Hats", "ipfs://");
+        
+        uint256 topHatId = hats.mintTopHat(address(this), "Test Admin Hat", "ipfs://image");
+
         // Initialize security context and system settings
-        securityContext = new SecurityContext(admin);
+        securityContext = new HatsSecurityContext(address(hats), topHatId);
         systemSettings = new SystemSettings(securityContext, vault, 0);
 
         // Deploy multiple PaymentEscrow contracts

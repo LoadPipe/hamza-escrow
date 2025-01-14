@@ -1,0 +1,18 @@
+{
+    "type": "1.0",
+    "data": {
+      "name": "System",
+      "description": "This is the system hat for Hamza",
+      "responsibilities": [],
+      "authorities": [],
+      "eligibility": {
+        "manual": true,
+        "criteria": []
+      },
+      "toggle": {
+        "manual": true,
+        "criteria": []
+      }
+    }
+  }
+  

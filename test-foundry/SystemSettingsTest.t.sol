@@ -2,21 +2,31 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
-import "../src/SecurityContext.sol";
+import "../lib/hats-protocol/src/Hats.sol";
+import "../src/HatsSecurityContext.sol";
 import "../src/SystemSettings.sol";
-import "../src/ISecurityContext.sol";
+import "../src/IHatsSecurityContext.sol";
+import "../src/hats/EligibilityModule.sol";
+import "../src/hats/ToggleModule.sol";
 
 contract SystemSettingsTest is Test {
-    SecurityContext internal securityContext;
+    Hats internal hats;
+    HatsSecurityContext internal securityContext;
     SystemSettings internal systemSettings;
+    EligibilityModule internal eligibilityModule;
+    ToggleModule internal toggleModule;
 
     address internal admin;
     address internal nonOwner;
     address internal vaultAddress;
     address internal dao;
 
-    bytes32 internal constant DAO_ROLE =
-        0x3b5d4cc60d3ec3516ee8ae083bd60934f6eb2a6c54b1229985c41bfb092b2603;
+    // Hat IDs
+    uint256 internal adminHatId;
+    uint256 internal daoHatId;
+
+    bytes32 internal constant DAO_ROLE = keccak256("DAO_ROLE");
+    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     function setUp() public {
         // Setup addresses
@@ -25,24 +35,55 @@ contract SystemSettingsTest is Test {
         vaultAddress = address(3);
         dao = address(4);
 
-        // Deploy SecurityContext with admin
-        vm.startPrank(admin);
-        securityContext = new SecurityContext(admin);
-        vm.stopPrank();
+        // Deploy modules
+        eligibilityModule = new EligibilityModule(admin);
+        toggleModule = new ToggleModule(admin);
 
-        // Grant dao role
-        vm.prank(admin);
-        securityContext.grantRole(DAO_ROLE, dao);
+        // Deploy Hats Protocol
+        hats = new Hats("Test Hats", "ipfs://");
+        
+        // Create admin hat
+        adminHatId = hats.mintTopHat(admin, "Admin Hat", "ipfs://admin.hat");
+        
+        vm.startPrank(admin);
+        
+        // Create DAO hat with real modules
+        daoHatId = hats.createHat(
+            adminHatId,
+            "DAO Hat",
+            1,
+            address(eligibilityModule),
+            address(toggleModule),
+            true,
+            "ipfs://dao.hat"
+        );
+
+        // Set eligibility and standing for DAO hat
+        eligibilityModule.setHatRules(daoHatId, true, true);
+
+        // Set DAO hat as active
+        toggleModule.setHatStatus(daoHatId, true);
+
+        // Deploy HatsSecurityContext
+        securityContext = new HatsSecurityContext(address(hats), adminHatId);
+        
+        // Map DAO role to hat
+        securityContext.setRoleHat(DAO_ROLE, daoHatId);
+
+        // Mint hat to DAO address
+        hats.mintHat(daoHatId, dao);
 
         // Deploy SystemSettings
-        vm.prank(admin);
-        systemSettings = new SystemSettings(ISecurityContext(address(securityContext)), vaultAddress, 100);
+        systemSettings = new SystemSettings(IHatsSecurityContext(address(securityContext)), vaultAddress, 100);
+        vm.stopPrank();
     }
 
     // Deployment tests
     function testDeploymentShouldSetCorrectValues() public {
         assertEq(systemSettings.feeBps(), 100);
         assertEq(systemSettings.vaultAddress(), vaultAddress);
+        assertTrue(hats.isWearerOfHat(dao, daoHatId), "DAO should wear DAO hat");
+        assertEq(securityContext.roleToHatId(DAO_ROLE), daoHatId, "DAO role should map to correct hat");
     }
 
     // Security tests
@@ -94,19 +135,21 @@ contract SystemSettingsTest is Test {
     }
 
     function testCannotSetZeroAddressVaultInConstructor() public {
+        vm.startPrank(admin);
         vm.expectRevert("InvalidVaultAddress");
-        new SystemSettings(ISecurityContext(address(securityContext)), address(0), 100);
+        new SystemSettings(IHatsSecurityContext(address(securityContext)), address(0), 100);
+        vm.stopPrank();
     }
 
     function testCannotSetZeroAddressSecurityContext() public {
         // Setting a valid security context again is allowed
         vm.prank(admin);
-        systemSettings.setSecurityContext(ISecurityContext(address(securityContext)));
+        systemSettings.setSecurityContext(IHatsSecurityContext(address(securityContext)));
 
         // Setting zero address should revert
         vm.prank(admin);
         vm.expectRevert();
-        systemSettings.setSecurityContext(ISecurityContext(address(0)));
+        systemSettings.setSecurityContext(IHatsSecurityContext(address(0)));
     }
 
     // event tests

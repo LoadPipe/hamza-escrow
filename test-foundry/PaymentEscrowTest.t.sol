@@ -2,21 +2,27 @@
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
+import "../lib/hats-protocol/src/Hats.sol";
 import {PaymentEscrow, IEscrowContract} from "../src/PaymentEscrow.sol";
-import {SecurityContext} from "../src/SecurityContext.sol";
+import {HatsSecurityContext} from "../src/HatsSecurityContext.sol";
 import {SystemSettings} from "../src/SystemSettings.sol";
 import {TestToken} from "../src/TestToken.sol";
-import {ISecurityContext} from "../src/ISecurityContext.sol";
+import {IHatsSecurityContext} from "../src/IHatsSecurityContext.sol";
 import {ISystemSettings} from "../src/ISystemSettings.sol";
 import {PaymentInput, Payment} from "../src/PaymentInput.sol";
 import {console} from "forge-std/console.sol";
 import {FailingToken} from "../src/FailingToken.sol";
+import "../src/hats/EligibilityModule.sol";
+import "../src/hats/ToggleModule.sol";
 
 contract PaymentEscrowTest is Test {
-    SecurityContext internal securityContext;
+    Hats internal hats;
+    HatsSecurityContext internal securityContext;
     PaymentEscrow internal escrow;
     TestToken internal testToken;
     SystemSettings internal systemSettings;
+    EligibilityModule internal eligibilityModule;
+    ToggleModule internal toggleModule;
 
     address internal admin;
     address internal nonOwner;
@@ -29,12 +35,21 @@ contract PaymentEscrowTest is Test {
     address internal dao;
     address internal system;
 
-    bytes32 internal constant ARBITER_ROLE =
-        0xbb08418a67729a078f87bbc8d02a770929bb68f5bfdf134ae2ead6ed38e2f4ae;
-    bytes32 internal constant DAO_ROLE =
-        0x3b5d4cc60d3ec3516ee8ae083bd60934f6eb2a6c54b1229985c41bfb092b2603;
-    bytes32 internal constant SYSTEM_ROLE =
-        0x5719df9ef2c4678b547f89e4f5ae410dbf400fc51cf3ded434c55f6adea2c43f;
+    // Hat IDs
+    uint256 internal adminHatId;
+    uint256 internal arbiterHatId;
+    uint256 internal daoHatId;
+    uint256 internal systemHatId;
+
+    bytes32 internal constant ARBITER_ROLE = keccak256("ARBITER_ROLE");
+    bytes32 internal constant DAO_ROLE = keccak256("DAO_ROLE");
+    bytes32 internal constant SYSTEM_ROLE = keccak256("SYSTEM_ROLE");
+    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+
+    // Add storage variables for commonly used test values
+    uint256 internal testAmount;
+    bytes32 internal testPaymentId;
+    uint256[] internal balanceSnapshot;
 
     function setUp() public {
         admin = address(1);
@@ -55,22 +70,85 @@ contract PaymentEscrowTest is Test {
         vm.deal(receiver1, 100 ether);
         vm.deal(receiver2, 100 ether);
 
+        // Deploy modules
+        eligibilityModule = new EligibilityModule(admin);
+        toggleModule = new ToggleModule(admin);
+
+        // Deploy Hats Protocol
+        hats = new Hats("Test Hats", "ipfs://");
+        
+        // Create admin hat
+        adminHatId = hats.mintTopHat(admin, "Admin Hat", "ipfs://admin.hat");
+        
         vm.startPrank(admin);
-        securityContext = new SecurityContext(admin);
+        
+        // Create role hats with real modules
+        arbiterHatId = hats.createHat(
+            adminHatId,
+            "Arbiter Hat",
+            2,
+            address(eligibilityModule),
+            address(toggleModule),
+            true,
+            "ipfs://arbiter.hat"
+        );
+
+        daoHatId = hats.createHat(
+            adminHatId,
+            "DAO Hat",
+            1,
+            address(eligibilityModule),
+            address(toggleModule),
+            true,
+            "ipfs://dao.hat"
+        );
+
+        systemHatId = hats.createHat(
+            adminHatId,
+            "System Hat",
+            1,
+            address(eligibilityModule),
+            address(toggleModule),
+            true,
+            "ipfs://system.hat"
+        );
+
+        // Set eligibility and standing for all hats
+        eligibilityModule.setHatRules(arbiterHatId, true, true);
+        eligibilityModule.setHatRules(daoHatId, true, true);
+        eligibilityModule.setHatRules(systemHatId, true, true);
+
+        // Set all hats as active
+        toggleModule.setHatStatus(arbiterHatId, true);
+        toggleModule.setHatStatus(daoHatId, true);
+        toggleModule.setHatStatus(systemHatId, true);
+
+        // Deploy HatsSecurityContext
+        securityContext = new HatsSecurityContext(address(hats), adminHatId);
+        
+        // Map roles to hats
+        securityContext.setRoleHat(ARBITER_ROLE, arbiterHatId);
+        securityContext.setRoleHat(DAO_ROLE, daoHatId);
+        securityContext.setRoleHat(SYSTEM_ROLE, systemHatId);
+
+        // Mint hats to addresses
+        hats.mintHat(arbiterHatId, arbiter);
+        hats.mintHat(arbiterHatId, vaultAddress);
+        hats.mintHat(daoHatId, dao);
+        hats.mintHat(systemHatId, system);
+
         testToken = new TestToken("XYZ", "ZYX");
-        systemSettings = new SystemSettings(ISecurityContext(address(securityContext)), vaultAddress, 0);
-
-        escrow = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
-
-        securityContext.grantRole(ARBITER_ROLE, vaultAddress);
-        securityContext.grantRole(ARBITER_ROLE, arbiter);
-        securityContext.grantRole(DAO_ROLE, dao);
-        securityContext.grantRole(SYSTEM_ROLE, system);
+        systemSettings = new SystemSettings(IHatsSecurityContext(address(securityContext)), vaultAddress, 0);
+        escrow = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
 
         testToken.mint(nonOwner, 10_000_000_000);
         testToken.mint(payer1, 10_000_000_000);
         testToken.mint(payer2, 10_000_000_000);
         vm.stopPrank();
+
+        // Initialize test values
+        testAmount = 1 ether;
+        testPaymentId = keccak256("test-payment");
     }
 
     function _getBalance(address who, bool isToken) internal view returns (uint256) {
@@ -138,16 +216,43 @@ contract PaymentEscrowTest is Test {
         escrow.pause();
     }
 
+    function _takeBalanceSnapshot() internal {
+        balanceSnapshot = new uint256[](5);
+        balanceSnapshot[0] = address(escrow).balance;
+        balanceSnapshot[1] = _getBalance(receiver1, false);
+        balanceSnapshot[2] = _getBalance(payer1, false);
+        balanceSnapshot[3] = _getBalance(receiver2, false);
+        balanceSnapshot[4] = _getBalance(payer2, false);
+    }
+
+    function _verifyBalanceChange(uint256 index, int256 expectedChange) internal {
+        uint256 newBalance = index == 0 ? address(escrow).balance :
+                           index == 1 ? _getBalance(receiver1, false) :
+                           index == 2 ? _getBalance(payer1, false) :
+                           index == 3 ? _getBalance(receiver2, false) :
+                           _getBalance(payer2, false);
+        
+        if (expectedChange >= 0) {
+            assertEq(newBalance, balanceSnapshot[index] + uint256(expectedChange));
+        } else {
+            assertEq(newBalance, balanceSnapshot[index] - uint256(-expectedChange));
+        }
+    }
 
     // Deployment
     function testDeploymentArbiterRole() public {
-        bool hasArbiterArbiter = securityContext.hasRole(ARBITER_ROLE, arbiter);
-        bool hasNonOwnerArbiter = securityContext.hasRole(ARBITER_ROLE, nonOwner);
-        bool hasVaultArbiter = securityContext.hasRole(ARBITER_ROLE, vaultAddress);
+        bool hasArbiterRole = hats.isWearerOfHat(arbiter, arbiterHatId);
+        bool hasNonOwnerRole = hats.isWearerOfHat(nonOwner, arbiterHatId);
+        bool hasVaultRole = hats.isWearerOfHat(vaultAddress, arbiterHatId);
 
-        assertTrue(hasArbiterArbiter);
-        assertFalse(hasNonOwnerArbiter);
-        assertTrue(hasVaultArbiter);
+        assertTrue(hasArbiterRole, "Arbiter should wear arbiter hat");
+        assertFalse(hasNonOwnerRole, "Non-owner should not wear arbiter hat");
+        assertTrue(hasVaultRole, "Vault should wear arbiter hat");
+
+        // Verify role mapping
+        assertEq(securityContext.roleToHatId(ARBITER_ROLE), arbiterHatId, "Arbiter role should map to correct hat");
+        assertEq(securityContext.roleToHatId(DAO_ROLE), daoHatId, "DAO role should map to correct hat");
+        assertEq(securityContext.roleToHatId(SYSTEM_ROLE), systemHatId, "System role should map to correct hat");
     }
 
     // Place Payments
@@ -1174,49 +1279,43 @@ contract PaymentEscrowTest is Test {
     }
 
     function testPartialRefundThenFullRelease() public {
-        uint256 totalAmount = 1 ether;
-        uint256 partialRefundAmount = 0.4 ether; // 40% refund
-        bytes32 paymentId = keccak256("partial-refund-full-release");
+        uint256 partialRefundAmount = testAmount * 40 / 100; // 40% refund
 
-        // Record initial balances
-        uint256 payerInitialBalance = _getBalance(payer1, false);
-        uint256 receiverInitialBalance = _getBalance(receiver1, false);
-        uint256 escrowInitialBalance = address(escrow).balance;
+        // Take initial balance snapshot
+        _takeBalanceSnapshot();
 
         // 1. Place the payment
-        _placePayment(paymentId, payer1, receiver1, totalAmount, false);
+        _placePayment(testPaymentId, payer1, receiver1, testAmount, false);
 
         // Verify balances after placing the payment
-        assertEq(_getBalance(payer1, false), payerInitialBalance - totalAmount, "Payer balance incorrect after payment");
-        assertEq(address(escrow).balance, escrowInitialBalance + totalAmount, "Escrow balance incorrect after payment");
-        assertEq(_getBalance(receiver1, false), receiverInitialBalance, "Receiver balance should remain unchanged");
+        _verifyBalanceChange(2, -int256(testAmount)); // Payer balance decreased
+        _verifyBalanceChange(0, int256(testAmount));  // Escrow balance increased
+        _verifyBalanceChange(1, 0);                   // Receiver balance unchanged
 
         // 2. Perform a partial refund 
         vm.prank(receiver1);
-        escrow.refundPayment(paymentId, partialRefundAmount);
+        escrow.refundPayment(testPaymentId, partialRefundAmount);
 
         // Verify balances after partial refund
-        assertEq(_getBalance(payer1, false), payerInitialBalance - totalAmount + partialRefundAmount, "Payer balance incorrect after refund");
-        assertEq(address(escrow).balance, escrowInitialBalance + totalAmount - partialRefundAmount, "Escrow balance incorrect after refund");
-        assertEq(_getBalance(receiver1, false), receiverInitialBalance, "Receiver balance should remain unchanged after refund");
+        _verifyBalanceChange(2, -int256(testAmount - partialRefundAmount)); // Payer final balance
+        _verifyBalanceChange(0, int256(testAmount - partialRefundAmount));  // Escrow final balance
+        _verifyBalanceChange(1, 0);                                         // Receiver still unchanged
 
         // 3. Approve release by both parties
         vm.prank(receiver1);
-        escrow.releaseEscrow(paymentId);
+        escrow.releaseEscrow(testPaymentId);
 
         vm.prank(payer1);
-        escrow.releaseEscrow(paymentId);
+        escrow.releaseEscrow(testPaymentId);
 
-        // Verify final balances after full release
-        uint256 remainingAmount = totalAmount - partialRefundAmount;
-        assertEq(_getBalance(receiver1, false), receiverInitialBalance + remainingAmount, "Receiver balance incorrect after release");
-        assertEq(_getBalance(payer1, false), payerInitialBalance - totalAmount + partialRefundAmount, "Payer balance incorrect after full release");
-        assertEq(address(escrow).balance, escrowInitialBalance, "Escrow balance should be zero after release");
+        // Verify final balances
+        _verifyBalanceChange(1, int256(testAmount - partialRefundAmount)); // Receiver gets remaining
+        _verifyBalanceChange(0, 0);                                        // Escrow empty
 
         // Verify final payment state
-        Payment memory paymentAfterRelease = _getPayment(paymentId);
-        assertTrue(paymentAfterRelease.released, "Payment should be marked as released");
-        assertEq(paymentAfterRelease.amountRefunded, partialRefundAmount, "Refunded amount should match");
+        Payment memory paymentAfterRelease = _getPayment(testPaymentId);
+        assertTrue(paymentAfterRelease.released);
+        assertEq(paymentAfterRelease.amountRefunded, partialRefundAmount);
     }
 
     function testContractCanReceiveEthDirectly() public {
@@ -1514,7 +1613,7 @@ contract PaymentEscrowTest is Test {
 
         vm.startPrank(admin);
         PaymentEscrow escrowAutoRelease = new PaymentEscrow(
-            ISecurityContext(address(securityContext)),
+            IHatsSecurityContext(address(securityContext)),
             ISystemSettings(address(systemSettings)),
             true // autoReleaseFlag = true
         );
