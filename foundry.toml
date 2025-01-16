@@ -13,5 +13,6 @@ optimizerRuns = 200
 mainnet = "https://mainnet.infura.io/v3/${process.env.SEPOLIA_API_KEY}"
 sepolia = "https://rpc.ankr.com/eth_sepolia"
 op_sepolia = "https://sepolia.optimism.io"
+amoy = "https://rpc-amoy.polygon.technology"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
