@@ -49,6 +49,8 @@ contract FullEscrowDeployment is Script {
     console.log("Starting FullEscrowDeployment");
     // 1. Deploy the Hats base contract
     hats = Hats(0x3bc1A0Ad72417f2d411118085256fC53CBdDd137);// this is the hats contract on all chains
+    //hats = new Hats("Hats Protocol v1", "ipfs://bafkreiflezpk3kjz6zsv23pbvowtatnd5hmqfkdro33x5mh2azlhne3ah4"); 
+    //use this just for amoy. the above address is on polygon and base
 
     // 2. Deploy Eligibility & Toggle Modules 
     // pass admin address to each module’s constructor
