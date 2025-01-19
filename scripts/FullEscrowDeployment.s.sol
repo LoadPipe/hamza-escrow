@@ -28,7 +28,7 @@ contract FullEscrowDeployment is Script {
   address public vaultAddress   = address(0x11);     // The vault that will receive fees
   address public arbiterAddress = address(0x12);     // The arbiter address
   address public daoAddress     = address(0x13);     // The DAO address
-  bool    internal autoRelease    = false;             // Whether PaymentEscrow starts with autoRelease
+  bool    internal autoRelease    = true;             // Whether PaymentEscrow starts with autoRelease
 
   Hats public hats;
   EligibilityModule public eligibilityModule;
