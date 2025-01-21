@@ -2,3 +2,5 @@
 lib/ERC1155/=lib/hats-protocol/lib/ERC1155/
 @hats-protocol/=lib/hats-protocol/src
 hevm/=lib/properties/contracts/util/
+@gnosis.pm/safe-contracts/=lib/safe-contracts/
+@gnosis.pm/zodiac/=lib/zodiac/
