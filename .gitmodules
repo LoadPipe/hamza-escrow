@@ -10,3 +10,6 @@
 [submodule "lib/properties"]
 	path = lib/properties
 	url = https://github.com/crytic/properties
+[submodule "lib/safe-contracts"]
+	path = lib/safe-contracts
+	url = https://github.com/gnosis/safe-contracts

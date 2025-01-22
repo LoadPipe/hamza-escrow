@@ -11,6 +11,8 @@ import "./Roles.sol";
 abstract contract HasSecurityContext {
     IHatsSecurityContext public securityContext;
 
+    bool private initialized = false;
+
     error UnauthorizedAccess(bytes32 roleId, address addr);
     error ZeroAddressArgument();
 
@@ -31,8 +33,12 @@ abstract contract HasSecurityContext {
     function _setSecurityContext(IHatsSecurityContext _securityContext) internal {
         if (address(_securityContext) == address(0)) revert ZeroAddressArgument();
 
-        uint256 adminHatId = _securityContext.roleToHatId(Roles.ADMIN_ROLE);
-        require(_securityContext.hats().isWearerOfHat(msg.sender, adminHatId), "Caller is not admin");
+        if (!initialized) {
+            initialized = true;
+        } else {
+            uint256 adminHatId = _securityContext.roleToHatId(Roles.ADMIN_ROLE);
+            require(_securityContext.hats().isWearerOfHat(msg.sender, adminHatId), "Caller is not admin");
+        }
 
         if (securityContext != _securityContext) {
             securityContext = _securityContext;
