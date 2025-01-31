@@ -155,11 +155,6 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
             payment.currency,
             payment.amount
         );
-
-        // Record the purchase on the PurchaseTracker singleton.
-        if (address(purchaseTracker) != address(0)) {
-            purchaseTracker.recordPurchase(paymentInput.id, paymentInput.payer, paymentInput.amount);
-        }
     }
 
     /**
@@ -313,6 +308,10 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
             if (_handleFeeTransfer(payment.id, payment.currency, fee)) {
                 payment.released = true;
                 emit EscrowReleased(paymentId, amountToPay, fee);
+
+                if (address(purchaseTracker) != address(0)) {
+                    purchaseTracker.recordPurchase(paymentId, payment.receiver, payment.payer, amountToPay);
+                }
             }
         }
     }
