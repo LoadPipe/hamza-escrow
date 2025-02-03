@@ -9,6 +9,7 @@ import "../../src/IHatsSecurityContext.sol";
 import "../../src/ISystemSettings.sol";
 import "../../src/PaymentInput.sol";
 import "hevm/Hevm.sol";
+import "../../src/IPurchaseTracker.sol";
 
 /**
  * @title test_PaymentEscrow
@@ -65,7 +66,8 @@ contract test_PaymentEscrow {
         escrow = new PaymentEscrow(
             IHatsSecurityContext(address(securityContext)),
             ISystemSettings(address(systemSettings)),
-            false
+            false,
+            IPurchaseTracker(address(0))
         );
     }
 

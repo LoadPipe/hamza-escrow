@@ -6,6 +6,7 @@ import "../../src/EscrowMulticall.sol";
 import "../../src/HatsSecurityContext.sol";
 import "../../src/SystemSettings.sol";
 import "hevm/Hevm.sol";
+import "../../src/IPurchaseTracker.sol";
 
 /**
  * @title test_EscrowMulticallInvariants
@@ -64,7 +65,7 @@ contract test_EscrowMulticallInvariants {
 
         // Deploy multiple PaymentEscrow contracts
         for (uint256 i = 0; i < 3; i++) {
-            PaymentEscrow e = new PaymentEscrow(securityContext, systemSettings, false);
+            PaymentEscrow e = new PaymentEscrow(securityContext, systemSettings, false, IPurchaseTracker(address(0)));
             escrows.push(e);
         }
 
