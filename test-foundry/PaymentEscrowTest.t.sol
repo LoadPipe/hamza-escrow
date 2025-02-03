@@ -14,6 +14,7 @@ import {console} from "forge-std/console.sol";
 import {FailingToken} from "../src/FailingToken.sol";
 import "../src/hats/EligibilityModule.sol";
 import "../src/hats/ToggleModule.sol";
+import "../src/IPurchaseTracker.sol";
 
 contract PaymentEscrowTest is Test {
     Hats internal hats;
@@ -139,7 +140,7 @@ contract PaymentEscrowTest is Test {
 
         testToken = new TestToken("XYZ", "ZYX");
         systemSettings = new SystemSettings(IHatsSecurityContext(address(securityContext)), vaultAddress, 0);
-        escrow = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
+        escrow = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
 
         testToken.mint(nonOwner, 10_000_000_000);
         testToken.mint(payer1, 10_000_000_000);
@@ -1615,7 +1616,8 @@ contract PaymentEscrowTest is Test {
         PaymentEscrow escrowAutoRelease = new PaymentEscrow(
             IHatsSecurityContext(address(securityContext)),
             ISystemSettings(address(systemSettings)),
-            true // autoReleaseFlag = true
+            true, // autoReleaseFlag = true
+            IPurchaseTracker(address(0))
         );
         vm.stopPrank();
 
