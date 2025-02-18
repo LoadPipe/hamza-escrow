@@ -13,6 +13,7 @@ import { ISystemSettings } from "../src/ISystemSettings.sol";
 import { PaymentInput, Payment } from "../src/PaymentInput.sol";
 import { FailingToken } from "../src/FailingToken.sol";
 import { console } from "forge-std/console.sol";
+import "../src/IPurchaseTracker.sol";
 
 // Dummy Eligibility and Toggle Modules
 contract DummyEligibilityModule {
@@ -206,7 +207,8 @@ contract PaymentEscrowHatsTest is Test {
         escrow = new PaymentEscrow(
             IHatsSecurityContext(address(hatsSecurityContext)),
             ISystemSettings(address(systemSettings)),
-            false // autoReleaseFlag
+            false, // autoReleaseFlag
+            IPurchaseTracker(address(0)) 
         );
 
         vm.stopPrank();

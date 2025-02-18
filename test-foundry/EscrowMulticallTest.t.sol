@@ -16,6 +16,7 @@ import { TestToken } from "../src/TestToken.sol";
 import { IHatsSecurityContext } from "../src/IHatsSecurityContext.sol";
 import "../src/hats/EligibilityModule.sol";
 import "../src/hats/ToggleModule.sol";
+import "../src/IPurchaseTracker.sol";
 
 contract EscrowMulticallTest is Test {
     Hats hats;
@@ -123,10 +124,10 @@ contract EscrowMulticallTest is Test {
         testToken = new TestToken("XYZ", "ZYX");
         systemSettings = new SystemSettings(IHatsSecurityContext(address(securityContext)), vaultAddress, 0);
 
-        escrow = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
+        escrow = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
         escrow1 = escrow;
-        escrow2 = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
-        escrow3 = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false);
+        escrow2 = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
+        escrow3 = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
 
         multicall = new EscrowMulticall();
 

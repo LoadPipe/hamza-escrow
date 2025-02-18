@@ -4,3 +4,4 @@ lib/ERC1155/=lib/hats-protocol/lib/ERC1155/
 hevm/=lib/properties/contracts/util/
 @gnosis.pm/safe-contracts/=lib/safe-contracts/
 @gnosis.pm/zodiac/=lib/zodiac/
+forge-std/=lib/forge-std/src/

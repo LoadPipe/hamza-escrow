@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "./HasSecurityContext.sol"; 
-import "./ISystemSettings.sol"; 
+import "./HasSecurityContext.sol";
+import "./ISystemSettings.sol";
 import "./CarefulMath.sol";
 import "./PaymentInput.sol";
 import "./IEscrowContract.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./Roles.sol";
+import "./IPurchaseTracker.sol";
 
 /**
  * @title PaymentEscrow
@@ -17,7 +18,6 @@ import "./Roles.sol";
  * 
  * @author John R. Kosinski
  * LoadPipe 2024
- * All rights reserved. Unauthorized use prohibited.
  */
 contract PaymentEscrow is HasSecurityContext, IEscrowContract
 {
@@ -26,8 +26,9 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     bool private autoReleaseFlag;
     bool public paused;
 
-    //EVENTS 
+    IPurchaseTracker public purchaseTracker;
 
+    // EVENTS
     event PaymentReceived (
         bytes32 indexed paymentId,
         address indexed to,
@@ -39,7 +40,6 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     event ReleaseAssentGiven (
         bytes32 indexed paymentId,
         address assentingAddress,
-        //TODO: make enum
         uint8 assentType // 1 = payer, 2 = receiver, 3 = arbiter
     );
 
@@ -77,21 +77,22 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     }
     
     /**
-     * Constructor. 
-     * 
-     * Emits: 
-     * - {HasSecurityContext-SecurityContextSet}
-     * 
-     * Reverts: 
-     * - {ZeroAddressArgument} if the securityContext address is 0x0. 
-     * 
-     * @param securityContext Contract which will define & manage secure access for this contract. 
-     * @param settings_ Address of contract that holds system settings. 
+     * @notice Constructor.
+     * @param securityContext Contract which will define & manage secure access for this contract.
+     * @param settings_ Address of contract that holds system settings.
+     * @param autoRelease Determines whether new payments automatically have the receiver’s assent.
+     * @param _purchaseTracker Address of the PurchaseTracker singleton.
      */
-    constructor(IHatsSecurityContext securityContext, ISystemSettings settings_, bool autoRelease) {
+    constructor(
+        IHatsSecurityContext securityContext,
+        ISystemSettings settings_,
+        bool autoRelease,
+        IPurchaseTracker _purchaseTracker
+    ) {
         _setSecurityContext(securityContext);
         settings = settings_;
         autoReleaseFlag = autoRelease;
+        purchaseTracker = _purchaseTracker;
     }
     
     /**
@@ -118,14 +119,9 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     }
 
     /**
-     * Allows multiple payments to be processed. 
-     * 
-     * Reverts: 
-     * - 'InsufficientAmount': if amount of native ETH sent is not equal to the declared amount. 
-     * - 'TokenPaymentFailed': if token transfer fails for any reason (e.g. insufficial allowance)
-     * - 'DuplicatePayment': if payment id exists already 
-     * 
-     * Emits: 
+     * @notice Processes a new payment.
+     *
+     * Emits:
      * - {PaymentEscrow-PaymentReceived} 
      * 
      * @param paymentInput Payment inputs
@@ -162,9 +158,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     }
 
     /**
-     * Returns the payment data specified by id. 
-     * 
-     * @param paymentId A unique payment id
+     * @notice Returns the payment data for a given id.
      */
     function getPayment(bytes32 paymentId) public view returns (Payment memory) {
         return payments[paymentId];
@@ -240,17 +234,13 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         Payment storage payment = payments[paymentId]; 
         require(payment.released == false, "Payment already released");
         if (payment.amount > 0 && payment.amountRefunded <= payment.amount) {
-
-            //who has permission to refund? either the receiver or the arbiter
             if (payment.receiver != msg.sender && !securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender))
                 revert("Unauthorized");
 
             uint256 activeAmount = payment.amount - payment.amountRefunded; 
-
             if (amount > activeAmount) 
                 revert("AmountExceeded");
 
-            //transfer amount back to payer 
             if (amount > 0) {
                 if (_transferAmount(payment.id, payment.payer, payment.currency, amount)) {
                     payment.amountRefunded += amount;
@@ -286,9 +276,6 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     }
 
 
-    //NON-PUBLIC METHODS
-
-    // Helper function to calculate fee and remaining amount
     function _calculateFeeAndAmount(uint256 amount) internal view returns (uint256 fee, uint256 amountToPay) {
         fee = 0;
         uint256 feeBps = _getFeeBps();
@@ -301,7 +288,6 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         amountToPay = amount - fee;
     }
 
-    // Helper function to handle fee transfer
     function _handleFeeTransfer(bytes32 paymentId, address currency, uint256 fee) internal returns (bool) {
         if (fee == 0) return true;
         return _transferAmount(paymentId, _getvaultAddress(), currency, fee);
@@ -316,21 +302,22 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
         uint256 amount = payment.amount - payment.amountRefunded;
         (uint256 fee, uint256 amountToPay) = _calculateFeeAndAmount(amount);
 
-        // If there's no amount to pay but there is a fee, or if the transfer succeeds
         if ((amountToPay == 0 && fee > 0) || 
             _transferAmount(payment.id, payment.receiver, payment.currency, amountToPay)) {
             
-            // Handle fee transfer
             if (_handleFeeTransfer(payment.id, payment.currency, fee)) {
                 payment.released = true;
                 emit EscrowReleased(paymentId, amountToPay, fee);
+
+                if (address(purchaseTracker) != address(0)) {
+                    purchaseTracker.recordPurchase(paymentId, payment.receiver, payment.payer, amountToPay);
+                }
             }
         }
     }
 
     function _transferAmount(bytes32 paymentId, address to, address tokenAddressOrZero, uint256 amount) internal returns (bool) {
         bool success = false;
-
         if (amount > 0) {
             if (tokenAddressOrZero == address(0)) {
                 (success,) = payable(to).call{value: amount}("");
@@ -347,21 +334,18 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
                 revert("PaymentTransferFailed");
             }
         }
-
         return success;
     }
 
     function _getFeeBps() internal view returns (uint256) {
         if (address(settings) != address(0)) 
             return settings.feeBps();
-
         return 0;
     }
 
     function _getvaultAddress() internal view returns (address) {
         if (address(settings) != address(0)) 
             return settings.vaultAddress();
-
         return address(0);
     }
 
