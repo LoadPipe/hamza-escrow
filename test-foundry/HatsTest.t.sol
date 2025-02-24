@@ -4,11 +4,11 @@ pragma solidity ^0.8.19;
 import "forge-std/Test.sol";
 import "../lib/hats-protocol/src/Hats.sol";
 
-import { HatsSecurityContext } from "../src/HatsSecurityContext.sol";
+import { HatsSecurityContext } from "../src/security/HatsSecurityContext.sol";
 import { PaymentEscrow, IEscrowContract } from "../src/PaymentEscrow.sol";
 import { SystemSettings } from "../src/SystemSettings.sol";
 import { TestToken } from "../src/TestToken.sol";
-import { IHatsSecurityContext } from "../src/IHatsSecurityContext.sol";
+import { ISecurityContext } from "../src/security/ISecurityContext.sol";
 import { ISystemSettings } from "../src/ISystemSettings.sol";
 import { PaymentInput, Payment } from "../src/PaymentInput.sol";
 import { FailingToken } from "../src/FailingToken.sol";
@@ -198,14 +198,14 @@ contract PaymentEscrowHatsTest is Test {
         // 10. Deploy SystemSettings
         vm.startPrank(admin);
         systemSettings = new SystemSettings(
-            IHatsSecurityContext(address(hatsSecurityContext)),
+            ISecurityContext(address(hatsSecurityContext)),
             vault, // Vault address
             0 // Initial fee BPS
         );
 
         // 11. Deploy PaymentEscrow
         escrow = new PaymentEscrow(
-            IHatsSecurityContext(address(hatsSecurityContext)),
+            ISecurityContext(address(hatsSecurityContext)),
             ISystemSettings(address(systemSettings)),
             false, // autoReleaseFlag
             IPurchaseTracker(address(0)) 
@@ -399,7 +399,7 @@ contract PaymentEscrowHatsTest is Test {
         assertFalse(hats.isWearerOfHat(testAddress, testHatId), "Test address should not own the hat");
     }
 
-    function testToggleModule_DefaultsToActive() public {
+    function testToggleModule_DefaultsToActive() public view {
         bool arbiterIsActive = hats.isActive(arbiterHatId);
         assertTrue(arbiterIsActive, "Arbiter Hat should be active by default");
 

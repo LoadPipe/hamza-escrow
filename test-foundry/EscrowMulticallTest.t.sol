@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
 import "../lib/hats-protocol/src/Hats.sol";
-import "../src/HatsSecurityContext.sol";
+import "../src/security/HatsSecurityContext.sol";
 import "../src/SystemSettings.sol";
 import "../src/PaymentEscrow.sol";
 import "../src/EscrowMulticall.sol";
@@ -13,7 +13,7 @@ import { Payment } from "../src/PaymentInput.sol";
 import { MulticallPaymentInput } from "../src/EscrowMulticall.sol";
 import { FailingToken } from "../src/FailingToken.sol";
 import { TestToken } from "../src/TestToken.sol";
-import { IHatsSecurityContext } from "../src/IHatsSecurityContext.sol";
+import { ISecurityContext } from "../src/security/ISecurityContext.sol";
 import "../src/hats/EligibilityModule.sol";
 import "../src/hats/ToggleModule.sol";
 import "../src/IPurchaseTracker.sol";
@@ -122,12 +122,12 @@ contract EscrowMulticallTest is Test {
         hats.mintHat(daoHatId, dao);
 
         testToken = new TestToken("XYZ", "ZYX");
-        systemSettings = new SystemSettings(IHatsSecurityContext(address(securityContext)), vaultAddress, 0);
+        systemSettings = new SystemSettings(ISecurityContext(address(securityContext)), vaultAddress, 0);
 
-        escrow = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
+        escrow = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
         escrow1 = escrow;
-        escrow2 = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
-        escrow3 = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
+        escrow2 = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
+        escrow3 = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
 
         multicall = new EscrowMulticall();
 
@@ -192,7 +192,7 @@ contract EscrowMulticallTest is Test {
         return convertPayment(pm);
     }
 
-    function verifyPayment(Payment memory actual, Payment memory expected) internal {
+    function verifyPayment(Payment memory actual, Payment memory expected) internal pure {
         assertEq(actual.id, expected.id);
         assertEq(actual.payer, expected.payer);
         assertEq(actual.receiver, expected.receiver);
@@ -205,7 +205,7 @@ contract EscrowMulticallTest is Test {
     }
 
     // Deployment
-    function testDeploymentArbiterRole() public {
+    function testDeploymentArbiterRole() public view {
         bool hasArbiter = hats.isWearerOfHat(arbiter, arbiterHatId);
         bool hasNonOwnerArbiter = hats.isWearerOfHat(nonOwner, arbiterHatId);
         bool hasVaultArbiter = hats.isWearerOfHat(vaultAddress, arbiterHatId);
