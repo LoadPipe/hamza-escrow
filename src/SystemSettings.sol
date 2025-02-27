@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "./HasSecurityContext.sol";
+import "./security/HasSecurityContext.sol";
+import "./security/Roles.sol";
 import "./ISystemSettings.sol";
-import "./Roles.sol";
 
 /**
  * @title SystemSettings
@@ -46,7 +46,7 @@ contract SystemSettings is HasSecurityContext, ISystemSettings {
      * @param vaultAddress_ Recipient of the extracted fees.
      * @param feeBps_ Amount of fees charged in basis points.
      */
-    constructor(IHatsSecurityContext securityContext, address vaultAddress_, uint256 feeBps_) {
+    constructor(ISecurityContext securityContext, address vaultAddress_, uint256 feeBps_) {
         _setSecurityContext(securityContext);
         if (vaultAddress_ == address(0)) {
             revert("InvalidVaultAddress");

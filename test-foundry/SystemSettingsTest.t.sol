@@ -3,9 +3,9 @@ pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
 import "../lib/hats-protocol/src/Hats.sol";
-import "../src/HatsSecurityContext.sol";
+import "../src/security/HatsSecurityContext.sol";
 import "../src/SystemSettings.sol";
-import "../src/IHatsSecurityContext.sol";
+import "../src/security/ISecurityContext.sol";
 import "../src/hats/EligibilityModule.sol";
 import "../src/hats/ToggleModule.sol";
 
@@ -74,12 +74,12 @@ contract SystemSettingsTest is Test {
         hats.mintHat(daoHatId, dao);
 
         // Deploy SystemSettings
-        systemSettings = new SystemSettings(IHatsSecurityContext(address(securityContext)), vaultAddress, 100);
+        systemSettings = new SystemSettings(ISecurityContext(address(securityContext)), vaultAddress, 100);
         vm.stopPrank();
     }
 
     // Deployment tests
-    function testDeploymentShouldSetCorrectValues() public {
+    function testDeploymentShouldSetCorrectValues() public view {
         assertEq(systemSettings.feeBps(), 100);
         assertEq(systemSettings.vaultAddress(), vaultAddress);
         assertTrue(hats.isWearerOfHat(dao, daoHatId), "DAO should wear DAO hat");
@@ -137,19 +137,19 @@ contract SystemSettingsTest is Test {
     function testCannotSetZeroAddressVaultInConstructor() public {
         vm.startPrank(admin);
         vm.expectRevert("InvalidVaultAddress");
-        new SystemSettings(IHatsSecurityContext(address(securityContext)), address(0), 100);
+        new SystemSettings(ISecurityContext(address(securityContext)), address(0), 100);
         vm.stopPrank();
     }
 
     function testCannotSetZeroAddressSecurityContext() public {
         // Setting a valid security context again is allowed
         vm.prank(admin);
-        systemSettings.setSecurityContext(IHatsSecurityContext(address(securityContext)));
+        systemSettings.setSecurityContext(ISecurityContext(address(securityContext)));
 
         // Setting zero address should revert
         vm.prank(admin);
         vm.expectRevert();
-        systemSettings.setSecurityContext(IHatsSecurityContext(address(0)));
+        systemSettings.setSecurityContext(ISecurityContext(address(0)));
     }
 
     // event tests

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "./HasSecurityContext.sol";
+import "./security/HasSecurityContext.sol";
+import "./security/Roles.sol";
 import "./ISystemSettings.sol";
 import "./CarefulMath.sol";
 import "./PaymentInput.sol";
 import "./IEscrowContract.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./Roles.sol";
 import "./IPurchaseTracker.sol";
 
 /**
@@ -84,7 +84,7 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
      * @param _purchaseTracker Address of the PurchaseTracker singleton.
      */
     constructor(
-        IHatsSecurityContext securityContext,
+        ISecurityContext securityContext,
         ISystemSettings settings_,
         bool autoRelease,
         IPurchaseTracker _purchaseTracker

@@ -9,7 +9,7 @@ import "./Roles.sol";
  * @title HasSecurityContext
  */
 abstract contract HasSecurityContext {
-    IHatsSecurityContext public securityContext;
+    ISecurityContext public securityContext;
 
     bool private initialized = false;
 
@@ -19,25 +19,23 @@ abstract contract HasSecurityContext {
     event SecurityContextSet(address indexed caller, address indexed securityContext);
 
     modifier onlyRole(bytes32 role) {
-        uint256 hatId = securityContext.roleToHatId(role);
-        if (!Hats(securityContext.hats()).isWearerOfHat(msg.sender, hatId)) {
+        if (!securityContext.hasRole(role, msg.sender)) {
             revert UnauthorizedAccess(role, msg.sender);
         }
         _;
     }
 
-    function setSecurityContext(IHatsSecurityContext _securityContext) external onlyRole(Roles.ADMIN_ROLE) {
+    function setSecurityContext(ISecurityContext _securityContext) external onlyRole(Roles.ADMIN_ROLE) {
         _setSecurityContext(_securityContext);
     }
 
-    function _setSecurityContext(IHatsSecurityContext _securityContext) internal {
+    function _setSecurityContext(ISecurityContext _securityContext) internal {
         if (address(_securityContext) == address(0)) revert ZeroAddressArgument();
 
         if (!initialized) {
             initialized = true;
         } else {
-            uint256 adminHatId = _securityContext.roleToHatId(Roles.ADMIN_ROLE);
-            require(_securityContext.hats().isWearerOfHat(msg.sender, adminHatId), "Caller is not admin");
+            require(_securityContext.hasRole(Roles.ADMIN_ROLE, msg.sender), "Caller is not admin");
         }
 
         if (securityContext != _securityContext) {
