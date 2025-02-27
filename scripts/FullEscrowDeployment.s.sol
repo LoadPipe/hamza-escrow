@@ -15,6 +15,7 @@ import { ToggleModule } from "../src/hats/ToggleModule.sol";
 import { HatsSecurityContext } from "../src/security/HatsSecurityContext.sol";
 import { ISecurityContext } from "../src/security/ISecurityContext.sol";
 import { SystemSettings } from "../src/SystemSettings.sol";
+import { IPurchaseTracker } from "../src/IPurchaseTracker.sol";
 import { ISystemSettings } from "../src/ISystemSettings.sol";
 import { PaymentEscrow } from "../src/PaymentEscrow.sol";
 import {EscrowMulticall} from "../src/EscrowMulticall.sol";
@@ -73,7 +74,8 @@ contract FullEscrowDeployment is Script {
     paymentEscrow = new PaymentEscrow(
       ISecurityContext(hatsSecurityContextAddr),
       ISystemSettings(address(systemSettings)),
-      autoRelease
+      autoRelease, 
+      IPurchaseTracker(address(0))
     );
 
     // ----------------------//
