@@ -12,15 +12,16 @@ import { EligibilityModule } from "../src/hats/EligibilityModule.sol";
 import { ToggleModule } from "../src/hats/ToggleModule.sol";
 
 // Security context & system
-import { HatsSecurityContext } from "../src/HatsSecurityContext.sol";
-import { IHatsSecurityContext } from "../src/IHatsSecurityContext.sol";
+import { HatsSecurityContext } from "../src/security/HatsSecurityContext.sol";
+import { ISecurityContext } from "../src/security/ISecurityContext.sol";
 import { SystemSettings } from "../src/SystemSettings.sol";
+import { IPurchaseTracker } from "../src/IPurchaseTracker.sol";
 import { ISystemSettings } from "../src/ISystemSettings.sol";
 import { PaymentEscrow } from "../src/PaymentEscrow.sol";
 import {EscrowMulticall} from "../src/EscrowMulticall.sol";
 
 // Roles
-import { Roles } from "../src/Roles.sol";
+import { Roles } from "../src/security/Roles.sol";
 
 import "./HatsDeployment.s.sol";
 
@@ -54,11 +55,11 @@ contract FullEscrowDeployment is Script {
     // 8. Deploy SystemSettings             //
     //--------------------------------------//
     // The SystemSettings constructor requires:
-    //   IHatsSecurityContext
+    //   ISecurityContext
     //   vaultAddress
     //   initialFeeBps
     systemSettings = new SystemSettings(
-      IHatsSecurityContext(hatsSecurityContextAddr),
+      ISecurityContext(hatsSecurityContextAddr),
       safeAddr, //CHANGE FOR VAULT
       0 // feeBps (0 for now)
     );
@@ -67,13 +68,14 @@ contract FullEscrowDeployment is Script {
     // 9. Deploy PaymentEscrow              //
     //--------------------------------------//
     // PaymentEscrow requires:
-    //   IHatsSecurityContext
+    //   ISecurityContext
     //   ISystemSettings
     //   autoReleaseFlag
     paymentEscrow = new PaymentEscrow(
-      IHatsSecurityContext(hatsSecurityContextAddr),
+      ISecurityContext(hatsSecurityContextAddr),
       ISystemSettings(address(systemSettings)),
-      autoRelease
+      autoRelease, 
+      IPurchaseTracker(address(0))
     );
 
     // ----------------------//

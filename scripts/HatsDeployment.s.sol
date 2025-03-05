@@ -15,9 +15,8 @@ interface IGnosisSafe {
 import { Hats } from "@hats-protocol/Hats.sol";
 import { EligibilityModule } from "../src/hats/EligibilityModule.sol";
 import { ToggleModule } from "../src/hats/ToggleModule.sol";
-import { HatsSecurityContext } from "../src/HatsSecurityContext.sol";
-import { IHatsSecurityContext } from "../src/IHatsSecurityContext.sol";
-import { Roles } from "../src/Roles.sol";
+import { HatsSecurityContext } from "../src/security/HatsSecurityContext.sol";
+import { Roles } from "../src/security/Roles.sol";
 
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
 

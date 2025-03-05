@@ -4,10 +4,10 @@ pragma solidity ^0.8.19;
 import "forge-std/Test.sol";
 import "../lib/hats-protocol/src/Hats.sol";
 import {PaymentEscrow, IEscrowContract} from "../src/PaymentEscrow.sol";
-import {HatsSecurityContext} from "../src/HatsSecurityContext.sol";
+import {HatsSecurityContext} from "../src/security/HatsSecurityContext.sol";
 import {SystemSettings} from "../src/SystemSettings.sol";
 import {TestToken} from "../src/TestToken.sol";
-import {IHatsSecurityContext} from "../src/IHatsSecurityContext.sol";
+import {ISecurityContext} from "../src/security/ISecurityContext.sol";
 import {ISystemSettings} from "../src/ISystemSettings.sol";
 import {PaymentInput, Payment} from "../src/PaymentInput.sol";
 import {console} from "forge-std/console.sol";
@@ -139,8 +139,8 @@ contract PaymentEscrowTest is Test {
         hats.mintHat(systemHatId, system);
 
         testToken = new TestToken("XYZ", "ZYX");
-        systemSettings = new SystemSettings(IHatsSecurityContext(address(securityContext)), vaultAddress, 0);
-        escrow = new PaymentEscrow(IHatsSecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
+        systemSettings = new SystemSettings(ISecurityContext(address(securityContext)), vaultAddress, 0);
+        escrow = new PaymentEscrow(ISecurityContext(address(securityContext)), ISystemSettings(address(systemSettings)), false, IPurchaseTracker(address(0)));
 
         testToken.mint(nonOwner, 10_000_000_000);
         testToken.mint(payer1, 10_000_000_000);
@@ -189,7 +189,7 @@ contract PaymentEscrowTest is Test {
     function _verifyPayment(
         Payment memory actual,
         Payment memory expected
-    ) internal {
+    ) internal pure {
         assertEq(actual.id, expected.id);
         assertEq(actual.payer, expected.payer);
         assertEq(actual.receiver, expected.receiver);
@@ -226,7 +226,7 @@ contract PaymentEscrowTest is Test {
         balanceSnapshot[4] = _getBalance(payer2, false);
     }
 
-    function _verifyBalanceChange(uint256 index, int256 expectedChange) internal {
+    function _verifyBalanceChange(uint256 index, int256 expectedChange) internal view {
         uint256 newBalance = index == 0 ? address(escrow).balance :
                            index == 1 ? _getBalance(receiver1, false) :
                            index == 2 ? _getBalance(payer1, false) :
@@ -241,7 +241,7 @@ contract PaymentEscrowTest is Test {
     }
 
     // Deployment
-    function testDeploymentArbiterRole() public {
+    function testDeploymentArbiterRole() public view {
         bool hasArbiterRole = hats.isWearerOfHat(arbiter, arbiterHatId);
         bool hasNonOwnerRole = hats.isWearerOfHat(nonOwner, arbiterHatId);
         bool hasVaultRole = hats.isWearerOfHat(vaultAddress, arbiterHatId);
@@ -886,7 +886,7 @@ contract PaymentEscrowTest is Test {
         // total refunded now = amount
     }
 
-    function testFailRefundAfterReleaseWithActiveEscrow() public {
+    function testRefundAfterReleaseWithActiveEscrowIsReverted() public {
         // Exploit: malcious actor is able to refund the payment after it has been released stealing the funds in escrow 
         // 1. Place a payment from payer1 to receiver1
         // 2. malicious actor pays self through escrow and releases the payment to self
@@ -930,6 +930,7 @@ contract PaymentEscrowTest is Test {
 
         // Malicious refund attempt by receiver2
         vm.prank(receiver2);
+        vm.expectRevert("Payment already released"); 
         escrow.refundPayment(paymentIdReleased, amountReleased);
 
         // Final balances after the malicious refund
@@ -944,6 +945,17 @@ contract PaymentEscrowTest is Test {
         // finalBalances[3] - Receiver2's balance
         // finalBalances[4] - Payer2's balance
 
+        assertTrue(
+            finalBalances[3] + finalBalances[4] == initialBalances[3] + initialBalances[4],
+            "Exploit success: Receiver2 profited"
+        );
+
+        assertTrue(
+            finalBalances[1] + finalBalances[2] + finalBalances[0] == initialBalances[1] + initialBalances[2] + initialBalances[0],
+            "Exploit success: Payer1 and Receiver1 lost funds"
+        );
+        
+        /*
         // Assertions
         // Check if Receiver2 profited (exploit success)
         assertTrue(
@@ -959,6 +971,7 @@ contract PaymentEscrowTest is Test {
 
         // Ensure the escrow balance was drained to 0
         assertEq(finalBalances[0], 0, "Exploit success: Escrow balance drained");
+        */
     }
 
     function testCannotRefundAfterRelease() public {
@@ -1262,7 +1275,7 @@ contract PaymentEscrowTest is Test {
         assertEq(finalPayerBalance, initialPayerBalance);
     }
 
-    function testGetPaymentForNonExistentID() public {
+    function testGetPaymentForNonExistentID() public view {
         bytes32 nonExistentPaymentId = keccak256("non-existent-payment");
 
         Payment memory payment = escrow.getPayment(nonExistentPaymentId);
@@ -1614,7 +1627,7 @@ contract PaymentEscrowTest is Test {
 
         vm.startPrank(admin);
         PaymentEscrow escrowAutoRelease = new PaymentEscrow(
-            IHatsSecurityContext(address(securityContext)),
+            ISecurityContext(address(securityContext)),
             ISystemSettings(address(systemSettings)),
             true, // autoReleaseFlag = true
             IPurchaseTracker(address(0))
@@ -1625,7 +1638,7 @@ contract PaymentEscrowTest is Test {
         uint256 amount = 1 ether;
 
         // Record initial balances
-        uint256 payerInitialBalance = payer1.balance;
+        //uint256 payerInitialBalance = payer1.balance;
         uint256 receiverInitialBalance = receiver1.balance;
 
         // Place the payment in the new escrow

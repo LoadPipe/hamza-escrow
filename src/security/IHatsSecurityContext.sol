@@ -2,16 +2,9 @@
 pragma solidity ^0.8.20;
 
 import "@hats-protocol/Hats.sol";
+import "./ISecurityContext.sol";
 
-interface IHatsSecurityContext {
-    /**
-     * @notice Checks if an account has the specified role.
-     * @param role The role to query, identified by a `bytes32` role ID.
-     * @param account The address to check for the specified role.
-     * @return True if the account has the specified role, otherwise false.
-     */
-    function hasRole(bytes32 role, address account) external view returns (bool);
-
+interface IHatsSecurityContext is ISecurityContext {
     /**
      * @notice Returns the Hat ID associated with a specific role.
      * @param role The role identifier (as a `bytes32` value).
