@@ -886,7 +886,7 @@ contract PaymentEscrowTest is Test {
         // total refunded now = amount
     }
 
-    function testFailRefundAfterReleaseWithActiveEscrow() public {
+    function testRevert_RefundAfterReleaseWithActiveEscrow() public {
         // Exploit: malcious actor is able to refund the payment after it has been released stealing the funds in escrow 
         // 1. Place a payment from payer1 to receiver1
         // 2. malicious actor pays self through escrow and releases the payment to self
