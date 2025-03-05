@@ -886,7 +886,7 @@ contract PaymentEscrowTest is Test {
         // total refunded now = amount
     }
 
-    function testFailRefundAfterReleaseWithActiveEscrow() public {
+    function testRefundAfterReleaseWithActiveEscrowIsReverted() public {
         // Exploit: malcious actor is able to refund the payment after it has been released stealing the funds in escrow 
         // 1. Place a payment from payer1 to receiver1
         // 2. malicious actor pays self through escrow and releases the payment to self
@@ -930,6 +930,7 @@ contract PaymentEscrowTest is Test {
 
         // Malicious refund attempt by receiver2
         vm.prank(receiver2);
+        vm.expectRevert("Payment already released"); 
         escrow.refundPayment(paymentIdReleased, amountReleased);
 
         // Final balances after the malicious refund
@@ -944,6 +945,17 @@ contract PaymentEscrowTest is Test {
         // finalBalances[3] - Receiver2's balance
         // finalBalances[4] - Payer2's balance
 
+        assertTrue(
+            finalBalances[3] + finalBalances[4] == initialBalances[3] + initialBalances[4],
+            "Exploit success: Receiver2 profited"
+        );
+
+        assertTrue(
+            finalBalances[1] + finalBalances[2] + finalBalances[0] == initialBalances[1] + initialBalances[2] + initialBalances[0],
+            "Exploit success: Payer1 and Receiver1 lost funds"
+        );
+        
+        /*
         // Assertions
         // Check if Receiver2 profited (exploit success)
         assertTrue(
@@ -959,6 +971,7 @@ contract PaymentEscrowTest is Test {
 
         // Ensure the escrow balance was drained to 0
         assertEq(finalBalances[0], 0, "Exploit success: Escrow balance drained");
+        */
     }
 
     function testCannotRefundAfterRelease() public {
