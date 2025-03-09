@@ -1700,6 +1700,43 @@ contract PaymentEscrowTest is Test {
 
     }
 
+    // Admin Permissions Tests 
+    function testCanAppointAdminRefunder() public {
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), 0);
+        vm.prank(receiver1);
+        escrow.appointAdminPermission(receiver2, 1);
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), 1);
+    }
+
+    function testCanAppointAdminReleaser() public {
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), 0);
+        vm.prank(receiver1);
+        escrow.appointAdminPermission(receiver2, 2);
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), 2);
+    }
+
+    function testCanAppointAdminReleaserAndRefunder() public {
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), 0);
+        vm.prank(receiver1);
+        escrow.appointAdminPermission(receiver2, 3);
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), 3);
+    }
+
+    function testAppointedAdminCanRelease() public {
+        assertEq(1, 0);
+    }
+
+    function testAppointedAdminCanRefund() public {
+        assertEq(1, 0);
+    }
+
+    function testWrongAppointedAdminCannotRelease() public {
+        assertEq(1, 0);
+    }
+
+    function testWrongAppointedAdminCannotRefund() public {
+        assertEq(1, 0);
+    }
 
 
     // Event Tests
