@@ -197,6 +197,10 @@ contract PaymentEscrow is PaymentEscrowAdmins, HasSecurityContext, IEscrowContra
                 payment.receiverReleased = true;
                 emit ReleaseAssentGiven(paymentId, msg.sender, 1);
             }
+            if (!payment.receiverReleased && this.hasAdminPermission(payment.receiver, msg.sender, PermissionRelease)) {
+                payment.receiverReleased = true;
+                emit ReleaseAssentGiven(paymentId, msg.sender, 4);
+            }
             if (!payment.payerReleased && payment.payer == msg.sender) {
                 payment.payerReleased = true;
                 emit ReleaseAssentGiven(paymentId, msg.sender, 2);
@@ -204,10 +208,6 @@ contract PaymentEscrow is PaymentEscrowAdmins, HasSecurityContext, IEscrowContra
             if (!payment.payerReleased && securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender)) {
                 payment.payerReleased = true;
                 emit ReleaseAssentGiven(paymentId, msg.sender, 3);
-            }
-            if (!payment.payerReleased && this.hasAdminPermission(payment.receiver, msg.sender, PermissionRelease)) {
-                payment.payerReleased = true;
-                emit ReleaseAssentGiven(paymentId, msg.sender, 4);
             }
 
             _releaseEscrowPayment(paymentId);

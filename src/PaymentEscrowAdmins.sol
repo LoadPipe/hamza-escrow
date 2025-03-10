@@ -30,20 +30,20 @@ enum PaymentEscrowAdminPermission {
  */
 contract PaymentEscrowAdmins
 {
-    uint8 public constant PermissionRefund = 1 << 0; // 00000001
+    uint8 public constant PermissionRefund = 1; // 00000001
     uint8 public constant PermissionRelease = 1 << 1; // 00000010
 
     mapping(address => mapping(address => uint8)) public appointedAdmins;
 
-    function appointAdminPermission(address admin, uint8 permission) public {
+    function grantAdminPermission(address admin, uint8 permission) public {
         appointedAdmins[msg.sender][admin] |= permission;
     }
 
-    function removeAdminPermission(address admin, uint8 permission) public {
+    function revokeAdminPermission(address admin, uint8 permission) public {
         appointedAdmins[msg.sender][admin] &= ~permission;
     }
 
     function hasAdminPermission(address owner, address admin, uint8 permission) public view returns (bool) {
-        return (appointedAdmins[owner][admin] & permission) != 0;
+        return appointedAdmins[owner][admin] & permission != 0;
     }
 }
