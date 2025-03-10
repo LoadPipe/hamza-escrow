@@ -9,6 +9,7 @@ import "./PaymentInput.sol";
 import "./IEscrowContract.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./IPurchaseTracker.sol";
+import "./PaymentEscrowAdmins.sol";
 
 /**
  * @title PaymentEscrow
@@ -19,11 +20,11 @@ import "./IPurchaseTracker.sol";
  * @author John R. Kosinski
  * LoadPipe 2024
  */
-contract PaymentEscrow is HasSecurityContext, IEscrowContract
+contract PaymentEscrow is PaymentEscrowAdmins, HasSecurityContext, IEscrowContract
 {
-    ISystemSettings private settings;
-    mapping(bytes32 => Payment) private payments;
-    bool private autoReleaseFlag;
+    ISystemSettings public settings;
+    mapping(bytes32 => Payment) public payments;
+    bool public autoReleaseFlag;
     bool public paused;
 
     IPurchaseTracker public purchaseTracker;
@@ -40,7 +41,8 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     event ReleaseAssentGiven (
         bytes32 indexed paymentId,
         address assentingAddress,
-        uint8 assentType // 1 = payer, 2 = receiver, 3 = arbiter
+        //TODO: consider making this an enum
+        uint8 assentType // 1 = payer, 2 = receiver, 3 = arbiter, 4 = admin
     );
 
     event EscrowReleased (
@@ -184,29 +186,28 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
 
         if (msg.sender != payment.receiver && 
             msg.sender != payment.payer && 
-            !securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender))
+            !securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender) && 
+            !this.hasAdminPermission(payment.receiver, msg.sender, PermissionRelease))
         {
             revert("Unauthorized");
         }
 
         if (payment.amount > 0) {
-            if (payment.receiver == msg.sender) {
-                if (!payment.receiverReleased) {
-                    payment.receiverReleased = true;
-                    emit ReleaseAssentGiven(paymentId, msg.sender, 1);
-                }
+            if (!payment.receiverReleased && payment.receiver == msg.sender) {
+                payment.receiverReleased = true;
+                emit ReleaseAssentGiven(paymentId, msg.sender, 1);
             }
-            if (payment.payer == msg.sender) {
-                if (!payment.payerReleased) {
-                    payment.payerReleased = true;
-                    emit ReleaseAssentGiven(paymentId, msg.sender, 2);
-                }
+            if (!payment.receiverReleased && this.hasAdminPermission(payment.receiver, msg.sender, PermissionRelease)) {
+                payment.receiverReleased = true;
+                emit ReleaseAssentGiven(paymentId, msg.sender, 4);
             }
-            if (securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender)) {
-                if (!payment.payerReleased) {
-                    payment.payerReleased = true;
-                    emit ReleaseAssentGiven(paymentId, msg.sender, 3);
-                }
+            if (!payment.payerReleased && payment.payer == msg.sender) {
+                payment.payerReleased = true;
+                emit ReleaseAssentGiven(paymentId, msg.sender, 2);
+            }
+            if (!payment.payerReleased && securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender)) {
+                payment.payerReleased = true;
+                emit ReleaseAssentGiven(paymentId, msg.sender, 3);
             }
 
             _releaseEscrowPayment(paymentId);
@@ -233,10 +234,16 @@ contract PaymentEscrow is HasSecurityContext, IEscrowContract
     function refundPayment(bytes32 paymentId, uint256 amount) external whenNotPaused {
         Payment storage payment = payments[paymentId]; 
         require(payment.released == false, "Payment already released");
+
         if (payment.amount > 0 && payment.amountRefunded <= payment.amount) {
-            if (payment.receiver != msg.sender && !securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender))
+            //check permission to refund 
+            if (payment.receiver != msg.sender && 
+                !securityContext.hasRole(Roles.ARBITER_ROLE, msg.sender) && 
+                !this.hasAdminPermission(payment.receiver, msg.sender, PermissionRefund)
+            )
                 revert("Unauthorized");
 
+            //check amount to refund
             uint256 activeAmount = payment.amount - payment.amountRefunded; 
             if (amount > activeAmount) 
                 revert("AmountExceeded");
