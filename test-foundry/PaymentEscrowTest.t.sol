@@ -25,6 +25,9 @@ contract PaymentEscrowTest is Test {
     EligibilityModule internal eligibilityModule;
     ToggleModule internal toggleModule;
 
+    uint8 internal constant ADMIN_PERMISSION_REFUND = 1;
+    uint8 internal constant ADMIN_PERMISSION_RELEASE = 2;
+
     address internal admin;
     address internal nonOwner;
     address internal payer1;
@@ -201,6 +204,7 @@ contract PaymentEscrowTest is Test {
         assertEq(actual.released, expected.released);
     }
 
+
     // balances helper function for testing
     function _recordBalances() internal view returns (uint256[] memory) {
         uint256[] memory balances = new uint256[](5);
@@ -255,6 +259,7 @@ contract PaymentEscrowTest is Test {
         assertEq(securityContext.roleToHatId(DAO_ROLE), daoHatId, "DAO role should map to correct hat");
         assertEq(securityContext.roleToHatId(SYSTEM_ROLE), systemHatId, "System role should map to correct hat");
     }
+
 
     // Place Payments
     function testCanPlaceSingleNativePayment() public {
@@ -446,6 +451,7 @@ contract PaymentEscrowTest is Test {
         );
         vm.stopPrank();
     }
+
 
     // Release Payments
     function testCannotReleaseWithNoApprovals() public {
@@ -766,6 +772,7 @@ contract PaymentEscrowTest is Test {
         uint256 finalEscrowBalance = address(escrow).balance;
         assertEq(finalEscrowBalance, 0);
     }
+
 
     // Refund Tests
     function _refundTest(
@@ -1101,6 +1108,7 @@ contract PaymentEscrowTest is Test {
         assertFalse(payment.released);      
     }
 
+
     // Fee Amounts
     function testFeesAreCalculatedCorrectly() public {
         uint256 feeBps = 200; // 2%
@@ -1242,6 +1250,7 @@ contract PaymentEscrowTest is Test {
         assertEq(_getBalance(receiver1, true), receiverInitialAmount + amount);
     }
 
+
     // Edge Cases
     function testPayerAndReceiverAreSame() public {
         uint256 initialPayerBalance = _getBalance(payer1, true);
@@ -1379,7 +1388,6 @@ contract PaymentEscrowTest is Test {
 
 
     // Invalid Payment tests
-
     function testCannotPlacePaymentWithZeroAmount() public {
         bytes32 paymentId = keccak256("zero-amount-payment");
 
@@ -1532,6 +1540,7 @@ contract PaymentEscrowTest is Test {
         escrow.releaseEscrow(paymentId);
     }
 
+
     // Pausability Tests 
     function testContractCanBePausedByAuthorizedAccount() public {
         assertFalse(escrow.paused());
@@ -1622,6 +1631,7 @@ contract PaymentEscrowTest is Test {
         escrow.releaseEscrow(paymentId);
     }
 
+
     // Auto Release Test
     function testAutoReleaseFlagTrueBehavior() public {
 
@@ -1700,6 +1710,266 @@ contract PaymentEscrowTest is Test {
 
     }
 
+
+    // Admin Permissions Tests 
+    function testCanAppointAdminRefunder() public {
+        //no permissions
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), 0);
+        assertFalse(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_REFUND));
+        assertFalse(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_RELEASE));
+
+        //grant permissions
+        vm.prank(receiver1);
+        escrow.grantAdminPermission(receiver2, ADMIN_PERMISSION_REFUND);
+
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), ADMIN_PERMISSION_REFUND);
+        assertTrue(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_REFUND));
+        assertFalse(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_RELEASE));
+    }
+
+    function testCanAppointAdminReleaser() public {
+        //no permissions
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), 0);
+        assertFalse(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_REFUND));
+        assertFalse(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_RELEASE));
+
+        //grant permissions
+        vm.prank(receiver1);
+        escrow.grantAdminPermission(receiver2, 2);
+
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), ADMIN_PERMISSION_RELEASE);
+        assertTrue(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_RELEASE));
+        assertFalse(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_REFUND));
+    }
+
+    function testCanAppointAdminReleaserAndRefunder() public {
+        //no permissions
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), 0);
+        assertFalse(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_REFUND));
+        assertFalse(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_RELEASE));
+
+        //grant permissions
+        vm.prank(receiver1);
+        escrow.grantAdminPermission(receiver2, uint8(1) | uint8(2));
+
+        assertEq(escrow.appointedAdmins(receiver1, receiver2), ADMIN_PERMISSION_REFUND | ADMIN_PERMISSION_RELEASE);
+        assertTrue(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_REFUND));
+        assertTrue(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_RELEASE));
+    }
+
+    function testCanRevokeReleasePermission() public {
+        uint256 initialContractBalance = _getBalance(address(escrow), true);
+        uint256 initialReceiverBalance = _getBalance(receiver1, true);
+        uint256 amount = 10_000_000;
+        address releaser = receiver2;
+
+        bytes32 paymentId = keccak256("0x01");
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        //first grant all permissions
+        vm.prank(receiver1);
+        escrow.grantAdminPermission(releaser, 1 | 2);
+
+        //test that releaser now CAN release escrow
+        vm.prank(releaser);
+        escrow.releaseEscrow(paymentId);
+        
+        //a new payment
+        paymentId = keccak256("0x02");
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        //revoke release permission
+        vm.prank(receiver1);
+        escrow.revokeAdminPermission(releaser, 2);
+
+        assertTrue(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_REFUND));
+        assertFalse(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_RELEASE));
+
+        //this should revert because release permission has been revoked
+        vm.startPrank(releaser);
+        vm.expectRevert("Unauthorized");
+        escrow.releaseEscrow(paymentId);
+        vm.stopPrank();
+    }
+
+    function testCanRevokeRefundPermission() public {
+        uint256 amount = 1_000_000;
+        uint256 refundAmount = 100;
+        address refunder = receiver2;
+
+        uint256 initialContractBalance = _getBalance(address(escrow), true);
+        uint256 initialPayerBalance = _getBalance(payer1, true);
+
+        bytes32 paymentId = keccak256("0x01");
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        //first grant all permissions
+        vm.prank(receiver1);
+        escrow.grantAdminPermission(refunder, ADMIN_PERMISSION_REFUND | ADMIN_PERMISSION_RELEASE);
+
+        //let the refunder try to refund with permission
+        vm.prank(refunder);
+        escrow.refundPayment(paymentId, refundAmount);
+
+        //now revoke release permission
+        escrow.revokeAdminPermission(refunder, ADMIN_PERMISSION_RELEASE);
+
+        //should still be allowed to refund
+        vm.prank(refunder);
+        escrow.refundPayment(paymentId, refundAmount);
+
+        //now revoke refund permission
+        vm.startPrank(receiver1);
+        escrow.grantAdminPermission(refunder, ADMIN_PERMISSION_RELEASE);
+        escrow.revokeAdminPermission(refunder, ADMIN_PERMISSION_REFUND);
+        vm.stopPrank();
+
+        assertFalse(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_REFUND));
+        assertTrue(escrow.hasAdminPermission(receiver1, receiver2, ADMIN_PERMISSION_RELEASE));
+
+        //let the refunder try to refund with the revoked permission
+        vm.startPrank(refunder);
+        vm.expectRevert("Unauthorized");
+        escrow.refundPayment(paymentId, refundAmount);
+        vm.stopPrank();
+    }
+
+    function testAppointedAdminCanRelease() public {
+        uint256 initialContractBalance = _getBalance(address(escrow), true);
+        uint256 initialReceiverBalance = _getBalance(receiver1, true);
+        uint256 amount = 10_000_000;
+        address releaser = receiver2;
+
+        bytes32 paymentId = keccak256("0x01");
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        uint256 newContractBalance = _getBalance(address(escrow), true);
+        uint256 newReceiverBalance = _getBalance(receiver1, true);
+        assertEq(newContractBalance, initialContractBalance + amount);
+        assertEq(newReceiverBalance, initialReceiverBalance);
+
+        //appoint admin to release
+        vm.prank(receiver1);
+        escrow.grantAdminPermission(releaser, uint8(2));
+        assertTrue(escrow.hasAdminPermission(receiver1, releaser, uint8(2)));
+
+        //let buyer & releaser release
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+        vm.prank(releaser);
+        escrow.releaseEscrow(paymentId);
+
+        Payment memory payment = _getPayment(paymentId);
+        _verifyPayment(payment, Payment({
+            id: paymentId,
+            payer: payer1,
+            receiver: receiver1,
+            amount: amount,
+            amountRefunded: 0,
+            payerReleased: true,
+            receiverReleased: true,
+            released: true,
+            currency: address(testToken)
+        }));
+
+        uint256 finalContractBalance = _getBalance(address(escrow), true);
+        uint256 finalReceiverBalance = _getBalance(receiver1, true);
+        assertEq(finalContractBalance, newContractBalance - amount);
+        assertEq(finalReceiverBalance, newReceiverBalance + amount);
+    }
+
+    function testAppointedAdminCanRefund() public {
+        uint256 amount = 1_000_000;
+        uint256 refundAmount = 100;
+        address refunder = receiver2;
+
+        uint256 initialContractBalance = _getBalance(address(escrow), true);
+        uint256 initialPayerBalance = _getBalance(payer1, true);
+
+        bytes32 paymentId = keccak256("0x01");
+        _placePayment(paymentId, payer1, receiver2, amount, true);
+
+        //appoint an admin 
+        vm.prank(receiver1);
+        escrow.grantAdminPermission(receiver2, ADMIN_PERMISSION_REFUND);
+
+        //let the refunder try to refund
+        vm.prank(refunder);
+        escrow.refundPayment(paymentId, refundAmount);
+
+        //verify the refund
+        Payment memory payment = _getPayment(paymentId);
+        assertEq(payment.amountRefunded, refundAmount);
+        assertEq(payment.amount, amount);
+
+        uint256 finalContractBalance = _getBalance(address(escrow), true);
+        uint256 finalPayerBalance = _getBalance(payer1, true);
+
+        assertEq(finalContractBalance, initialContractBalance + (amount - refundAmount));
+        assertEq(finalPayerBalance, initialPayerBalance - (amount - refundAmount));
+    }
+
+    function testWrongAppointedAdminCannotRelease() public {
+        uint256 initialContractBalance = _getBalance(address(escrow), true);
+        uint256 initialReceiverBalance = _getBalance(receiver1, true);
+        uint256 amount = 10_000_000;
+        address releaser = receiver2;
+
+        bytes32 paymentId = keccak256("0x01");
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        uint256 newContractBalance = _getBalance(address(escrow), true);
+        uint256 newReceiverBalance = _getBalance(receiver1, true);
+        assertEq(newContractBalance, initialContractBalance + amount);
+        assertEq(newReceiverBalance, initialReceiverBalance);
+
+        //let buyer release
+        vm.prank(payer1);
+        escrow.releaseEscrow(paymentId);
+
+        //this should revert, non-appointed admin
+        vm.startPrank(releaser);
+        vm.expectRevert("Unauthorized");
+        escrow.releaseEscrow(paymentId);
+        vm.stopPrank();
+
+        //appoint admin to release
+        vm.prank(receiver1);
+        escrow.grantAdminPermission(releaser, ADMIN_PERMISSION_REFUND);
+
+        //this should revert, wrong-appointed admin
+        vm.startPrank(releaser);
+        vm.expectRevert("Unauthorized");
+        escrow.releaseEscrow(paymentId);
+        vm.stopPrank();
+    }
+
+    function testWrongAppointedAdminCannotRefund() public {
+        uint256 amount = 1_000_000;
+        uint256 refundAmount = 100;
+        address refunder = receiver2;
+
+        uint256 initialContractBalance = _getBalance(address(escrow), true);
+        uint256 initialPayerBalance = _getBalance(payer1, true);
+
+        bytes32 paymentId = keccak256("0x01");
+        _placePayment(paymentId, payer1, receiver1, amount, true);
+
+        //let the refunder try to refund without permission
+        vm.startPrank(refunder);
+        vm.expectRevert("Unauthorized");
+        escrow.refundPayment(paymentId, refundAmount);
+        vm.stopPrank();
+
+        //let the refunder try to refund with the wrong permission
+        vm.prank(receiver1);
+        escrow.grantAdminPermission(receiver2, ADMIN_PERMISSION_RELEASE);
+
+        vm.startPrank(refunder);
+        vm.expectRevert("Unauthorized");
+        escrow.refundPayment(paymentId, refundAmount);
+        vm.stopPrank();
+    }
 
 
     // Event Tests
