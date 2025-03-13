@@ -82,7 +82,7 @@ contract PaymentEscrow is PaymentEscrowAdmins, HasSecurityContext, IEscrowContra
      * @notice Constructor.
      * @param securityContext Contract which will define & manage secure access for this contract.
      * @param settings_ Address of contract that holds system settings.
-     * @param autoRelease Determines whether new payments automatically have the receiver’s assent.
+     * @param autoRelease Determines whether new payments automatically have the receiver's assent.
      * @param _purchaseTracker Address of the PurchaseTracker singleton.
      */
     constructor(
@@ -317,7 +317,7 @@ contract PaymentEscrow is PaymentEscrowAdmins, HasSecurityContext, IEscrowContra
                 emit EscrowReleased(paymentId, amountToPay, fee);
 
                 if (address(purchaseTracker) != address(0)) {
-                    purchaseTracker.recordPurchase(paymentId, payment.receiver, payment.payer, amountToPay);
+                    purchaseTracker.recordPurchase(paymentId, payment.receiver, payment.payer, amountToPay, payment.currency);
                 }
             }
         }
