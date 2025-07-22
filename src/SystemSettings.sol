@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "./security/HasSecurityContext.sol";
-import "./security/Roles.sol";
-import "./ISystemSettings.sol";
+import "./HasSecurityContext.sol";
+import "./interfaces/ISystemSettings.sol";
+import "./Roles.sol";
 
 /**
  * @title SystemSettings
@@ -62,12 +62,12 @@ contract SystemSettings is HasSecurityContext, ISystemSettings {
      * - {VaultAddressChanged}
      *
      * Reverts:
-     * - 'UnauthorizedAccess' if caller is not authorized as DAO_ROLE.
+     * - 'UnauthorizedAccess' if caller is not authorized as SYSTEM_ROLE.
      * - 'InvalidValue' if the given address is invalid (zero address).
      *
      * @param vaultAddress_ The new address.
      */
-    function setVaultAddress(address vaultAddress_) public onlyRole(Roles.DAO_ROLE) {
+    function setVaultAddress(address vaultAddress_) public onlyRole(Roles.SYSTEM_ROLE) {
         if (_vaultAddress != vaultAddress_) {
             if (vaultAddress_ == address(0)) {
                 revert("InvalidValue");
@@ -84,11 +84,11 @@ contract SystemSettings is HasSecurityContext, ISystemSettings {
      * - {FeeBpsChanged}
      *
      * Reverts:
-     * - 'UnauthorizedAccess' if caller is not authorized as DAO_ROLE.
+     * - 'UnauthorizedAccess' if caller is not authorized as SYSTEM_ROLE.
      *
      * @param feeBps_ The new value for fee in basis points.
      */
-    function setFeeBps(uint256 feeBps_) public onlyRole(Roles.DAO_ROLE) {
+    function setFeeBps(uint256 feeBps_) public onlyRole(Roles.SYSTEM_ROLE) {
         if (_feeBps != feeBps_) {
             _feeBps = feeBps_;
             emit FeeBpsChanged(_feeBps, msg.sender);

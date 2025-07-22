@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "./IHatsSecurityContext.sol";
-import "@hats-protocol/Hats.sol";
+import "./interfaces/ISecurityContext.sol";
 import "./Roles.sol";
 
 /**
@@ -25,7 +24,11 @@ abstract contract HasSecurityContext {
         _;
     }
 
-    function setSecurityContext(ISecurityContext _securityContext) external onlyRole(Roles.ADMIN_ROLE) {
+    function getSecurityContext() external virtual view returns (ISecurityContext) {
+        return securityContext;
+    }
+
+    function setSecurityContext(ISecurityContext _securityContext) external virtual onlyRole(Roles.ADMIN_ROLE) {
         _setSecurityContext(_securityContext);
     }
 
@@ -35,7 +38,9 @@ abstract contract HasSecurityContext {
         if (!initialized) {
             initialized = true;
         } else {
-            require(_securityContext.hasRole(Roles.ADMIN_ROLE, msg.sender), "Caller is not admin");
+            if (!_securityContext.hasRole(Roles.ADMIN_ROLE, msg.sender)) {
+                revert("Caller is not admin");
+            }
         }
 
         if (securityContext != _securityContext) {

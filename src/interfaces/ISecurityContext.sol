@@ -10,7 +10,7 @@ pragma solidity ^0.8.20;
  * See also { SecurityContext }
  * 
  * @author John R. Kosinski
- * LoadPipe 2024
+ * Ulfberht 2024
  * All rights reserved. Unauthorized use prohibited.
  */
 interface ISecurityContext  {
