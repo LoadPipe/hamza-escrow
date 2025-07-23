@@ -7,7 +7,7 @@ pragma solidity ^0.8.20;
  * Holds global settings, to be set only by privileged parties, for all escrow contracts to read.
  * 
  * @author John R. Kosinski
- * Ulfberht 2024
+ * Hamza Labs Ltd 2024
  * All rights reserved. Unauthorized use prohibited.
  */
 interface ISystemSettings {

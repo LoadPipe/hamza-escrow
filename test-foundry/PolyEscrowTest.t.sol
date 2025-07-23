@@ -88,7 +88,7 @@ contract PaymentEscrowTest is Test {
         testPaymentId = keccak256("test-payment");
     }
 
-    //Test that can deploy contract
+    //Test can deploy contract
 
     //Test that security context is as we set it 
 
