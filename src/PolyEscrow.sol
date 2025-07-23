@@ -130,6 +130,11 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
 
         escrows[input.id] = escrow;
 
+        //add placeholders for arbiter assent
+        for(uint8 n=0; n< escrow.arbiters.length; n++) {
+            escrows[input.id].arbiterAssent.push(false);
+        }
+
         //EVENT: emit event escrow created
         emit EscrowCreated(input.id);
     }
@@ -217,7 +222,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         Escrow storage escrow = escrows[escrowId];
 
         if (msg.sender != escrow.receiver && 
-            msg.sender != escrow.payer)
+            msg.sender != escrow.payer && !_isArbiter(escrowId, msg.sender))
         {
             revert("Unauthorized");
         }
