@@ -296,13 +296,14 @@ describe('PolyEscrow', function () {
                     arbiters,
                     arbitersRequired
                 );
+
                 verifyEscrow(escrow, {
                     id: escrowId,
                     payer: payer1.address,
                     receiver: receiver1.address,
                     arbiters,
-                    arbiterAssent: [],
-                    arbitersRequired,
+                    arbiterAssent: [false, false],
+                    arbitersRequired: arbitersRequired,
                     amount,
                     currency: ethers.ZeroAddress,
                     amountPaid: 0,
@@ -1215,7 +1216,7 @@ describe('PolyEscrow', function () {
                 );
             });
 
-            it.only('arbiter can release a payment on behalf of payer', async function () {
+            it('arbiter can release a payment on behalf of payer', async function () {
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
                     false
@@ -1306,7 +1307,7 @@ describe('PolyEscrow', function () {
             });
         });
 
-        describe.skip('Exceptions', function () {
+        describe('Exceptions', function () {
             it('cannot release a payment with no approvals', async function () {
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
@@ -1324,8 +1325,14 @@ describe('PolyEscrow', function () {
                     true
                 );
 
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, true);
+
                 //check the balance
-                const newContractBalance = await getBalance(polyEscrow.target);
+                const newContractBalance = await getBalance(
+                    polyEscrow.target,
+                    true
+                );
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
                 );
@@ -1333,38 +1340,34 @@ describe('PolyEscrow', function () {
                 //try to release the payment
                 await expect(
                     polyEscrow.connect(arbiter1).releaseEscrow(escrowId)
-                ).to.not.be.reverted;
-
-                //ensure that nothing has been released
-                const payment = convertEscrow(
-                    await polyEscrow.getEscrow(escrowId)
-                );
-                verifyEscrow(payment, {
-                    id: escrowId,
-                    payer: payer1.address,
-                    receiver: receiver1.address,
-                });
-
-                //check the balance
-                const finalContractBalance = await getBalance(
-                    polyEscrow.target,
-                    true
-                );
-                expect(finalContractBalance).to.equal(newContractBalance);
+                ).to.be.revertedWith('Unauthorized');
             });
 
             it('cannot release a payment with only payer approval', async function () {
                 const initialContractBalance = await getBalance(
-                    polyEscrow.target
+                    polyEscrow.target,
+                    true
                 );
                 const amount = 10000000;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
-                await createEscrow(escrowId, payer1, receiver1.address, amount);
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    true
+                );
+
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, true);
 
                 //check the balance
-                const newContractBalance = await getBalance(polyEscrow.target);
+                const newContractBalance = await getBalance(
+                    polyEscrow.target,
+                    true
+                );
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
                 );
@@ -1385,28 +1388,42 @@ describe('PolyEscrow', function () {
                     payerReleased: true,
                     receiverReleased: false,
                     released: false,
-                    currency: ethers.ZeroAddress,
+                    currency: testToken.target,
                 });
 
                 //check the balance
                 const finalContractBalance = await getBalance(
-                    polyEscrow.target
+                    polyEscrow.target,
+                    true
                 );
                 expect(finalContractBalance).to.equal(newContractBalance);
             });
 
             it('cannot release a payment with only receiver approval', async function () {
                 const initialContractBalance = await getBalance(
-                    polyEscrow.target
+                    polyEscrow.target,
+                    true
                 );
                 const amount = 10000000;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
-                await createEscrow(escrowId, payer1, receiver1.address, amount);
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    true
+                );
+
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, true);
 
                 //check the balance
-                const newContractBalance = await getBalance(polyEscrow.target);
+                const newContractBalance = await getBalance(
+                    polyEscrow.target,
+                    true
+                );
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
                 );
@@ -1427,12 +1444,13 @@ describe('PolyEscrow', function () {
                     payerReleased: false,
                     receiverReleased: true,
                     released: false,
-                    currency: ethers.ZeroAddress,
+                    currency: testToken.target,
                 });
 
                 //check the balance
                 const finalContractBalance = await getBalance(
-                    polyEscrow.target
+                    polyEscrow.target,
+                    true
                 );
                 expect(finalContractBalance).to.equal(newContractBalance);
             });
@@ -1454,8 +1472,14 @@ describe('PolyEscrow', function () {
                     true
                 );
 
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, true);
+
                 //check the balance
-                const newContractBalance = await getBalance(polyEscrow.target);
+                const newContractBalance = await getBalance(
+                    polyEscrow.target,
+                    true
+                );
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
                 );
@@ -1509,6 +1533,9 @@ describe('PolyEscrow', function () {
                     amount,
                     true
                 );
+
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, true);
 
                 //check the balance
                 const newContractBalance = await getBalance(
@@ -1569,7 +1596,7 @@ describe('PolyEscrow', function () {
         describe.skip('Events', function () {});
     });
 
-    describe.skip('Refund Payments', function () {
+    describe('Refund Payments', function () {
         async function refundTest(
             amount: number,
             refundAmount: number,
@@ -1627,7 +1654,7 @@ describe('PolyEscrow', function () {
         }
 
         describe('Happy Paths', function () {
-            it('arbiter can cause a partial refund', async function () {
+            it.skip('arbiter can cause a partial refund', async function () {
                 const amount = 1000000;
                 await refundTest(
                     amount,
@@ -1638,7 +1665,7 @@ describe('PolyEscrow', function () {
                 );
             });
 
-            it('receiver can cause a partial refund', async function () {
+            it.skip('receiver can cause a partial refund', async function () {
                 const amount = 1000000;
                 await refundTest(
                     amount,
@@ -1649,17 +1676,17 @@ describe('PolyEscrow', function () {
                 );
             });
 
-            it('arbiter can cause a full refund', async function () {
+            it.skip('arbiter can cause a full refund', async function () {
                 const amount = 1000000;
                 await refundTest(amount, amount, payer1, receiver1, arbiter1);
             });
 
-            it('receiver can cause a full refund', async function () {
+            it.skip('receiver can cause a full refund', async function () {
                 const amount = 1000000;
                 await refundTest(amount, amount, payer1, receiver1, receiver1);
             });
 
-            it('can do multiple partial refunds', async function () {
+            it.skip('can do multiple partial refunds', async function () {
                 const amount = 1000000;
                 const refundAmount = amount / 5;
                 const initialContractBalance = await getBalance(
@@ -1711,7 +1738,7 @@ describe('PolyEscrow', function () {
             });
         });
 
-        describe('Exceptions', function () {
+        describe.skip('Exceptions', function () {
             it('not possible to refund a payment to which one is not a party', async function () {
                 const amount = 100000000;
 
@@ -1797,7 +1824,7 @@ describe('PolyEscrow', function () {
             });
         });
 
-        describe('Events', function () {});
+        describe.skip('Events', function () {});
     });
 
     describe.skip('Fee Amounts', function () {
