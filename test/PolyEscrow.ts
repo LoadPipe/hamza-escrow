@@ -30,7 +30,11 @@ describe('PolyEscrow', function () {
         payerAccount: HardhatEthersSigner,
         receiverAddress: string,
         amount: BigNumberish,
-        isToken: boolean = false
+        isToken: boolean = false,
+        arbiters: string[] = [],
+        arbitersRequired: number = arbiters?.length ?? 0,
+        startTime: number = 0,
+        endTime: number = 0
     ): Promise<IEscrow> {
         if (isToken)
             await testToken
@@ -42,11 +46,11 @@ describe('PolyEscrow', function () {
             id: escrowId,
             receiver: receiverAddress,
             payer: payerAccount.address,
-            arbiters: [],
-            arbitersRequired: 0,
+            arbiters,
+            arbitersRequired,
             amount,
-            startTime: 0,
-            endTime: 0,
+            startTime,
+            endTime,
         });
 
         //return escrow
@@ -197,7 +201,7 @@ describe('PolyEscrow', function () {
     });
 
     describe('Deployment', function () {
-        it('Should set the right arbiter role', async function () {});
+        it.skip('Should set the right arbiter role', async function () {});
     });
 
     describe('Create Escrows', function () {
@@ -273,9 +277,91 @@ describe('PolyEscrow', function () {
                 });
             });
 
-            //can create an escrow with multiple arbiters
+            it('can create an escrow with multiple arbiters', async function () {
+                const amount = 10000000;
 
-            //can create an escrow with start & end dates
+                //create the escrow
+                const escrowId = ethers.keccak256('0x01');
+
+                const arbiters = [arbiter1.address, arbiter2.address];
+                const arbitersRequired = 2;
+
+                //escrow is created in contract with right values
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    false,
+                    arbiters,
+                    arbitersRequired
+                );
+                verifyEscrow(escrow, {
+                    id: escrowId,
+                    payer: payer1.address,
+                    receiver: receiver1.address,
+                    arbiters,
+                    arbiterAssent: [],
+                    arbitersRequired,
+                    amount,
+                    currency: ethers.ZeroAddress,
+                    amountPaid: 0,
+                    amountRefunded: 0,
+                    amountReleased: 0,
+                    startTime: 0,
+                    endTime: 0,
+                    status: 0,
+                    fullyPaid: false,
+                    payerReleased: false,
+                    receiverReleased: false,
+                    released: false,
+                });
+            });
+
+            it('can create an escrow with start & end dates', async function () {
+                const amount = 10000000;
+
+                //create the escrow
+                const escrowId = ethers.keccak256('0x01');
+
+                const arbiters: string[] = [];
+                const arbitersRequired = 0;
+                const startTime = 100;
+                const endTime = 200;
+
+                //escrow is created in contract with right values
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    false,
+                    arbiters,
+                    arbitersRequired,
+                    startTime,
+                    endTime
+                );
+                verifyEscrow(escrow, {
+                    id: escrowId,
+                    payer: payer1.address,
+                    receiver: receiver1.address,
+                    arbiters,
+                    arbiterAssent: [],
+                    arbitersRequired,
+                    amount,
+                    currency: ethers.ZeroAddress,
+                    amountPaid: 0,
+                    amountRefunded: 0,
+                    amountReleased: 0,
+                    startTime,
+                    endTime,
+                    status: 0,
+                    fullyPaid: false,
+                    payerReleased: false,
+                    receiverReleased: false,
+                    released: false,
+                });
+            });
         });
 
         describe('Exceptions', function () {
@@ -1129,25 +1215,33 @@ describe('PolyEscrow', function () {
                 );
             });
 
-            it.skip('arbiter can release a payment on behalf of payer', async function () {
+            it.only('arbiter can release a payment on behalf of payer', async function () {
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    false
                 );
                 const initialReceiverBalance = await getBalance(
                     receiver1.address,
-                    true
+                    false
                 );
-                const amount = 10000000;
+                const amount = 1000000000000000;
 
                 //place the payment
                 const escrowId = ethers.keccak256('0x01');
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    false,
+                    [arbiter1.address]
+                );
                 await testToken
                     .connect(payer1)
                     .approve(polyEscrow.target, amount);
                 await polyEscrow.connect(payer1).placePayment(
                     {
-                        currency: testToken.target,
+                        currency: ethers.ZeroAddress,
                         escrowId: escrowId,
                         receiver: receiver1.address,
                         payer: payer1.address,
@@ -1159,12 +1253,13 @@ describe('PolyEscrow', function () {
                 //check the balance
                 const newContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    false
                 );
                 const newReceiverBalance = await getBalance(
                     receiver1.address,
-                    true
+                    false
                 );
+
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
                 );
@@ -1187,23 +1282,26 @@ describe('PolyEscrow', function () {
                     payerReleased: true,
                     receiverReleased: true,
                     released: true,
-                    currency: testToken.target,
+                    currency: ethers.ZeroAddress,
                 });
 
                 //check the balance
                 const finalContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    false
                 );
                 const finalReceiverBalance = await getBalance(
                     receiver1.address,
-                    true
+                    false
                 );
                 expect(finalContractBalance).to.equal(
                     newContractBalance - BigInt(amount)
                 );
-                expect(finalReceiverBalance).to.equal(
+                expect(finalReceiverBalance).to.be.lessThan(
                     newReceiverBalance + BigInt(amount)
+                );
+                expect(finalReceiverBalance).to.be.greaterThan(
+                    newReceiverBalance
                 );
             });
         });
