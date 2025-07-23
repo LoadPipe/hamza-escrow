@@ -1602,15 +1602,16 @@ describe('PolyEscrow', function () {
             refundAmount: number,
             payerAccount: HardhatEthersSigner,
             receiverAccount: HardhatEthersSigner,
-            refunderAccount: HardhatEthersSigner
+            refunderAccount: HardhatEthersSigner,
+            isToken: boolean = false
         ): Promise<string> {
             const initialContractBalance = await getBalance(
                 polyEscrow.target,
-                true
+                isToken
             );
             const initialPayerBalance = await getBalance(
                 payerAccount.address,
-                true
+                isToken
             );
 
             //create the escrow
@@ -1620,8 +1621,13 @@ describe('PolyEscrow', function () {
                 payerAccount,
                 receiverAccount.address,
                 amount,
-                true
+                isToken,
+                [arbiter1.address],
+                0
             );
+
+            //fully pay the escrow
+            await placePayment(escrowId, payer1, amount, isToken);
 
             //partially refund the payment
             await polyEscrow
@@ -1636,11 +1642,11 @@ describe('PolyEscrow', function () {
             //check the balances
             const finalContractBalance = await getBalance(
                 polyEscrow.target,
-                true
+                isToken
             );
             const finalPayerBalance = await getBalance(
                 payerAccount.address,
-                true
+                isToken
             );
 
             expect(finalContractBalance).to.equal(
@@ -1654,39 +1660,55 @@ describe('PolyEscrow', function () {
         }
 
         describe('Happy Paths', function () {
-            it.skip('arbiter can cause a partial refund', async function () {
+            it('arbiter can cause a partial refund', async function () {
                 const amount = 1000000;
                 await refundTest(
                     amount,
                     amount / 5,
                     payer1,
                     receiver1,
-                    arbiter1
+                    arbiter1,
+                    true
                 );
             });
 
-            it.skip('receiver can cause a partial refund', async function () {
+            it('receiver can cause a partial refund', async function () {
                 const amount = 1000000;
                 await refundTest(
                     amount,
                     amount / 5,
                     payer1,
                     receiver1,
-                    receiver1
+                    receiver1,
+                    true
                 );
             });
 
-            it.skip('arbiter can cause a full refund', async function () {
+            it('arbiter can cause a full refund', async function () {
                 const amount = 1000000;
-                await refundTest(amount, amount, payer1, receiver1, arbiter1);
+                await refundTest(
+                    amount,
+                    amount,
+                    payer1,
+                    receiver1,
+                    arbiter1,
+                    true
+                );
             });
 
-            it.skip('receiver can cause a full refund', async function () {
+            it('receiver can cause a full refund', async function () {
                 const amount = 1000000;
-                await refundTest(amount, amount, payer1, receiver1, receiver1);
+                await refundTest(
+                    amount,
+                    amount,
+                    payer1,
+                    receiver1,
+                    receiver1,
+                    true
+                );
             });
 
-            it.skip('can do multiple partial refunds', async function () {
+            it('can do multiple partial refunds', async function () {
                 const amount = 1000000;
                 const refundAmount = amount / 5;
                 const initialContractBalance = await getBalance(
@@ -1704,7 +1726,8 @@ describe('PolyEscrow', function () {
                     refundAmount,
                     payer1,
                     receiver1,
-                    receiver1
+                    receiver1,
+                    true
                 );
 
                 //partially refund the payment
