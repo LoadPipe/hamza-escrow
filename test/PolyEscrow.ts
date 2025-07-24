@@ -1761,7 +1761,7 @@ describe('PolyEscrow', function () {
             });
         });
 
-        describe.skip('Exceptions', function () {
+        describe('Exceptions', function () {
             it('not possible to refund a payment to which one is not a party', async function () {
                 const amount = 100000000;
 
@@ -1772,13 +1772,22 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    false,
+                    [arbiter1.address]
                 );
+
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, false);
 
                 //attempt to refund non-authorized
                 await expect(
                     polyEscrow.connect(payer1).refundPayment(escrowId, amount)
-                ).to.be.reverted;
+                ).to.be.revertedWith('Unauthorized');
+
+                //attempt to refund non-authorized
+                await expect(
+                    polyEscrow.connect(payer2).refundPayment(escrowId, amount)
+                ).to.be.revertedWith('Unauthorized');
 
                 //attempt to refund authorized
                 await expect(
@@ -1786,7 +1795,7 @@ describe('PolyEscrow', function () {
                 ).to.not.be.reverted;
             });
 
-            it('not possible to refund more than the payment amount', async function () {
+            it.skip('not possible to refund more than the payment amount', async function () {
                 const amount = 100000000;
 
                 //create the escrow
@@ -1812,7 +1821,7 @@ describe('PolyEscrow', function () {
                 ).to.not.be.reverted;
             });
 
-            it('not possible to refund more than the payment amount, using multiple refunds', async function () {
+            it.skip('not possible to refund more than the payment amount, using multiple refunds', async function () {
                 const amount = 100000000;
 
                 //create the escrow
@@ -1847,7 +1856,7 @@ describe('PolyEscrow', function () {
             });
         });
 
-        describe.skip('Events', function () {});
+        describe('Events', function () {});
     });
 
     describe.skip('Fee Amounts', function () {
