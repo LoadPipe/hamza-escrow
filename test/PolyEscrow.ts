@@ -206,8 +206,12 @@ describe('PolyEscrow', function () {
 
     describe('Create Escrows', function () {
         describe('Happy Paths', function () {
+            /**
+             * Just tests that an escrow can be created, and its values read back (native currency)
+             */
             it('can create a new native currency escrow', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -217,7 +221,8 @@ describe('PolyEscrow', function () {
                     escrowId,
                     payer1,
                     receiver1.address,
-                    amount
+                    amount,
+                    isToken
                 );
                 verifyEscrow(escrow, {
                     id: escrowId,
@@ -227,7 +232,7 @@ describe('PolyEscrow', function () {
                     arbiterAssent: [],
                     arbitersRequired: 0,
                     amount,
-                    currency: ethers.ZeroAddress,
+                    currency: isToken ? testToken.target : ethers.ZeroAddress,
                     amountPaid: 0,
                     amountRefunded: 0,
                     amountReleased: 0,
@@ -241,8 +246,12 @@ describe('PolyEscrow', function () {
                 });
             });
 
+            /**
+             * Just tests that an escrow can be created, and its values read back (token currency)
+             */
             it('can create a new token currency escrow', async function () {
                 const amount = 10000000;
+                const isToken = true;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -253,7 +262,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
                 verifyEscrow(escrow, {
                     id: escrowId,
@@ -263,7 +272,7 @@ describe('PolyEscrow', function () {
                     arbiterAssent: [],
                     arbitersRequired: 0,
                     amount,
-                    currency: testToken.target,
+                    currency: isToken ? testToken.target : ethers.ZeroAddress,
                     amountPaid: 0,
                     amountRefunded: 0,
                     amountReleased: 0,
@@ -279,6 +288,7 @@ describe('PolyEscrow', function () {
 
             it('can create an escrow with multiple arbiters', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -321,6 +331,7 @@ describe('PolyEscrow', function () {
 
             it('can create an escrow with start & end dates', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -368,6 +379,7 @@ describe('PolyEscrow', function () {
         describe('Exceptions', function () {
             it('cannot create a new escrow with a duplicate id', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create escrows with duplicate payment ids
                 const escrowId = ethers.keccak256('0x01');
@@ -383,6 +395,7 @@ describe('PolyEscrow', function () {
 
             it('cannot create a new escrow with invalid amount', async function () {
                 const amount = 0;
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -393,6 +406,7 @@ describe('PolyEscrow', function () {
 
             it.skip('cannot create a new escrow with invalid ERC20', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -414,6 +428,7 @@ describe('PolyEscrow', function () {
 
             it('cannot create a new escrow with invalid payer address', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -435,6 +450,7 @@ describe('PolyEscrow', function () {
 
             it('cannot create a new escrow with invalid receiver address', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -456,6 +472,7 @@ describe('PolyEscrow', function () {
 
             it('cannot create a new escrow with more than the max number of arbiters', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -490,6 +507,7 @@ describe('PolyEscrow', function () {
 
             it('cannot create a new escrow with an invalid arbiter address', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -515,6 +533,7 @@ describe('PolyEscrow', function () {
 
             it('cannot create a new escrow with the payer as arbiter', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -536,6 +555,7 @@ describe('PolyEscrow', function () {
 
             it('cannot create a new escrow with the receiver as arbiter', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -557,6 +577,7 @@ describe('PolyEscrow', function () {
 
             it('cannot create escrow where payer & receiver are the same', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -580,6 +601,7 @@ describe('PolyEscrow', function () {
         describe('Events', function () {
             it('emits EscrowCreated', async function () {
                 const amount = BigInt(10000000);
+                const isToken = false;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -608,10 +630,15 @@ describe('PolyEscrow', function () {
         //TODO: verify appropriate escrow properties in each happy path case
         describe('Happy Paths', function () {
             it('can place a single native payment', async function () {
+                const isToken = false;
                 const initialContractBalance = await getBalance(
-                    polyEscrow.target
+                    polyEscrow.target,
+                    isToken
                 );
-                const initialPayerBalance = await getBalance(payer1.address);
+                const initialPayerBalance = await getBalance(
+                    payer1.address,
+                    isToken
+                );
                 const amount = BigInt(10000000);
 
                 //create escrow
@@ -629,8 +656,14 @@ describe('PolyEscrow', function () {
                 expect(escrow.amountPaid).to.equal(amount);
                 expect(escrow.fullyPaid).to.equal(true);
 
-                const newContractBalance = await getBalance(polyEscrow.target);
-                const newPayerBalance = await getBalance(payer1.address);
+                const newContractBalance = await getBalance(
+                    polyEscrow.target,
+                    isToken
+                );
+                const newPayerBalance = await getBalance(
+                    payer1.address,
+                    isToken
+                );
 
                 expect(newContractBalance).to.equal(
                     initialContractBalance + amount
@@ -641,13 +674,14 @@ describe('PolyEscrow', function () {
             });
 
             it('can place a single token payment', async function () {
+                const isToken = true;
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 const initialPayerBalance = await getBalance(
                     payer1.address,
-                    true
+                    isToken
                 );
                 const amount = BigInt(10000000);
 
@@ -669,9 +703,12 @@ describe('PolyEscrow', function () {
 
                 const newContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
-                const newPayerBalance = await getBalance(payer1.address, true);
+                const newPayerBalance = await getBalance(
+                    payer1.address,
+                    isToken
+                );
 
                 expect(newContractBalance).to.equal(
                     initialContractBalance + amount
@@ -683,6 +720,7 @@ describe('PolyEscrow', function () {
                 const amount1 = 10000000;
                 const amount2 = 20000000;
                 const amount3 = 30000000;
+                const isToken = true;
 
                 const escrowId1 = ethers.keccak256('0x01');
                 const escrowId2 = ethers.keccak256('0x02');
@@ -694,37 +732,37 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount1,
-                    true
+                    isToken
                 );
                 await createEscrow(
                     escrowId2,
                     payer1,
                     receiver1.address,
                     amount2,
-                    true
+                    isToken
                 );
                 await createEscrow(
                     escrowId3,
                     payer2,
                     receiver1.address,
                     amount3,
-                    true
+                    isToken
                 );
 
                 //pass 2 payments
-                await placePayment(escrowId1, payer1, amount1, true);
-                await placePayment(escrowId2, payer1, amount2, true);
+                await placePayment(escrowId1, payer1, amount1, isToken);
+                await placePayment(escrowId2, payer1, amount2, isToken);
 
                 //check balance accrual
-                expect(await getBalance(polyEscrow.target, true)).to.equal(
+                expect(await getBalance(polyEscrow.target, isToken)).to.equal(
                     amount1 + amount2
                 );
 
                 //pass another payment
-                await placePayment(escrowId3, payer2, amount3, true);
+                await placePayment(escrowId3, payer2, amount3, isToken);
 
                 //check balance accrual
-                expect(await getBalance(polyEscrow.target, true)).to.equal(
+                expect(await getBalance(polyEscrow.target, isToken)).to.equal(
                     amount1 + amount2 + amount3
                 );
             });
@@ -733,6 +771,7 @@ describe('PolyEscrow', function () {
                 const amount1 = 10000000;
                 const amount2 = 20000000;
                 const amount3 = 30000000;
+                const isToken = false;
 
                 const escrowId1 = ethers.keccak256('0x01');
                 const escrowId2 = ethers.keccak256('0x02');
@@ -743,35 +782,38 @@ describe('PolyEscrow', function () {
                     escrowId1,
                     payer1,
                     receiver1.address,
-                    amount1
+                    amount1,
+                    isToken
                 );
                 await createEscrow(
                     escrowId2,
                     payer1,
                     receiver1.address,
-                    amount2
+                    amount2,
+                    isToken
                 );
                 await createEscrow(
                     escrowId3,
                     payer2,
                     receiver1.address,
-                    amount3
+                    amount3,
+                    isToken
                 );
 
                 //pass 2 payments
-                await placePayment(escrowId1, payer1, amount1);
-                await placePayment(escrowId2, payer1, amount2);
+                await placePayment(escrowId1, payer1, amount1, isToken);
+                await placePayment(escrowId2, payer1, amount2, isToken);
 
                 //check balance accrual
-                expect(await getBalance(polyEscrow.target)).to.equal(
+                expect(await getBalance(polyEscrow.target, isToken)).to.equal(
                     amount1 + amount2
                 );
 
                 //pass another payment
-                await placePayment(escrowId3, payer2, amount3);
+                await placePayment(escrowId3, payer2, amount3, isToken);
 
                 //check balance accrual
-                expect(await getBalance(polyEscrow.target)).to.equal(
+                expect(await getBalance(polyEscrow.target, isToken)).to.equal(
                     amount1 + amount2 + amount3
                 );
             });
@@ -781,6 +823,7 @@ describe('PolyEscrow', function () {
         describe('Exceptions', function () {
             it('cannot place payment to nonexistent escrow', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -799,11 +842,18 @@ describe('PolyEscrow', function () {
 
             it('cannot place payment without correct native amount', async function () {
                 const amount = 10000000;
+                const isToken = false;
 
                 //place the payment with less than required amount
                 const escrowId = ethers.keccak256('0x01');
 
-                await createEscrow(escrowId, payer1, receiver1.address, amount);
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken
+                );
 
                 await expect(
                     polyEscrow.connect(payer1).placePayment(
@@ -819,6 +869,7 @@ describe('PolyEscrow', function () {
 
             it('cannot place payment without correct token amount approved', async function () {
                 const amount = 10000000;
+                const isToken = true;
 
                 //place the payment with less than required amount
                 const escrowId = ethers.keccak256('0x01');
@@ -828,7 +879,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 await testToken
@@ -845,6 +896,7 @@ describe('PolyEscrow', function () {
 
             it('cannot place payment without correct token amount in balance', async function () {
                 const amount = 10000000;
+                const isToken = true;
 
                 //give all tokens away
                 await testToken
@@ -862,7 +914,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 await testToken
@@ -879,6 +931,7 @@ describe('PolyEscrow', function () {
 
             it('cannot place payment with the wrong currency', async function () {
                 const amount = 10000000;
+                const isToken = true;
                 const invalidTokenCurrency =
                     '0x0000000000000000000000000000000000000022';
 
@@ -889,7 +942,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //place the payment with less than required amount
@@ -914,17 +967,24 @@ describe('PolyEscrow', function () {
         describe('Events', function () {
             it('emits EscrowFullyPaid for native payment', async function () {
                 const amount = BigInt(10000000);
+                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
-                await createEscrow(escrowId, payer1, receiver1.address, amount);
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken
+                );
 
                 //place a payment
                 await expect(
                     polyEscrow.connect(payer1).placePayment(
                         {
                             escrowId: escrowId,
-                            currency: ethers.ZeroAddress,
+                            currency: ethers.ZeroAddress, //TODO: this is wrong; why does it pass?
                             amount,
                         },
                         { value: amount }
@@ -936,31 +996,7 @@ describe('PolyEscrow', function () {
 
             it('emits EscrowFullyPaid for token payment', async function () {
                 const amount = BigInt(10000000);
-
-                //create escrow
-                const escrowId = ethers.keccak256('0x01');
-                await createEscrow(escrowId, payer1, receiver1.address, amount);
-
-                //place a payment
-                await testToken
-                    .connect(payer1)
-                    .approve(polyEscrow.target, amount);
-                await expect(
-                    polyEscrow.connect(payer1).placePayment(
-                        {
-                            escrowId: escrowId,
-                            currency: ethers.ZeroAddress,
-                            amount,
-                        },
-                        { value: amount }
-                    )
-                )
-                    .to.emit(polyEscrow, 'EscrowFullyPaid')
-                    .withArgs(escrowId, amount);
-            });
-
-            it('does not emit EscrowFullyPaid for partial payment', async function () {
-                const amount = BigInt(10000000);
+                const isToken = true;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -969,7 +1005,36 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
+                );
+
+                //place a payment
+                await testToken
+                    .connect(payer1)
+                    .approve(polyEscrow.target, amount);
+                await expect(
+                    polyEscrow.connect(payer1).placePayment({
+                        escrowId: escrowId,
+                        currency: testToken.target,
+                        amount,
+                    })
+                )
+                    .to.emit(polyEscrow, 'EscrowFullyPaid')
+                    .withArgs(escrowId, amount);
+            });
+
+            it('does not emit EscrowFullyPaid for partial payment', async function () {
+                const amount = BigInt(10000000);
+                const isToken = true;
+
+                //create escrow
+                const escrowId = ethers.keccak256('0x01');
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken
                 );
 
                 //place a payment
@@ -987,11 +1052,18 @@ describe('PolyEscrow', function () {
 
             it('emits PaymentReceived for partial native payment', async function () {
                 const amount = BigInt(10000000);
+                const isToken = false;
                 const partialAmount = amount / BigInt(2);
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
-                await createEscrow(escrowId, payer1, receiver1.address, amount);
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken
+                );
 
                 //place a payment
                 await expect(
@@ -1010,6 +1082,7 @@ describe('PolyEscrow', function () {
 
             it('emits PaymentReceived for partial token payment', async function () {
                 const amount = BigInt(10000000);
+                const isToken = true;
                 const partialAmount = amount / BigInt(2);
 
                 //create escrow
@@ -1019,7 +1092,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //place a payment
@@ -1039,6 +1112,7 @@ describe('PolyEscrow', function () {
 
             it('emits PaymentReceived and EscrowFullyPaid for token payment', async function () {
                 const amount = BigInt(10000000);
+                const isToken = true;
                 const partialAmount = amount / BigInt(2);
 
                 //create escrow
@@ -1048,7 +1122,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //place a payment
@@ -1085,6 +1159,7 @@ describe('PolyEscrow', function () {
     describe('Release Escrows', function () {
         describe('Happy Paths', function () {
             it('can release a native payment with both approvals', async function () {
+                const isToken = false;
                 const initialContractBalance = await getBalance(
                     polyEscrow.target
                 );
@@ -1143,6 +1218,7 @@ describe('PolyEscrow', function () {
             });
 
             it('can release a token payment with both approvals', async function () {
+                const isToken = false;
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
                     true
@@ -1217,13 +1293,14 @@ describe('PolyEscrow', function () {
             });
 
             it('arbiter can release a payment on behalf of payer', async function () {
+                const isToken = false;
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
-                    false
+                    isToken
                 );
                 const initialReceiverBalance = await getBalance(
                     receiver1.address,
-                    false
+                    isToken
                 );
                 const amount = 1000000000000000;
 
@@ -1234,7 +1311,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    false,
+                    isToken,
                     [arbiter1.address]
                 );
                 await testToken
@@ -1254,11 +1331,11 @@ describe('PolyEscrow', function () {
                 //check the balance
                 const newContractBalance = await getBalance(
                     polyEscrow.target,
-                    false
+                    isToken
                 );
                 const newReceiverBalance = await getBalance(
                     receiver1.address,
-                    false
+                    isToken
                 );
 
                 expect(newContractBalance).to.equal(
@@ -1289,11 +1366,11 @@ describe('PolyEscrow', function () {
                 //check the balance
                 const finalContractBalance = await getBalance(
                     polyEscrow.target,
-                    false
+                    isToken
                 );
                 const finalReceiverBalance = await getBalance(
                     receiver1.address,
-                    false
+                    isToken
                 );
                 expect(finalContractBalance).to.equal(
                     newContractBalance - BigInt(amount)
@@ -1314,6 +1391,7 @@ describe('PolyEscrow', function () {
                     true
                 );
                 const amount = 10000000;
+                const isToken = true;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -1322,7 +1400,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //fully pay the escrow
@@ -1331,7 +1409,7 @@ describe('PolyEscrow', function () {
                 //check the balance
                 const newContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
@@ -1349,6 +1427,7 @@ describe('PolyEscrow', function () {
                     true
                 );
                 const amount = 10000000;
+                const isToken = true;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -1357,16 +1436,16 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //fully pay the escrow
-                await placePayment(escrowId, payer1, amount, true);
+                await placePayment(escrowId, payer1, amount, isToken);
 
                 //check the balance
                 const newContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
@@ -1394,7 +1473,7 @@ describe('PolyEscrow', function () {
                 //check the balance
                 const finalContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 expect(finalContractBalance).to.equal(newContractBalance);
             });
@@ -1405,6 +1484,7 @@ describe('PolyEscrow', function () {
                     true
                 );
                 const amount = 10000000;
+                const isToken = true;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -1413,16 +1493,16 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //fully pay the escrow
-                await placePayment(escrowId, payer1, amount, true);
+                await placePayment(escrowId, payer1, amount, isToken);
 
                 //check the balance
                 const newContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
@@ -1450,7 +1530,7 @@ describe('PolyEscrow', function () {
                 //check the balance
                 const finalContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 expect(finalContractBalance).to.equal(newContractBalance);
             });
@@ -1461,6 +1541,7 @@ describe('PolyEscrow', function () {
                     true
                 );
                 const amount = 10000000;
+                const isToken = true;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -1469,16 +1550,16 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //fully pay the escrow
-                await placePayment(escrowId, payer1, amount, true);
+                await placePayment(escrowId, payer1, amount, isToken);
 
                 //check the balance
                 const newContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
@@ -1508,19 +1589,20 @@ describe('PolyEscrow', function () {
                 //check the balance
                 const finalContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 expect(finalContractBalance).to.equal(newContractBalance);
             });
 
             it('not possible to release a payment twice', async function () {
+                const isToken = true;
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 const initialReceiverBalance = await getBalance(
                     receiver1.address,
-                    true
+                    isToken
                 );
                 const amount = 10000000;
 
@@ -1531,20 +1613,20 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //fully pay the escrow
-                await placePayment(escrowId, payer1, amount, true);
+                await placePayment(escrowId, payer1, amount, isToken);
 
                 //check the balance
                 const newContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 const newReceiverBalance = await getBalance(
                     receiver1.address,
-                    true
+                    isToken
                 );
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
@@ -1578,11 +1660,11 @@ describe('PolyEscrow', function () {
                 //check the balance
                 const finalContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 const finalReceiverBalance = await getBalance(
                     receiver1.address,
-                    true
+                    isToken
                 );
                 expect(finalContractBalance).to.equal(
                     newContractBalance - BigInt(amount)
@@ -1662,62 +1744,67 @@ describe('PolyEscrow', function () {
         describe('Happy Paths', function () {
             it('arbiter can cause a partial refund', async function () {
                 const amount = 1000000;
+                const isToken = true;
                 await refundTest(
                     amount,
                     amount / 5,
                     payer1,
                     receiver1,
                     arbiter1,
-                    true
+                    isToken
                 );
             });
 
             it('receiver can cause a partial refund', async function () {
                 const amount = 1000000;
+                const isToken = true;
                 await refundTest(
                     amount,
                     amount / 5,
                     payer1,
                     receiver1,
                     receiver1,
-                    true
+                    isToken
                 );
             });
 
             it('arbiter can cause a full refund', async function () {
                 const amount = 1000000;
+                const isToken = true;
                 await refundTest(
                     amount,
                     amount,
                     payer1,
                     receiver1,
                     arbiter1,
-                    true
+                    isToken
                 );
             });
 
             it('receiver can cause a full refund', async function () {
                 const amount = 1000000;
+                const isToken = true;
                 await refundTest(
                     amount,
                     amount,
                     payer1,
                     receiver1,
                     receiver1,
-                    true
+                    isToken
                 );
             });
 
             it('can do multiple partial refunds', async function () {
                 const amount = 1000000;
+                const isToken = true;
                 const refundAmount = amount / 5;
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 const initialPayerBalance = await getBalance(
                     payer1.address,
-                    true
+                    isToken
                 );
 
                 //initial refund
@@ -1727,7 +1814,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1,
                     receiver1,
-                    true
+                    isToken
                 );
 
                 //partially refund the payment
@@ -1745,11 +1832,11 @@ describe('PolyEscrow', function () {
                 //check the balances
                 const finalContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 const finalPayerBalance = await getBalance(
                     payer1.address,
-                    true
+                    isToken
                 );
 
                 expect(finalContractBalance).to.equal(
@@ -1764,6 +1851,7 @@ describe('PolyEscrow', function () {
         describe('Exceptions', function () {
             it('not possible to refund a payment to which one is not a party', async function () {
                 const amount = 100000000;
+                const isToken = false;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -1772,12 +1860,12 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    false,
+                    isToken,
                     [arbiter1.address]
                 );
 
                 //fully pay the escrow
-                await placePayment(escrowId, payer1, amount, false);
+                await placePayment(escrowId, payer1, amount, isToken);
 
                 //attempt to refund non-authorized
                 await expect(
@@ -1797,6 +1885,7 @@ describe('PolyEscrow', function () {
 
             it.skip('not possible to refund more than the payment amount', async function () {
                 const amount = 100000000;
+                const isToken = true;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -1805,8 +1894,10 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
+
+                //TODO: pay into escrow
 
                 //attempt to refund more than one should
                 await expect(
@@ -1823,6 +1914,7 @@ describe('PolyEscrow', function () {
 
             it.skip('not possible to refund more than the payment amount, using multiple refunds', async function () {
                 const amount = 100000000;
+                const isToken = true;
 
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -1831,8 +1923,10 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
+
+                //TODO: pay into escrow
 
                 //refunds that should be allowed
                 await expect(
@@ -1868,13 +1962,14 @@ describe('PolyEscrow', function () {
             it('fees are calculated correctly', async function () {
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 10000000;
+                const isToken = true;
                 const receiverInitialAmount = await getBalance(
                     receiver1.address,
                     true
                 );
 
                 //ensure that dao balance at start is 0
-                expect(await getBalance(vaultAddress, true)).to.equal(0);
+                expect(await getBalance(vaultAddress, isToken)).to.equal(0);
 
                 //place a payment
                 await createEscrow(
@@ -1882,7 +1977,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //release the payment from escrow
@@ -1891,12 +1986,12 @@ describe('PolyEscrow', function () {
 
                 //fee should be in the vault
                 const feeAmount = amount * (feeBps / 10000);
-                expect(await getBalance(vaultAddress, true)).to.equal(
+                expect(await getBalance(vaultAddress, isToken)).to.equal(
                     feeAmount
                 );
 
                 //remainder amount should have gone to the receiver
-                expect(await getBalance(receiver1.address, true)).to.equal(
+                expect(await getBalance(receiver1.address, isToken)).to.equal(
                     receiverInitialAmount + BigInt(amount - feeAmount)
                 );
             });
@@ -1904,13 +1999,14 @@ describe('PolyEscrow', function () {
             it('fee can be 0%', async function () {
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 10000000;
+                const isToken = true;
                 const receiverInitialAmount = await getBalance(
                     receiver1.address,
-                    true
+                    isToken
                 );
 
                 //ensure that dao balance at start is 0
-                expect(await getBalance(vaultAddress, true)).to.equal(0);
+                expect(await getBalance(vaultAddress, isToken)).to.equal(0);
 
                 //place a payment
                 await createEscrow(
@@ -1926,10 +2022,10 @@ describe('PolyEscrow', function () {
                 await polyEscrow.connect(receiver1).releaseEscrow(escrowId);
 
                 //no fees should have gone to the vault
-                expect(await getBalance(vaultAddress, true)).to.equal(0);
+                expect(await getBalance(vaultAddress, isToken)).to.equal(0);
 
                 //full amount should have gone to the receiver
-                expect(await getBalance(receiver1.address, true)).to.equal(
+                expect(await getBalance(receiver1.address, isToken)).to.equal(
                     receiverInitialAmount + BigInt(amount)
                 );
             });
@@ -1937,14 +2033,15 @@ describe('PolyEscrow', function () {
             it('fee is calculated from amount remaining after refund', async function () {
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 10000000;
+                const isToken = true;
                 const refundAmount = 40000;
                 const receiverInitialAmount = await getBalance(
                     receiver1.address,
-                    true
+                    isToken
                 );
 
                 //ensure that dao balance at start is 0
-                expect(await getBalance(vaultAddress, true)).to.equal(0);
+                expect(await getBalance(vaultAddress, isToken)).to.equal(0);
 
                 //place a payment
                 await createEscrow(
@@ -1952,7 +2049,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //refund a small amount
@@ -1966,12 +2063,12 @@ describe('PolyEscrow', function () {
 
                 //fee should be in the vault
                 const feeAmount = (amount - refundAmount) * (feeBps / 10000);
-                expect(await getBalance(vaultAddress, true)).to.equal(
+                expect(await getBalance(vaultAddress, isToken)).to.equal(
                     (amount - refundAmount) * (feeBps / 10000)
                 );
 
                 //remainder should have gone to receiver
-                expect(await getBalance(receiver1.address, true)).to.equal(
+                expect(await getBalance(receiver1.address, isToken)).to.equal(
                     receiverInitialAmount +
                         BigInt(amount - refundAmount - feeAmount)
                 );
@@ -1980,14 +2077,15 @@ describe('PolyEscrow', function () {
             it('no fee is taken from fully refunded payment', async function () {
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 10000000;
+                const isToken = true;
                 const refundAmount = amount;
                 const receiverInitialAmount = await getBalance(
                     receiver1.address,
-                    true
+                    isToken
                 );
 
                 //ensure that dao balance at start is 0
-                expect(await getBalance(vaultAddress, true)).to.equal(0);
+                expect(await getBalance(vaultAddress, isToken)).to.equal(0);
 
                 //place a payment
                 await createEscrow(
@@ -1995,7 +2093,7 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //refund all
@@ -2008,10 +2106,10 @@ describe('PolyEscrow', function () {
                 await polyEscrow.connect(receiver1).releaseEscrow(escrowId);
 
                 //no fee should be in the vault
-                expect(await getBalance(vaultAddress, true)).to.equal(0);
+                expect(await getBalance(vaultAddress, isToken)).to.equal(0);
 
                 //none should have gone to receiver
-                expect(await getBalance(receiver1.address, true)).to.equal(
+                expect(await getBalance(receiver1.address, isToken)).to.equal(
                     receiverInitialAmount
                 );
             });
@@ -2024,15 +2122,25 @@ describe('PolyEscrow', function () {
 
     describe.skip('Edge Cases', function () {
         it('payer and receiver are the same', async function () {
-            const initialPayerBalance = await getBalance(payer1.address, true);
             const amount = 10000000;
+            const isToken = true;
+            const initialPayerBalance = await getBalance(
+                payer1.address,
+                isToken
+            );
 
             //create the escrow
             const escrowId = ethers.keccak256('0x01');
-            await createEscrow(escrowId, payer1, payer1.address, amount, true);
+            await createEscrow(
+                escrowId,
+                payer1,
+                payer1.address,
+                amount,
+                isToken
+            );
 
             //check the balance
-            const newPayerBalance = await getBalance(payer1.address, true);
+            const newPayerBalance = await getBalance(payer1.address, isToken);
             expect(newPayerBalance).to.equal(
                 initialPayerBalance - BigInt(amount)
             );
@@ -2056,7 +2164,7 @@ describe('PolyEscrow', function () {
             });
 
             //check the balance
-            const finalPayerBalance = await getBalance(payer1.address, true);
+            const finalPayerBalance = await getBalance(payer1.address, isToken);
             expect(finalPayerBalance).to.equal(initialPayerBalance);
         });
     });
