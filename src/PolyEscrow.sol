@@ -146,11 +146,6 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
 
         escrows[input.id] = escrow;
 
-        //add placeholders for arbiter assent
-        for(uint8 n=0; n< escrow.arbiters.length; n++) {
-            escrows[input.id].arbiterAssent.push(false);
-        }
-
         //EVENT: emit event escrow created
         emit EscrowCreated(input.id);
     }
@@ -261,29 +256,9 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
                     emit ReleaseAssentGiven(escrowId, msg.sender, 2);
                 }
             }
-            
-            if (_isArbiter(escrow.id, msg.sender)) {
-                if (!escrow.payerReleased) {
-                    //TODO: check if arbiter count has been met
-                    uint8 arbiterAssentCount = 0;
-                    for(uint8 n=0; n< escrow.arbiters.length; n++) {
-                        if (escrow.arbiters[n] == msg.sender) {
-                            escrow.arbiterAssent[n] = true;
-                        }
-                        
-                        if (escrow.arbiterAssent[n]) {
-                            arbiterAssentCount++;
-                        }
 
-                        if (arbiterAssentCount >= escrow.arbitersRequired) {
-                            escrow.payerReleased = true;
-                        }
-                    }
-                    emit ReleaseAssentGiven(escrowId, msg.sender, 3);
-                }
-            }
-
-            _release(escrowId, _getEscrowAmountRemaining(escrow));
+            if (escrow.payerReleased && escrow.receiverReleased)
+                _release(escrowId, _getEscrowAmountRemaining(escrow));
         }
     }
 
@@ -480,7 +455,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     function _refund(bytes32 escrowId, uint256 amount) internal {
         Escrow storage escrow = escrows[escrowId]; 
 
-        require(escrow.released == false, "Payment already released");
+        require(escrow.released == false, "AlreadyReleased");
 
         uint256 activeAmount = _getEscrowAmountRemaining(escrow); 
 
@@ -499,9 +474,9 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     function _release(bytes32 escrowId, uint256 amount) internal {
         Escrow storage escrow = escrows[escrowId]; 
 
-        require(escrow.released == false, "Payment already released");
+        require(escrow.released == false, "AlreadyReleased");
 
-        uint256 activeAmount = _getEscrowAmountRemaining(escrow); 
+        uint256 activeAmount = _getEscrowAmountRemaining(escrow);
 
         if (amount > activeAmount) 
             revert("AmountExceeded");

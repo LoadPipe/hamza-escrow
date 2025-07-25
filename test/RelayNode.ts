@@ -108,16 +108,6 @@ describe('RelayNode', function () {
                 expect(escrow.arbiters[n]).to.equal(expectedValues.arbiters[n]);
             }
         }
-        if (expectedValues.arbiterAssent) {
-            expect(escrow.arbiterAssent?.length ?? 0).to.equal(
-                expectedValues.arbiterAssent.length
-            );
-            for (let n = 0; n < escrow.arbiterAssent.length; n++) {
-                expect(escrow.arbiterAssent[n]).to.equal(
-                    expectedValues.arbiterAssent[n]
-                );
-            }
-        }
     }
 
     async function getAndVerifyEscrow(escrowId: string, expectedValues: any) {

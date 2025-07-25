@@ -6,7 +6,6 @@ export interface IEscrow {
     payer: string;
     receiver: string;
     arbiters: string[]; // The addresses of the arbiters
-    arbiterAssent: boolean[]; // The assent to release of the arbiters
     arbitersRequired: number; // The number of arbiters consent required
     amount: any; // The total amount of the escrow
     currency: string; //The currency addres, 0x0 for native
@@ -29,20 +28,19 @@ export function convertEscrow(rawData: any[]): IEscrow {
         payer: rawData[1],
         receiver: rawData[2],
         arbiters: rawData[3],
-        arbiterAssent: rawData[4],
-        arbitersRequired: rawData[5],
-        amount: rawData[6],
-        currency: rawData[7],
-        amountRefunded: rawData[8],
-        amountReleased: rawData[9],
-        amountPaid: rawData[10],
-        timestamp: rawData[11],
-        startTime: rawData[12],
-        endTime: rawData[13],
-        status: rawData[14],
-        fullyPaid: rawData[15],
-        payerReleased: rawData[16],
-        receiverReleased: rawData[17],
-        released: rawData[18],
+        arbitersRequired: rawData[4],
+        amount: rawData[5],
+        currency: rawData[6],
+        amountRefunded: rawData[7],
+        amountReleased: rawData[8],
+        amountPaid: rawData[9],
+        timestamp: rawData[10],
+        startTime: rawData[11],
+        endTime: rawData[12],
+        status: rawData[13],
+        fullyPaid: rawData[14],
+        payerReleased: rawData[15],
+        receiverReleased: rawData[16],
+        released: rawData[17],
     };
 }

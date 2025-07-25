@@ -25,7 +25,6 @@ struct Escrow {
     address payer; // The address of the payer
     address receiver; // The address of the receiver
     address[] arbiters; // The addresses of the arbiters
-    bool[] arbiterAssent; // The assent to release of the arbiters
     uint8 arbitersRequired; // The number of arbiters consent required to release or refund the escrow in absence of payer consent
     uint256 amount; // The total amount of the escrow
     address currency; //The currency addres, 0x0 for native
