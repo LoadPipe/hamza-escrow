@@ -10,6 +10,7 @@ describe('RelayNode', function () {
     let polyEscrow: any;
     let relayNode: any;
     let testToken: any;
+    let arbitrationModule: any;
     let admin: HardhatEthersSigner;
     let nonOwner: HardhatEthersSigner;
     let payer1: HardhatEthersSigner;
@@ -156,12 +157,18 @@ describe('RelayNode', function () {
             await hre.ethers.getContractFactory('TestToken');
         testToken = await TestTokenFactory.deploy('XYZ', 'ZYX');
 
-        //grant roles
+        //deploy arbitration module
+        const EscrowArbitrationModuleFactory =
+            await hre.ethers.getContractFactory('EscrowArbitrationModule');
+        arbitrationModule = await EscrowArbitrationModuleFactory.deploy();
+
+        //deploy polyEscrow
         const PolyEscrowFactory =
             await hre.ethers.getContractFactory('PolyEscrow');
         polyEscrow = await PolyEscrowFactory.deploy(
             securityContext.target,
-            systemSettings.target
+            systemSettings.target,
+            arbitrationModule.target
         );
 
         //grant token
