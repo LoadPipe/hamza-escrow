@@ -11,10 +11,11 @@ enum ArbitrationType {
 }
 
 enum ArbitrationStatus {
-    LIVE,
+    ACTIVE,
     REJECTED,
     ACCEPTED,
-    EXECUTED
+    EXECUTED,
+    CANCELED
 }
 
 struct ArbitrationProposal {
@@ -23,6 +24,7 @@ struct ArbitrationProposal {
     ArbitrationType proposalType;
     ArbitrationStatus status;
     mapping(address => bool) votes;
+    uint256 amount;
     uint8 votesFor;
     uint8 votesAgainst;
 }
@@ -37,7 +39,7 @@ struct ArbitrationProposal {
  * logic for how proposals are to be managed and handled, including who is allowed to make and vote on 
  * proposals (for the given escrow). It has two links to the escrow logic: 
  * 1. polyEscrow (IPolyEscrow) property, passed in via the constructor, which (if implemented via inheritance as described) should really just be a reference to IPolyEscrow(this)
- * 2. the internal function _executeProposal must be overriden (it's virtual & empty here - meant to be overriden or else proposals will not be executed)
+ * 2. the internal function _executeArbitration must be overriden (it's virtual & empty here - meant to be overriden or else proposals will not be executed)
  */
 contract EscrowArbitration
 {
@@ -68,7 +70,7 @@ contract EscrowArbitration
         polyEscrow = _polyEscrow;
     }
 
-    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType) public virtual {
+    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) public virtual {
 
         /*
         WHO can propose arbitration? 
@@ -78,15 +80,18 @@ contract EscrowArbitration
         */
         require (_canProposeArbitration(escrowId, msg.sender), "Unauthorized");
 
-        //SHOULD there be a limit on number of open arbitration cases?
+        //TODO: should there be a limit on number of open arbitration cases?
         
         //generate a unique id
         bytes32 arbId = bytes32(keccak256(abi.encodePacked(escrowId, proposalCount+1)));
         proposals[arbId].id = arbId;
         proposals[arbId].escrowId = escrowId;
         proposals[arbId].proposalType = proposalType;
-        proposals[arbId].status = ArbitrationStatus.LIVE;
+        proposals[arbId].amount = amount;
+        proposals[arbId].status = ArbitrationStatus.ACTIVE;
         proposals[arbId].votesAgainst = 0;
+
+        //TODO: validate the amount (should be realistic and related to amount in escrow)
 
         //record proposer as an automatic yes vote
         proposals[arbId].votesFor = 1;
@@ -97,24 +102,21 @@ contract EscrowArbitration
     }
 
     function voteArbitration(bytes32 arbitrationId, bool vote) public virtual {
-
-        /*
-        WHO can vote on arbitration? 
-        1. arbiters only
-        */
+        
+        // WHO can vote on arbitration?  arbiters only
 
         //get the arbitration proposal
         ArbitrationProposal storage proposal = proposals[arbitrationId];
         require(proposal.id != bytes32(0), "InvalidProposal");
 
-        //validate the escrow id
+        //get the escrow id
         bytes32 escrowId = proposal.escrowId;
-        require(escrowId != bytes32(0), "InvalidEscrow");
 
         //validate rights of voter
         require(_canVoteArbitration(escrowId, msg.sender), "Unauthorized");
 
         //verify that the proposal is in a state in which it can be voted
+        require(proposal.status == ArbitrationStatus.ACTIVE, "InvalidProposalState");
 
         //record vote 
         if (vote) {
@@ -141,21 +143,34 @@ contract EscrowArbitration
         //TODO: auto-execute?
     }
 
-    function executeProposal(bytes32 arbitrationId) public virtual {
+    function cancelArbitration(bytes32 arbitrationId) public virtual {
+
+        //TODO: WHO can cancel arbitration?
+        //TODO: all arbitration on an escrow should be cancelled if the seller takes any action
+
+        //get the arbitration proposal
+        //TODO: this code is repeated alot; can it be put into its own function
+        ArbitrationProposal storage proposal = proposals[arbitrationId];
+        require(proposal.id != bytes32(0), "InvalidProposal");
+
+        proposal.status = ArbitrationStatus.CANCELED;
+    }
+
+    function executeArbitration(bytes32 arbitrationId) public virtual {
 
         //get the arbitration proposal
         ArbitrationProposal storage proposal = proposals[arbitrationId];
         require(proposal.id != bytes32(0), "InvalidProposal");
 
-        //validate the escrow id
-        bytes32 escrowId = proposal.escrowId;
-        require(escrowId != bytes32(0), "InvalidEscrow");
-
         //proposal must be accepted 
         require(proposal.status == ArbitrationStatus.ACCEPTED, "InvalidEscrowState");
 
+        //TODO: re-validate the amount (adjust it if necessary)
+
         //execute 
-        _executeProposal(arbitrationId);
+        _executeArbitration(proposal);
+
+        //TODO: emit event
     }
 
     function _canProposeArbitration(bytes32 escrowId, address account) internal view returns (bool) {
@@ -172,7 +187,7 @@ contract EscrowArbitration
         return false;
     }
 
-    function _executeProposal(bytes32 arbitrationId) internal virtual {
-        //override 
+    function _executeArbitration(ArbitrationProposal storage /*proposal*/) internal virtual {
+        revert("NotImplemented");
     }
 }

@@ -103,6 +103,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
         //EXCEPTION: InvalidAmount
         require(input.amount > 0, "InvalidAmount");
         //EXCEPTION: MaxArbitersExceeded
+        require(input.arbiters.length <= MAX_ARBITERS, "MaxArbitersExceeded");
         //EXCEPTION: InvalidArbiter
         _validateArbiters(input.arbiters, input.payer, input.receiver);
         //EXCEPTION: InvalidToken
@@ -188,7 +189,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
             require(msg.value == paymentInput.amount, "InvalidAmount");
         } else {
             //EXCEPTION: failed payment 
-            require(_handleTokenTransfer(paymentInput.currency, msg.sender, paymentInput.amount), "TokenPaymentFailed");
+            require(_handleTokenInflow(paymentInput.currency, msg.sender, paymentInput.amount), "TokenPaymentFailed");
         }
 
         //get the escrow 
@@ -232,7 +233,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
         Escrow storage escrow = escrows[escrowId];
 
         if (msg.sender != escrow.receiver && 
-            msg.sender != escrow.payer && !_isArbiter(escrowId, msg.sender))
+            msg.sender != escrow.payer)
         {
             revert("Unauthorized");
         }
@@ -240,7 +241,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
         //TODO: must escrow be fully paid before releasing? 
         //TODO: revert if escrow already released? 
         //TODO: revert if escrow not in a state where it can be released? 
-        //TODO: 
+        //TODO: this whole function needs to be reworked
 
         if (escrow.amount > 0) {
             if (escrow.receiver == msg.sender) {
@@ -277,7 +278,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
                 }
             }
 
-            _releaseEscrowPayment(escrowId);
+            _release(escrowId, _getEscrowAmountRemaining(escrow));
         }
     }
 
@@ -300,40 +301,27 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
      */
     function refundPayment(bytes32 escrowId, uint256 amount) external whenNotPaused {
         Escrow storage escrow = escrows[escrowId]; 
-        require(escrow.released == false, "Payment already released");
-        if (escrow.amount > 0 && escrow.amountRefunded <= escrow.amount) {
 
-            //who has permission to refund? either the receiver or the arbiter
-            if (escrow.receiver != msg.sender && !_isArbiter(escrow.id, msg.sender))
-                revert("Unauthorized");
+        //TODO: check for invalid escrow
 
-            uint256 activeAmount = escrow.amount - escrow.amountRefunded; 
+        //who has permission to refund? either the receiver or the arbiter
+        require (escrow.receiver == msg.sender, "Unauthorized");
 
-            if (amount > activeAmount) 
-                revert("AmountExceeded");
-
-            //transfer amount back to payer 
-            if (amount > 0) {
-                if (_transferAmount(escrow.id, escrow.payer, escrow.currency, amount)) {
-                    escrow.amountRefunded += amount;
-                    emit EscrowRefunded(escrowId, amount);
-                }
-            }
-        }
+        _refund(escrowId, amount);
     }
 
     // --- Arbitration ---
 
-    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType) public override whenNotPaused {
-        super.proposeArbitration(escrowId, proposalType);
+    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) public override whenNotPaused {
+        super.proposeArbitration(escrowId, proposalType, amount);
     }
 
     function voteArbitration(bytes32 arbitrationId, bool vote) public override whenNotPaused {
         super.voteArbitration(arbitrationId, vote);
     }
 
-    function executeProposal(bytes32 arbitrationId) public override whenNotPaused {
-        super.executeProposal(arbitrationId);
+    function executeArbitration(bytes32 arbitrationId) public override whenNotPaused {
+        super.executeArbitration(arbitrationId);
     }
 
     // --- HasSecurityContext ---
@@ -364,14 +352,15 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
         return _transferAmount(escrowId, _getVaultAddress(), currency, fee);
     }
 
+    //TODO: this method should be removed
     function _releaseEscrowPayment(bytes32 escrowId) internal {
         Escrow storage escrow = escrows[escrowId];
         if (!escrow.payerReleased || !escrow.receiverReleased || escrow.released) {
             return;
         }
 
-        uint256 amount = escrow.amount - escrow.amountRefunded;
-        (uint256 fee, uint256 amountToPay) = _calculateFeeAndAmount(amount);
+        uint256 activeAmount = _getEscrowAmountRemaining(escrow); 
+        (uint256 fee, uint256 amountToPay) = _calculateFeeAndAmount(activeAmount);
 
         // If there's no amount to pay but there is a fee, or if the transfer succeeds
         if ((amountToPay == 0 && fee > 0) || 
@@ -389,6 +378,8 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
 
     function _transferAmount(bytes32 escrowId, address to, address tokenAddressOrZero, uint256 amount) internal returns (bool) {
         bool success = false;
+
+        //TODO: check the escrow amount first; make sure it doesn't exceed
 
         if (amount > 0) {
             if (tokenAddressOrZero == address(0)) {
@@ -418,7 +409,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
      * @param amount The amount to transfer
      * @return bool True if the transfer is successful, false otherwise
      */
-    function _handleTokenTransfer(address currency, address from, uint256 amount) internal returns (bool) {
+    function _handleTokenInflow(address currency, address from, uint256 amount) internal returns (bool) {
         IERC20 token = IERC20(currency);
         return token.transferFrom(from, address(this), amount);
     }
@@ -481,8 +472,78 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
         }
     }
 
-    function _executeProposal() internal pure {
-        //TODO: override to execute proposal
+    function _refund(bytes32 escrowId, uint256 amount) internal {
+        Escrow storage escrow = escrows[escrowId]; 
+
+        require(escrow.released == false, "Payment already released");
+
+        uint256 activeAmount = _getEscrowAmountRemaining(escrow); 
+
+        if (amount > activeAmount) 
+            revert("AmountExceeded");
+
+        //transfer amount back to payer 
+        if (amount > 0) {
+            if (_transferAmount(escrow.id, escrow.payer, escrow.currency, amount)) {
+                escrow.amountRefunded += amount;
+                emit EscrowRefunded(escrowId, amount);
+            }
+        }
+    }
+
+    function _release(bytes32 escrowId, uint256 amount) internal {
+        Escrow storage escrow = escrows[escrowId]; 
+
+        require(escrow.released == false, "Payment already released");
+
+        uint256 activeAmount = _getEscrowAmountRemaining(escrow); 
+
+        if (amount > activeAmount) 
+            revert("AmountExceeded");
+
+        //calculate fee, and amount to release
+        (uint256 fee, uint256 amountToPay) = _calculateFeeAndAmount(amount);
+
+        // If there's no amount to pay but there is a fee, or if the transfer succeeds
+        if ((amountToPay == 0 && fee > 0) || 
+            _transferAmount(escrow.id, escrow.receiver, escrow.currency, amountToPay)) {
+            
+            // Handle fee transfer
+            if (_handleFeeTransfer(escrow.id, escrow.currency, fee)) {
+                escrow.released = true;
+                escrow.amountReleased += amountToPay;
+                escrow.status = EscrowStatus.Completed;
+                emit EscrowReleased(escrowId, amountToPay, fee);
+            }
+        }
+    }
+
+    function _executeArbitration(ArbitrationProposal storage proposal) internal override {
+        Escrow storage escrow = escrows[proposal.escrowId]; 
+
+        //get amount remaining for escrow
+        if (proposal.amount > 0) {
+            uint256 amountRemaining = _getEscrowAmountRemaining(escrow);
+            if (proposal.amount > amountRemaining) {
+                proposal.amount = amountRemaining;
+            }
+        } 
+
+        //refund
+        if (proposal.proposalType == ArbitrationType.REFUND) {
+            _refund(proposal.escrowId, proposal.amount);
+        }
+
+        //release
+        if (proposal.proposalType == ArbitrationType.RELEASE) {
+            _release(proposal.escrowId, proposal.amount);
+        }
+
+        proposal.status = ArbitrationStatus.EXECUTED;
+    }
+
+    function _getEscrowAmountRemaining(Escrow memory escrow) internal pure returns (uint256) {
+        return escrow.amountPaid - escrow.amountRefunded - escrow.amountReleased;
     }
     
 
