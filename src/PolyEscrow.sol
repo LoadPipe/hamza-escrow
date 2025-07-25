@@ -26,6 +26,10 @@ uint256 constant MAX_ARBITERS = 10; // Maximum number of arbiters allowed in an 
 
 /**
  * @title PolyEscrow
+ * 
+ * Encapsulates the ability to create, pay for, and manage multiple completely independent, separately 
+ * managed and arbitrated escrows; each having potentially different rules of behavior, execution, 
+ * and arbitration. 
  */
 contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, Arbitration
 {

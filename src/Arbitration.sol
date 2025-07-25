@@ -29,6 +29,15 @@ struct ArbitrationProposal {
 
 /**
  * @title Arbitration
+ * 
+ * Encapsulates the logic for proposing, voting on, and executing arbitration tasks such as refunding or 
+ * releasing escrows via the assigned arbiters for the escrow. 
+ * 
+ * This contract is meant to be inherited by an escrow contract; this parent class will provide the basic 
+ * logic for how proposals are to be managed and handled, including who is allowed to make and vote on 
+ * proposals (for the given escrow). It has two links to the escrow logic: 
+ * 1. polyEscrow (IPolyEscrow) property, passed in via the constructor, which (if implemented via inheritance as described) should really just be a reference to IPolyEscrow(this)
+ * 2. the internal function _executeProposal must be overriden (it's virtual & empty here - meant to be overriden or else proposals will not be executed)
  */
 contract Arbitration
 {
