@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "./HasSecurityContext.sol"; 
 import "./Pausable.sol";
 import "./CarefulMath.sol";
-import "./Arbitration.sol";
+import "./EscrowArbitration.sol";
 import "./interfaces/ISystemSettings.sol";
 import "./interfaces/IPolyEscrow.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -29,9 +29,9 @@ uint256 constant MAX_ARBITERS = 10; // Maximum number of arbiters allowed in an 
  * 
  * Encapsulates the ability to create, pay for, and manage multiple completely independent, separately 
  * managed and arbitrated escrows; each having potentially different rules of behavior, execution, 
- * and arbitration. 
+ * and arbitration.
  */
-contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, Arbitration
+contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitration
 {
     mapping(bytes32 => Escrow) private escrows;
     ISystemSettings private settings;
@@ -85,7 +85,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, Arbitration
     
     constructor(ISecurityContext securityContext, ISystemSettings systemSettings) 
         Pausable(securityContext)
-        Arbitration(IPolyEscrow(this)) 
+        EscrowArbitration(IPolyEscrow(this)) 
     {
         _setSecurityContext(securityContext);
         settings = systemSettings;

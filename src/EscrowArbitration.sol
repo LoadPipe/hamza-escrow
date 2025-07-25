@@ -39,7 +39,7 @@ struct ArbitrationProposal {
  * 1. polyEscrow (IPolyEscrow) property, passed in via the constructor, which (if implemented via inheritance as described) should really just be a reference to IPolyEscrow(this)
  * 2. the internal function _executeProposal must be overriden (it's virtual & empty here - meant to be overriden or else proposals will not be executed)
  */
-contract Arbitration
+contract EscrowArbitration
 {
     IPolyEscrow public polyEscrow;
     mapping(bytes32 => ArbitrationProposal) private proposals;
