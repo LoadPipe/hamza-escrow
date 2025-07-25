@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "./HasSecurityContext.sol"; 
 import "./Pausable.sol";
 import "./CarefulMath.sol";
+import "./Arbitration.sol";
 import "./interfaces/ISystemSettings.sol";
 import "./interfaces/IPolyEscrow.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -26,7 +27,7 @@ uint256 constant MAX_ARBITERS = 10; // Maximum number of arbiters allowed in an 
 /**
  * @title PolyEscrow
  */
-contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
+contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, Arbitration
 {
     mapping(bytes32 => Escrow) private escrows;
     ISystemSettings private settings;
@@ -78,10 +79,15 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         uint256 amount 
     );
     
-    constructor(ISecurityContext securityContext, ISystemSettings systemSettings) Pausable(securityContext) {
+    constructor(ISecurityContext securityContext, ISystemSettings systemSettings) 
+        Pausable(securityContext)
+        Arbitration(IPolyEscrow(this)) 
+    {
         _setSecurityContext(securityContext);
         settings = systemSettings;
     }
+
+    // --- Escrow Management ---
 
     function createEscrow(CreateEscrowInput memory input) public whenNotPaused {
         //EXCEPTION: InvalidEscrow
@@ -312,6 +318,22 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         }
     }
 
+    // --- Arbitration ---
+
+    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType) public override whenNotPaused {
+        super.proposeArbitration(escrowId, proposalType);
+    }
+
+    function voteArbitration(bytes32 arbitrationId, bool vote) public override whenNotPaused {
+        super.voteArbitration(arbitrationId, vote);
+    }
+
+    function executeProposal(bytes32 arbitrationId) public override whenNotPaused {
+        super.executeProposal(arbitrationId);
+    }
+
+    // --- HasSecurityContext ---
+
     function getSecurityContext() external override(IPolyEscrow, HasSecurityContext) view returns (ISecurityContext) {
         return this.getSecurityContext();
     }
@@ -453,6 +475,10 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         } catch {
             return false; // The call failed, it's not a valid ERC-20 token
         }
+    }
+
+    function _executeProposal() internal pure {
+        //TODO: override to execute proposal
     }
     
 

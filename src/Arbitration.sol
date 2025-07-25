@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "./Pausable.sol";
+import "./Types.sol";
+import "./interfaces/IPolyEscrow.sol";
 
 enum ArbitrationType {
     REFUND,
@@ -26,13 +27,10 @@ struct ArbitrationProposal {
     uint8 votesAgainst;
 }
 
-
-uint256 constant MAX_ARBITERS = 10; // Maximum number of arbiters allowed in an escrow
-
 /**
  * @title Arbitration
  */
-contract Arbitration is Pausable
+contract Arbitration
 {
     IPolyEscrow public polyEscrow;
     mapping(bytes32 => ArbitrationProposal) private proposals;
@@ -57,11 +55,11 @@ contract Arbitration is Pausable
         address executor
     );
 
-    constructor(ISecurityContext _securityContext, IPolyEscrow _polyEscrow) Pausable(_securityContext) {
+    constructor(IPolyEscrow _polyEscrow) {
         polyEscrow = _polyEscrow;
     }
 
-    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType) external whenNotPaused {
+    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType) public virtual {
 
         /*
         WHO can propose arbitration? 
@@ -89,7 +87,7 @@ contract Arbitration is Pausable
         emit ArbitrationProposed(proposals[arbId].id, proposals[arbId].escrowId, msg.sender);
     }
 
-    function voteArbitration(bytes32 arbitrationId, bool vote) external {
+    function voteArbitration(bytes32 arbitrationId, bool vote) public virtual {
 
         /*
         WHO can vote on arbitration? 
@@ -134,7 +132,7 @@ contract Arbitration is Pausable
         //TODO: auto-execute?
     }
 
-    function executeProposal(bytes32 arbitrationId) external {
+    function executeProposal(bytes32 arbitrationId) public virtual {
 
         //get the arbitration proposal
         ArbitrationProposal storage proposal = proposals[arbitrationId];
@@ -148,8 +146,8 @@ contract Arbitration is Pausable
         require(proposal.status == ArbitrationStatus.ACCEPTED, "InvalidEscrowState");
 
         //execute 
+        _executeProposal(arbitrationId);
     }
-
 
     function _canProposeArbitration(bytes32 escrowId, address account) internal view returns (bool) {
         Escrow memory escrow = polyEscrow.getEscrow(escrowId);
@@ -163,5 +161,9 @@ contract Arbitration is Pausable
                 return true;
         }
         return false;
+    }
+
+    function _executeProposal(bytes32 arbitrationId) internal virtual {
+        //override 
     }
 }
