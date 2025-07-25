@@ -35,15 +35,11 @@ struct ArbitrationProposal {
  * Encapsulates the logic for proposing, voting on, and executing arbitration tasks such as refunding or 
  * releasing escrows via the assigned arbiters for the escrow. 
  * 
- * This contract is meant to be inherited by an escrow contract; this parent class will provide the basic 
- * logic for how proposals are to be managed and handled, including who is allowed to make and vote on 
- * proposals (for the given escrow). It has two links to the escrow logic: 
- * 1. polyEscrow (IPolyEscrow) property, passed in via the constructor, which (if implemented via inheritance as described) should really just be a reference to IPolyEscrow(this)
- * 2. the internal function _executeArbitration must be overriden (it's virtual & empty here - meant to be overriden or else proposals will not be executed)
+ * This contract is meant to be called by any PolyEscrow contract; the PolyEscrow contract just passes its
+ * own address in to each method call. 
  */
-contract EscrowArbitration
+contract EscrowArbitrationModule
 {
-    IPolyEscrow public polyEscrow;
     mapping(bytes32 => ArbitrationProposal) private proposals;
     uint8 public proposalCount;
 
@@ -66,11 +62,10 @@ contract EscrowArbitration
         address executor
     );
 
-    constructor(IPolyEscrow _polyEscrow) {
-        polyEscrow = _polyEscrow;
+    constructor() {
     }
 
-    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) public virtual {
+    function proposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, ArbitrationType proposalType, uint256 amount) public virtual {
 
         /*
         WHO can propose arbitration? 
@@ -78,12 +73,12 @@ contract EscrowArbitration
         2. the receiver 
         3. arbiters? 
         */
-        require (_canProposeArbitration(escrowId, msg.sender), "Unauthorized");
+        require (_canProposeArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
 
         //TODO: should there be a limit on number of open arbitration cases?
         
         //generate a unique id
-        bytes32 arbId = bytes32(keccak256(abi.encodePacked(escrowId, proposalCount+1)));
+        bytes32 arbId = _generateUniqueProposalId(polyEscrow, escrowId);
         proposals[arbId].id = arbId;
         proposals[arbId].escrowId = escrowId;
         proposals[arbId].proposalType = proposalType;
@@ -101,7 +96,7 @@ contract EscrowArbitration
         emit ArbitrationProposed(proposals[arbId].id, proposals[arbId].escrowId, msg.sender);
     }
 
-    function voteArbitration(bytes32 arbitrationId, bool vote) public virtual {
+    function voteArbitration(IPolyEscrow polyEscrow, bytes32 arbitrationId, bool vote) external {
         
         // WHO can vote on arbitration?  arbiters only
 
@@ -113,7 +108,7 @@ contract EscrowArbitration
         bytes32 escrowId = proposal.escrowId;
 
         //validate rights of voter
-        require(_canVoteArbitration(escrowId, msg.sender), "Unauthorized");
+        require(_canVoteArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
 
         //verify that the proposal is in a state in which it can be voted
         require(proposal.status == ArbitrationStatus.ACTIVE, "InvalidProposalState");
@@ -143,7 +138,7 @@ contract EscrowArbitration
         //TODO: auto-execute?
     }
 
-    function cancelArbitration(bytes32 arbitrationId) public virtual {
+    function cancelArbitration(bytes32 arbitrationId) external {
 
         //TODO: WHO can cancel arbitration?
         //TODO: all arbitration on an escrow should be cancelled if the seller takes any action
@@ -153,10 +148,12 @@ contract EscrowArbitration
         ArbitrationProposal storage proposal = proposals[arbitrationId];
         require(proposal.id != bytes32(0), "InvalidProposal");
 
+        //TODO: can only cancel if status is ACTIVE
+
         proposal.status = ArbitrationStatus.CANCELED;
     }
 
-    function executeArbitration(bytes32 arbitrationId) public virtual {
+    function executeArbitration(IPolyEscrow polyEscrow, bytes32 arbitrationId) external view {
 
         //get the arbitration proposal
         ArbitrationProposal storage proposal = proposals[arbitrationId];
@@ -168,17 +165,17 @@ contract EscrowArbitration
         //TODO: re-validate the amount (adjust it if necessary)
 
         //execute 
-        _executeArbitration(proposal);
+        _executeArbitration(polyEscrow, proposal);
 
         //TODO: emit event
     }
 
-    function _canProposeArbitration(bytes32 escrowId, address account) internal view returns (bool) {
+    function _canProposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, address account) internal view returns (bool) {
         Escrow memory escrow = polyEscrow.getEscrow(escrowId);
         return (account == escrow.payer || account == escrow.receiver);
     }
 
-    function _canVoteArbitration(bytes32 escrowId, address account) internal view returns (bool) {
+    function _canVoteArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, address account) internal view returns (bool) {
         Escrow memory escrow = polyEscrow.getEscrow(escrowId);
         for(uint8 n=0; n<escrow.arbiters.length; n++) {
             if (escrow.arbiters[n] == account)
@@ -187,7 +184,11 @@ contract EscrowArbitration
         return false;
     }
 
-    function _executeArbitration(ArbitrationProposal storage /*proposal*/) internal virtual {
+    function _executeArbitration(IPolyEscrow /*polyEscrow*/, ArbitrationProposal storage /*proposal*/) internal pure {
         revert("NotImplemented");
+    }
+
+    function _generateUniqueProposalId(IPolyEscrow polyEscrow, bytes32 escrowId) internal view returns (bytes32) {
+        return bytes32(keccak256(abi.encodePacked(address(polyEscrow), escrowId, proposalCount+1)));
     }
 }

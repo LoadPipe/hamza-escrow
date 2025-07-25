@@ -31,10 +31,11 @@ uint256 constant MAX_ARBITERS = 10; // Maximum number of arbiters allowed in an 
  * managed and arbitrated escrows; each having potentially different rules of behavior, execution, 
  * and arbitration.
  */
-contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitration
+contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
 {
     mapping(bytes32 => Escrow) private escrows;
-    ISystemSettings private settings;
+    ISystemSettings public settings;
+    EscrowArbitrationModule public arbitrationModule;
 
     //EVENTS 
 
@@ -83,12 +84,16 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
         uint256 amount 
     );
     
-    constructor(ISecurityContext securityContext, ISystemSettings systemSettings) 
+    constructor(
+        ISecurityContext securityContext, 
+        ISystemSettings systemSettings, 
+        EscrowArbitrationModule _arbitrationModule
+    ) 
         Pausable(securityContext)
-        EscrowArbitration(IPolyEscrow(this)) 
     {
         _setSecurityContext(securityContext);
         settings = systemSettings;
+        arbitrationModule = _arbitrationModule;
     }
 
     // --- Escrow Management ---
@@ -312,16 +317,16 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
 
     // --- Arbitration ---
 
-    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) public override whenNotPaused {
-        super.proposeArbitration(escrowId, proposalType, amount);
+    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) public whenNotPaused {
+        arbitrationModule.proposeArbitration(this, escrowId, proposalType, amount);
     }
 
-    function voteArbitration(bytes32 arbitrationId, bool vote) public override whenNotPaused {
-        super.voteArbitration(arbitrationId, vote);
+    function voteArbitration(bytes32 arbitrationId, bool vote) public whenNotPaused {
+        arbitrationModule.voteArbitration(this, arbitrationId, vote);
     }
 
-    function executeArbitration(bytes32 arbitrationId) public override whenNotPaused {
-        super.executeArbitration(arbitrationId);
+    function executeArbitration(bytes32 arbitrationId) public whenNotPaused {
+        arbitrationModule.executeArbitration(this, arbitrationId);
     }
 
     // --- HasSecurityContext ---
@@ -518,7 +523,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow, EscrowArbitrat
         }
     }
 
-    function _executeArbitration(ArbitrationProposal storage proposal) internal override {
+    function _executeArbitration(ArbitrationProposal storage proposal) internal {
         Escrow storage escrow = escrows[proposal.escrowId]; 
 
         //get amount remaining for escrow
