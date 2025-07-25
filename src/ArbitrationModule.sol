@@ -3,34 +3,10 @@ pragma solidity ^0.8.20;
 
 import "./Types.sol";
 import "./interfaces/IPolyEscrow.sol";
-
-enum ArbitrationType {
-    REFUND,
-    CANCEL,
-    RELEASE
-}
-
-enum ArbitrationStatus {
-    ACTIVE,
-    REJECTED,
-    ACCEPTED,
-    EXECUTED,
-    CANCELED
-}
-
-struct ArbitrationProposal {
-    bytes32 id;
-    bytes32 escrowId;
-    ArbitrationType proposalType;
-    ArbitrationStatus status;
-    mapping(address => bool) votes;
-    uint256 amount;
-    uint8 votesFor;
-    uint8 votesAgainst;
-}
+import "./interfaces/IArbitrationModule.sol";
 
 /**
- * @title Arbitration
+ * @title ArbitrationModule
  * 
  * Encapsulates the logic for proposing, voting on, and executing arbitration tasks such as refunding or 
  * releasing escrows via the assigned arbiters for the escrow. 
@@ -38,7 +14,7 @@ struct ArbitrationProposal {
  * This contract is meant to be called by any PolyEscrow contract; the PolyEscrow contract just passes its
  * own address in to each method call. 
  */
-contract EscrowArbitrationModule
+contract ArbitrationModule is IArbitrationModule
 {
     mapping(bytes32 => ArbitrationProposal) private proposals;
     uint8 public proposalCount;

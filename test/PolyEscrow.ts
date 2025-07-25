@@ -52,6 +52,7 @@ describe('PolyEscrow', function () {
             amount,
             startTime,
             endTime,
+            arbitrationModule: ethers.ZeroAddress,
         });
 
         //return escrow
@@ -178,9 +179,9 @@ describe('PolyEscrow', function () {
         testToken = await TestTokenFactory.deploy('XYZ', 'ZYX');
 
         //deploy arbitration module
-        const EscrowArbitrationModuleFactory =
-            await hre.ethers.getContractFactory('EscrowArbitrationModule');
-        arbitrationModule = await EscrowArbitrationModuleFactory.deploy();
+        const ArbitrationModuleFactory =
+            await hre.ethers.getContractFactory('ArbitrationModule');
+        arbitrationModule = await ArbitrationModuleFactory.deploy();
 
         //deploy polyEscrow
         const PolyEscrowFactory =
@@ -437,6 +438,7 @@ describe('PolyEscrow', function () {
                         amount,
                         startTime: 0,
                         endTime: 0,
+                        arbitrationModule: ethers.ZeroAddress,
                     })
                 ).to.be.revertedWith('InvalidPayer');
             });
@@ -459,6 +461,7 @@ describe('PolyEscrow', function () {
                         amount,
                         startTime: 0,
                         endTime: 0,
+                        arbitrationModule: ethers.ZeroAddress,
                     })
                 ).to.be.revertedWith('InvalidReceiver');
             });
@@ -494,6 +497,7 @@ describe('PolyEscrow', function () {
                         amount,
                         startTime: 0,
                         endTime: 0,
+                        arbitrationModule: ethers.ZeroAddress,
                     })
                 ).to.be.revertedWith('MaxArbitersExceeded');
             });
@@ -520,6 +524,7 @@ describe('PolyEscrow', function () {
                         amount,
                         startTime: 0,
                         endTime: 0,
+                        arbitrationModule: ethers.ZeroAddress,
                     })
                 ).to.be.revertedWith('InvalidArbiter');
             });
@@ -542,6 +547,7 @@ describe('PolyEscrow', function () {
                         amount,
                         startTime: 0,
                         endTime: 0,
+                        arbitrationModule: ethers.ZeroAddress,
                     })
                 ).to.be.revertedWith('InvalidArbiter');
             });
@@ -564,6 +570,7 @@ describe('PolyEscrow', function () {
                         amount,
                         startTime: 0,
                         endTime: 0,
+                        arbitrationModule: ethers.ZeroAddress,
                     })
                 ).to.be.revertedWith('InvalidArbiter');
             });
@@ -586,6 +593,7 @@ describe('PolyEscrow', function () {
                         amount,
                         startTime: 0,
                         endTime: 0,
+                        arbitrationModule: ethers.ZeroAddress,
                     })
                 ).to.be.revertedWith('InvalidReceiver');
             });
@@ -611,6 +619,7 @@ describe('PolyEscrow', function () {
                         amount,
                         startTime: 0,
                         endTime: 0,
+                        arbitrationModule: ethers.ZeroAddress,
                     })
                 )
                     .to.emit(polyEscrow, 'EscrowCreated')

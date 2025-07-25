@@ -43,6 +43,7 @@ describe('RelayNode', function () {
             amount,
             startTime: 0,
             endTime: 0,
+            arbitrationModule: ethers.ZeroAddress,
         });
 
         //return escrow
@@ -148,9 +149,9 @@ describe('RelayNode', function () {
         testToken = await TestTokenFactory.deploy('XYZ', 'ZYX');
 
         //deploy arbitration module
-        const EscrowArbitrationModuleFactory =
-            await hre.ethers.getContractFactory('EscrowArbitrationModule');
-        arbitrationModule = await EscrowArbitrationModuleFactory.deploy();
+        const ArbitrationModuleFactory =
+            await hre.ethers.getContractFactory('ArbitrationModule');
+        arbitrationModule = await ArbitrationModuleFactory.deploy();
 
         //deploy polyEscrow
         const PolyEscrowFactory =

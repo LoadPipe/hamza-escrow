@@ -4,8 +4,8 @@ pragma solidity ^0.8.20;
 import "./HasSecurityContext.sol"; 
 import "./Pausable.sol";
 import "./CarefulMath.sol";
-import "./EscrowArbitration.sol";
 import "./interfaces/ISystemSettings.sol";
+import "./interfaces/IArbitrationModule.sol";
 import "./interfaces/IPolyEscrow.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -20,6 +20,7 @@ struct CreateEscrowInput {
     address currency; //The currency addres, 0x0 for native
     uint256 startTime; // The timestamp when the escrow period begins
     uint256 endTime; //The timestamp when the escrow period ends
+    IArbitrationModule arbitrationModule;
 }
 
 uint256 constant MAX_ARBITERS = 10; // Maximum number of arbiters allowed in an escrow
@@ -35,7 +36,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
 {
     mapping(bytes32 => Escrow) private escrows;
     ISystemSettings public settings;
-    EscrowArbitrationModule public arbitrationModule;
+    IArbitrationModule public defaultArbitrationModule;
 
     //EVENTS 
 
@@ -87,13 +88,13 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     constructor(
         ISecurityContext securityContext, 
         ISystemSettings systemSettings, 
-        EscrowArbitrationModule _arbitrationModule
+        IArbitrationModule arbitrationModule
     ) 
         Pausable(securityContext)
     {
         _setSecurityContext(securityContext);
         settings = systemSettings;
-        arbitrationModule = _arbitrationModule;
+        defaultArbitrationModule = arbitrationModule;
     }
 
     // --- Escrow Management ---
@@ -143,6 +144,11 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         escrow.amountReleased = 0;
         escrow.amountPaid = 0;
         escrow.status = EscrowStatus.Pending;
+
+        if (address(input.arbitrationModule) != address(0))
+            escrow.arbitrationModule = input.arbitrationModule;
+        else 
+            escrow.arbitrationModule = defaultArbitrationModule;
 
         escrows[input.id] = escrow;
 
@@ -293,15 +299,19 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     // --- Arbitration ---
 
     function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) public whenNotPaused {
+        IArbitrationModule arbitrationModule = escrows[escrowId].arbitrationModule;
         arbitrationModule.proposeArbitration(this, escrowId, proposalType, amount);
     }
 
-    function voteArbitration(bytes32 arbitrationId, bool vote) public whenNotPaused {
+    function voteArbitration(bytes32 escrowId, bytes32 arbitrationId, bool vote) public whenNotPaused {
+        IArbitrationModule arbitrationModule = escrows[escrowId].arbitrationModule;
         arbitrationModule.voteArbitration(this, arbitrationId, vote);
     }
 
-    function executeArbitration(bytes32 arbitrationId) public whenNotPaused {
+    function executeArbitration(bytes32 escrowId, bytes32 arbitrationId) public whenNotPaused {
+        IArbitrationModule arbitrationModule = escrows[escrowId].arbitrationModule;
         arbitrationModule.executeArbitration(this, arbitrationId);
+        //TODO: execute arbitration locally
     }
 
     // --- HasSecurityContext ---

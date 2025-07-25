@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
+import "./interfaces/IArbitrationModule.sol";
+
 enum EscrowStatus { 
     Pending, 
     Active, 
@@ -39,6 +41,7 @@ struct Escrow {
     bool payerReleased; 
     bool receiverReleased;
     bool released;
+    IArbitrationModule arbitrationModule;
 }
 
 struct EscrowArbitrationProposal {
