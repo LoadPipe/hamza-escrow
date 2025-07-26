@@ -74,66 +74,66 @@ describe('Arbitration', function () {
 
     describe('Deployment', function () {
         describe('Happy Paths', function () {
-            it('can deploy with valid arbitration module', async function () {});
+            it.skip('can deploy with valid arbitration module', async function () {});
         });
         describe('Exceptions', function () {
-            it('cannot deploy with a zero-address arbitration module', async function () {});
-            it('cannot deploy with an invalid arbitration module', async function () {});
+            it.skip('cannot deploy with a zero-address arbitration module', async function () {});
+            it.skip('cannot deploy with an invalid arbitration module', async function () {});
         });
     });
 
     describe('Escrow Creation', function () {
         describe('Happy Paths', function () {
-            it('can create escrow with valid custom arbitration module', async function () {});
-            it('can create escrow with valid default arbitration module', async function () {});
+            it.skip('can create escrow with valid custom arbitration module', async function () {});
+            it.skip('can create escrow with valid default arbitration module', async function () {});
         });
         describe('Exceptions', function () {
-            it('cannot create escrow with a zero-address arbitration module', async function () {});
-            it('cannot create escrow with an invalid arbitration module', async function () {});
+            it.skip('cannot create escrow with a zero-address arbitration module', async function () {});
+            it.skip('cannot create escrow with an invalid arbitration module', async function () {});
         });
         describe('Events', function () {});
     });
 
     describe('Proposing Arbitration', function () {
         describe('Happy Paths', function () {
-            it('payer can propose arbitration', async function () {});
-            it('receiver can propose arbitration', async function () {});
-            it('proposal is accepted when votes over threshold', async function () {});
-            it('proposal is rejected when votes under threshold', async function () {});
-            it('single-arbiter proposal is voted, accepted automatically on proposal creation', async function () {});
+            it.skip('payer can propose arbitration', async function () {});
+            it.skip('receiver can propose arbitration', async function () {});
+            it.skip('proposal is accepted when votes over threshold', async function () {});
+            it.skip('proposal is rejected when votes under threshold', async function () {});
+            it.skip('single-arbiter proposal is voted, accepted automatically on proposal creation', async function () {});
         });
         describe('Exceptions', function () {
-            it('stranger cannot propose arbitration', async function () {});
-            it('arbiter cannot propose arbitration', async function () {});
-            it('cannot propose arbitration on invalid escrow id', async function () {});
-            it('cannot vote on invalid proposal id', async function () {});
-            it('cannot vote on inactive proposal', async function () {});
+            it.skip('stranger cannot propose arbitration', async function () {});
+            it.skip('arbiter cannot propose arbitration', async function () {});
+            it.skip('cannot propose arbitration on invalid escrow id', async function () {});
+            it.skip('cannot vote on invalid proposal id', async function () {});
+            it.skip('cannot vote on inactive proposal', async function () {});
         });
         describe('Events', function () {
-            it('arbitration proposal emits ArbitrationProposed', async function () {});
+            it.skip('arbitration proposal emits ArbitrationProposed', async function () {});
         });
     });
 
     describe('Voting on Arbitration', function () {
         describe('Happy Paths', function () {
-            it('arbiters can vote yes on arbitration', async function () {});
-            it('arbiters can vote no on arbitration', async function () {});
+            it.skip('arbiters can vote yes on arbitration', async function () {});
+            it.skip('arbiters can vote no on arbitration', async function () {});
         });
         describe('Exceptions', function () {
-            it('payer cannot vote on arbitration', async function () {});
-            it('receiver cannot vote on arbitration', async function () {});
-            it('stranger cannot vote on arbitration', async function () {});
+            it.skip('payer cannot vote on arbitration', async function () {});
+            it.skip('receiver cannot vote on arbitration', async function () {});
+            it.skip('stranger cannot vote on arbitration', async function () {});
         });
         describe('Events', function () {
-            it('voting emits VoteRecorded', async function () {});
+            it.skip('voting emits VoteRecorded', async function () {});
         });
     });
 
     describe('Cancelling Arbitration', function () {
         describe('Happy Paths', function () {});
         describe('Exceptions', function () {
-            it('cannot cancel invalid proposal', async function () {});
-            it('cannot cancel inactive proposal', async function () {});
+            it.skip('cannot cancel invalid proposal', async function () {});
+            it.skip('cannot cancel inactive proposal', async function () {});
         });
         describe('Events', function () {});
     });
