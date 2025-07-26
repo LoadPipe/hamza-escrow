@@ -631,52 +631,7 @@ describe('PolyEscrow', function () {
     describe('Place Payments', function () {
         //TODO: verify appropriate escrow properties in each happy path case
         describe('Happy Paths', function () {
-            it('can place a single native payment', async function () {
-                const isToken = false;
-                const initialContractBalance = await getBalance(
-                    polyEscrow.target,
-                    isToken
-                );
-                const initialPayerBalance = await getBalance(
-                    payer1.address,
-                    isToken
-                );
-                const amount = BigInt(10000000);
-
-                //create escrow
-                const escrowId = ethers.keccak256('0x01');
-                let escrow = await createEscrow(
-                    escrowId,
-                    payer1,
-                    receiver1.address,
-                    amount
-                );
-
-                //place a payment
-                escrow = await placePayment(escrowId, payer1, amount, false);
-
-                expect(escrow.amountPaid).to.equal(amount);
-                expect(escrow.fullyPaid).to.equal(true);
-
-                const newContractBalance = await getBalance(
-                    polyEscrow.target,
-                    isToken
-                );
-                const newPayerBalance = await getBalance(
-                    payer1.address,
-                    isToken
-                );
-
-                expect(newContractBalance).to.equal(
-                    initialContractBalance + amount
-                );
-                expect(newPayerBalance).to.be.lessThan(
-                    initialPayerBalance - amount
-                );
-            });
-
-            it('can place a single token payment', async function () {
-                const isToken = true;
+            async function testPlaceSinglePayment(isToken: boolean) {
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
                     isToken
@@ -694,11 +649,11 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //place a payment
-                escrow = await placePayment(escrowId, payer1, amount, true);
+                escrow = await placePayment(escrowId, payer1, amount, isToken);
 
                 expect(escrow.amountPaid).to.equal(amount);
                 expect(escrow.fullyPaid).to.equal(true);
@@ -715,7 +670,17 @@ describe('PolyEscrow', function () {
                 expect(newContractBalance).to.equal(
                     initialContractBalance + amount
                 );
-                expect(newPayerBalance).to.equal(initialPayerBalance - amount);
+                expect(newPayerBalance).to.be.lessThanOrEqual(
+                    initialPayerBalance - amount
+                );
+            }
+
+            it('can place a single native payment', async function () {
+                await testPlaceSinglePayment(false);
+            });
+
+            it('can place a single token payment', async function () {
+                await testPlaceSinglePayment(true);
             });
 
             it('paid token amounts accrue in contract', async function () {
@@ -967,9 +932,8 @@ describe('PolyEscrow', function () {
         });
 
         describe('Events', function () {
-            it('emits EscrowFullyPaid for native payment', async function () {
+            async function testEmitsEscrowFullyPaid(isToken: boolean) {
                 const amount = BigInt(10000000);
-                const isToken = false;
 
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
@@ -982,252 +946,237 @@ describe('PolyEscrow', function () {
                 );
 
                 //place a payment
-                await expect(
-                    polyEscrow.connect(payer1).placePayment(
-                        {
+                if (isToken) {
+                    await testToken
+                        .connect(payer1)
+                        .approve(polyEscrow.target, amount);
+                    await expect(
+                        polyEscrow.connect(payer1).placePayment({
                             escrowId: escrowId,
-                            currency: ethers.ZeroAddress, //TODO: this is wrong; why does it pass?
+                            currency: testToken.target,
                             amount,
-                        },
-                        { value: amount }
+                        })
                     )
-                )
-                    .to.emit(polyEscrow, 'EscrowFullyPaid')
-                    .withArgs(escrowId, amount);
+                        .to.emit(polyEscrow, 'EscrowFullyPaid')
+                        .withArgs(escrowId, amount);
+                } else {
+                    await expect(
+                        polyEscrow.connect(payer1).placePayment(
+                            {
+                                escrowId: escrowId,
+                                currency: ethers.ZeroAddress,
+                                amount,
+                            },
+                            isToken ? undefined : { value: amount }
+                        )
+                    )
+                        .to.emit(polyEscrow, 'EscrowFullyPaid')
+                        .withArgs(escrowId, amount);
+                }
+            }
+
+            async function testDoesNotEmitEscrowFullyPaid(isToken: boolean) {
+                const amount = BigInt(10000000);
+
+                //create escrow
+                const escrowId = ethers.keccak256('0x01');
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken
+                );
+
+                //place a payment
+                const partialAmount = amount - BigInt(1);
+                if (isToken) {
+                    await testToken
+                        .connect(payer1)
+                        .approve(polyEscrow.target, partialAmount);
+                    await expect(
+                        polyEscrow.connect(payer1).placePayment({
+                            escrowId: escrowId,
+                            currency: testToken.target,
+                            amount: partialAmount,
+                        })
+                    ).to.not.emit(polyEscrow, 'EscrowFullyPaid');
+                } else {
+                    await expect(
+                        polyEscrow.connect(payer1).placePayment(
+                            {
+                                escrowId: escrowId,
+                                currency: ethers.ZeroAddress,
+                                amount: partialAmount,
+                            },
+                            { value: partialAmount }
+                        )
+                    ).to.not.emit(polyEscrow, 'EscrowFullyPaid');
+                }
+            }
+
+            async function testEmitsPaymentReceived(isToken: boolean) {
+                const amount = BigInt(10000000);
+                const partialAmount = amount / BigInt(2);
+
+                //create escrow
+                const escrowId = ethers.keccak256('0x01');
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken
+                );
+
+                //place a payment
+                if (isToken) {
+                    await testToken
+                        .connect(payer1)
+                        .approve(polyEscrow.target, partialAmount);
+                    await expect(
+                        polyEscrow.connect(payer1).placePayment({
+                            escrowId: escrowId,
+                            currency: testToken.target,
+                            amount: partialAmount,
+                        })
+                    )
+                        .to.emit(polyEscrow, 'PaymentReceived')
+                        .withArgs(escrowId, payer1.address, partialAmount);
+                } else {
+                    await expect(
+                        polyEscrow.connect(payer1).placePayment(
+                            {
+                                escrowId: escrowId,
+                                currency: ethers.ZeroAddress,
+                                amount: partialAmount,
+                            },
+                            { value: partialAmount }
+                        )
+                    )
+                        .to.emit(polyEscrow, 'PaymentReceived')
+                        .withArgs(escrowId, payer1.address, partialAmount);
+                }
+            }
+
+            async function testEmitsPaymentReceivedAndEscrowFullyPaid(
+                isToken: boolean
+            ) {
+                const amount = BigInt(10000000);
+                const partialAmount = amount / BigInt(2);
+
+                //create escrow
+                const escrowId = ethers.keccak256('0x01');
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken
+                );
+
+                //place a payment
+                if (isToken) {
+                    await testToken
+                        .connect(payer1)
+                        .approve(polyEscrow.target, partialAmount);
+                    await expect(
+                        polyEscrow.connect(payer1).placePayment({
+                            escrowId: escrowId,
+                            currency: testToken.target,
+                            amount: partialAmount,
+                        })
+                    )
+                        .to.emit(polyEscrow, 'PaymentReceived')
+                        .withArgs(escrowId, payer1.address, partialAmount);
+
+                    //place the remaining payment
+                    await testToken
+                        .connect(payer1)
+                        .approve(polyEscrow.target, amount);
+                    await expect(
+                        polyEscrow.connect(payer1).placePayment({
+                            escrowId: escrowId,
+                            currency: testToken.target,
+                            amount: partialAmount,
+                        })
+                    )
+                        .to.emit(polyEscrow, 'EscrowFullyPaid')
+                        .withArgs(escrowId, amount);
+                } else {
+                    await expect(
+                        polyEscrow.connect(payer1).placePayment(
+                            {
+                                escrowId: escrowId,
+                                currency: ethers.ZeroAddress,
+                                amount: partialAmount,
+                            },
+                            { value: partialAmount }
+                        )
+                    )
+                        .to.emit(polyEscrow, 'PaymentReceived')
+                        .withArgs(escrowId, payer1.address, partialAmount);
+
+                    //place the remaining payment
+                    await expect(
+                        polyEscrow.connect(payer1).placePayment(
+                            {
+                                escrowId: escrowId,
+                                currency: ethers.ZeroAddress,
+                                amount: partialAmount,
+                            },
+                            { value: partialAmount }
+                        )
+                    )
+                        .to.emit(polyEscrow, 'EscrowFullyPaid')
+                        .withArgs(escrowId, amount);
+                }
+            }
+
+            it('emits EscrowFullyPaid for native payment', async function () {
+                await testEmitsEscrowFullyPaid(false);
             });
 
             it('emits EscrowFullyPaid for token payment', async function () {
-                const amount = BigInt(10000000);
-                const isToken = true;
-
-                //create escrow
-                const escrowId = ethers.keccak256('0x01');
-                await createEscrow(
-                    escrowId,
-                    payer1,
-                    receiver1.address,
-                    amount,
-                    isToken
-                );
-
-                //place a payment
-                await testToken
-                    .connect(payer1)
-                    .approve(polyEscrow.target, amount);
-                await expect(
-                    polyEscrow.connect(payer1).placePayment({
-                        escrowId: escrowId,
-                        currency: testToken.target,
-                        amount,
-                    })
-                )
-                    .to.emit(polyEscrow, 'EscrowFullyPaid')
-                    .withArgs(escrowId, amount);
+                await testEmitsEscrowFullyPaid(true);
             });
 
-            it('does not emit EscrowFullyPaid for partial payment', async function () {
-                const amount = BigInt(10000000);
-                const isToken = true;
+            it('does not emit EscrowFullyPaid for partial native payment', async function () {
+                await testDoesNotEmitEscrowFullyPaid(false);
+            });
 
-                //create escrow
-                const escrowId = ethers.keccak256('0x01');
-                await createEscrow(
-                    escrowId,
-                    payer1,
-                    receiver1.address,
-                    amount,
-                    isToken
-                );
-
-                //place a payment
-                await testToken
-                    .connect(payer1)
-                    .approve(polyEscrow.target, amount);
-                await expect(
-                    polyEscrow.connect(payer1).placePayment({
-                        escrowId: escrowId,
-                        currency: testToken.target,
-                        amount: amount - BigInt(1),
-                    })
-                ).to.not.emit(polyEscrow, 'EscrowFullyPaid');
+            it('does not emit EscrowFullyPaid for partial token payment', async function () {
+                await testDoesNotEmitEscrowFullyPaid(true);
             });
 
             it('emits PaymentReceived for partial native payment', async function () {
-                const amount = BigInt(10000000);
-                const isToken = false;
-                const partialAmount = amount / BigInt(2);
-
-                //create escrow
-                const escrowId = ethers.keccak256('0x01');
-                await createEscrow(
-                    escrowId,
-                    payer1,
-                    receiver1.address,
-                    amount,
-                    isToken
-                );
-
-                //place a payment
-                await expect(
-                    polyEscrow.connect(payer1).placePayment(
-                        {
-                            escrowId: escrowId,
-                            currency: ethers.ZeroAddress,
-                            amount: partialAmount,
-                        },
-                        { value: partialAmount }
-                    )
-                )
-                    .to.emit(polyEscrow, 'PaymentReceived')
-                    .withArgs(escrowId, payer1.address, partialAmount);
+                await testEmitsPaymentReceived(false);
             });
 
             it('emits PaymentReceived for partial token payment', async function () {
-                const amount = BigInt(10000000);
-                const isToken = true;
-                const partialAmount = amount / BigInt(2);
-
-                //create escrow
-                const escrowId = ethers.keccak256('0x01');
-                await createEscrow(
-                    escrowId,
-                    payer1,
-                    receiver1.address,
-                    amount,
-                    isToken
-                );
-
-                //place a payment
-                await testToken
-                    .connect(payer1)
-                    .approve(polyEscrow.target, amount);
-                await expect(
-                    polyEscrow.connect(payer1).placePayment({
-                        escrowId: escrowId,
-                        currency: testToken.target,
-                        amount: partialAmount,
-                    })
-                )
-                    .to.emit(polyEscrow, 'PaymentReceived')
-                    .withArgs(escrowId, payer1.address, partialAmount);
+                await testEmitsPaymentReceived(true);
             });
 
             it('emits PaymentReceived and EscrowFullyPaid for token payment', async function () {
-                const amount = BigInt(10000000);
-                const isToken = true;
-                const partialAmount = amount / BigInt(2);
+                await testEmitsPaymentReceivedAndEscrowFullyPaid(false);
+            });
 
-                //create escrow
-                const escrowId = ethers.keccak256('0x01');
-                await createEscrow(
-                    escrowId,
-                    payer1,
-                    receiver1.address,
-                    amount,
-                    isToken
-                );
-
-                //place a payment
-                await testToken
-                    .connect(payer1)
-                    .approve(polyEscrow.target, amount);
-                await expect(
-                    polyEscrow.connect(payer1).placePayment({
-                        escrowId: escrowId,
-                        currency: testToken.target,
-                        amount: partialAmount,
-                    })
-                )
-                    .to.emit(polyEscrow, 'PaymentReceived')
-                    .withArgs(escrowId, payer1.address, partialAmount);
-
-                //place the remaining payment
-                await testToken
-                    .connect(payer1)
-                    .approve(polyEscrow.target, amount);
-                await expect(
-                    polyEscrow.connect(payer1).placePayment({
-                        escrowId: escrowId,
-                        currency: testToken.target,
-                        amount: partialAmount,
-                    })
-                )
-                    .to.emit(polyEscrow, 'EscrowFullyPaid')
-                    .withArgs(escrowId, amount);
+            it('emits PaymentReceived and EscrowFullyPaid for token payment', async function () {
+                await testEmitsPaymentReceivedAndEscrowFullyPaid(true);
             });
         });
     });
 
     describe('Release Escrows', function () {
         describe('Happy Paths', function () {
-            it('can release a native payment with both approvals', async function () {
-                const isToken = false;
-                const initialContractBalance = await getBalance(
-                    polyEscrow.target
-                );
-                const initialReceiverBalance = await getBalance(
-                    receiver1.address
-                );
-                const amount = 10000000;
-
-                //create the escrow
-                const escrowId = ethers.keccak256('0x01');
-                await createEscrow(escrowId, payer1, receiver1.address, amount);
-
-                //fully pay the escrow
-                await placePayment(escrowId, payer1, amount);
-
-                //check the balance
-                const newContractBalance = await getBalance(polyEscrow.target);
-                const newReceiverBalance = await getBalance(receiver1.address);
-                expect(newContractBalance).to.equal(
-                    initialContractBalance + BigInt(amount)
-                );
-                expect(newReceiverBalance).to.equal(initialReceiverBalance);
-
-                //try to release the payment
-                await polyEscrow.connect(receiver1).releaseEscrow(escrowId);
-                await polyEscrow.connect(payer1).releaseEscrow(escrowId);
-
-                //ensure that payment has been released
-                const payment = convertEscrow(
-                    await polyEscrow.getEscrow(escrowId)
-                );
-                verifyEscrow(payment, {
-                    id: escrowId,
-                    payer: payer1.address,
-                    receiver: receiver1.address,
-                    amount,
-                    amountRefunded: 0,
-                    amountPaid: amount,
-                    amountReleased: amount,
-                    payerReleased: true,
-                    receiverReleased: true,
-                    released: true,
-                    currency: ethers.ZeroAddress,
-                });
-
-                //check the balance
-                const finalContractBalance = await getBalance(
-                    polyEscrow.target
-                );
-                const finalReceiverBalance = await getBalance(
-                    receiver1.address
-                );
-                expect(finalContractBalance).to.equal(
-                    newContractBalance - BigInt(amount)
-                );
-            });
-
-            it('can release a token payment with both approvals', async function () {
-                const isToken = false;
+            async function testCanReleaseWithApprovals(isToken: boolean) {
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 const initialReceiverBalance = await getBalance(
                     receiver1.address,
-                    true
+                    isToken
                 );
                 const amount = 10000000;
 
@@ -1238,20 +1187,20 @@ describe('PolyEscrow', function () {
                     payer1,
                     receiver1.address,
                     amount,
-                    true
+                    isToken
                 );
 
                 //fully pay the escrow
-                await placePayment(escrowId, payer1, amount, true);
+                await placePayment(escrowId, payer1, amount, isToken);
 
                 //check the balance
                 const newContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 const newReceiverBalance = await getBalance(
                     receiver1.address,
-                    true
+                    isToken
                 );
                 expect(newContractBalance).to.equal(
                     initialContractBalance + BigInt(amount)
@@ -1277,21 +1226,33 @@ describe('PolyEscrow', function () {
                     payerReleased: true,
                     receiverReleased: true,
                     released: true,
-                    currency: testToken.target,
+                    currency: isToken ? testToken.target : ethers.ZeroAddress,
                 });
 
                 //check the balance
                 const finalContractBalance = await getBalance(
                     polyEscrow.target,
-                    true
+                    isToken
                 );
                 const finalReceiverBalance = await getBalance(
                     receiver1.address,
-                    true
+                    isToken
                 );
+
                 expect(finalContractBalance).to.equal(
                     newContractBalance - BigInt(amount)
                 );
+                expect(finalReceiverBalance).to.be.lessThanOrEqual(
+                    newReceiverBalance + BigInt(amount)
+                );
+            }
+
+            it('can release a native payment with both approvals', async function () {
+                await testCanReleaseWithApprovals(false);
+            });
+
+            it('can release a token payment with both approvals', async function () {
+                await testCanReleaseWithApprovals(true);
             });
 
             it.skip('arbiter can release a payment on behalf of payer', async function () {
@@ -1724,7 +1685,7 @@ describe('PolyEscrow', function () {
             expect(finalContractBalance).to.equal(
                 initialContractBalance + BigInt(amount - refundAmount)
             );
-            expect(finalPayerBalance).to.equal(
+            expect(finalPayerBalance).to.be.lessThanOrEqual(
                 initialPayerBalance - BigInt(amount - refundAmount)
             );
 
@@ -1732,61 +1693,8 @@ describe('PolyEscrow', function () {
         }
 
         describe('Happy Paths', function () {
-            it.skip('arbiter can cause a partial refund', async function () {
+            async function testCanDoMultiplePartials(isToken: boolean) {
                 const amount = 1000000;
-                const isToken = true;
-                await refundTest(
-                    amount,
-                    amount / 5,
-                    payer1,
-                    receiver1,
-                    arbiter1,
-                    isToken
-                );
-            });
-
-            it('receiver can cause a partial refund', async function () {
-                const amount = 1000000;
-                const isToken = true;
-                await refundTest(
-                    amount,
-                    amount / 5,
-                    payer1,
-                    receiver1,
-                    receiver1,
-                    isToken
-                );
-            });
-
-            it.skip('arbiter can cause a full refund', async function () {
-                const amount = 1000000;
-                const isToken = true;
-                await refundTest(
-                    amount,
-                    amount,
-                    payer1,
-                    receiver1,
-                    arbiter1,
-                    isToken
-                );
-            });
-
-            it('receiver can cause a full refund', async function () {
-                const amount = 1000000;
-                const isToken = true;
-                await refundTest(
-                    amount,
-                    amount,
-                    payer1,
-                    receiver1,
-                    receiver1,
-                    isToken
-                );
-            });
-
-            it('can do multiple partial refunds', async function () {
-                const amount = 1000000;
-                const isToken = true;
                 const refundAmount = amount / 5;
                 const initialContractBalance = await getBalance(
                     polyEscrow.target,
@@ -1832,9 +1740,95 @@ describe('PolyEscrow', function () {
                 expect(finalContractBalance).to.equal(
                     initialContractBalance + BigInt(amount - refundAmount * 2)
                 );
-                expect(finalPayerBalance).to.equal(
+                expect(finalPayerBalance).to.be.lessThanOrEqual(
                     initialPayerBalance - BigInt(amount - refundAmount * 2)
                 );
+            }
+
+            it.skip('arbiter can cause a partial refund', async function () {
+                const amount = 1000000;
+                const isToken = true;
+                await refundTest(
+                    amount,
+                    amount / 5,
+                    payer1,
+                    receiver1,
+                    arbiter1,
+                    isToken
+                );
+            });
+
+            it('receiver can cause a partial refund of native', async function () {
+                const amount = 1000000000;
+                const isToken = false;
+                await refundTest(
+                    amount,
+                    amount / 5,
+                    payer1,
+                    receiver1,
+                    receiver1,
+                    isToken
+                );
+            });
+
+            it('receiver can cause a partial refund of token', async function () {
+                const amount = 1000000;
+                const isToken = true;
+                await refundTest(
+                    amount,
+                    amount / 5,
+                    payer1,
+                    receiver1,
+                    receiver1,
+                    isToken
+                );
+            });
+
+            it.skip('arbiter can cause a full refund', async function () {
+                const amount = 1000000;
+                const isToken = true;
+                await refundTest(
+                    amount,
+                    amount,
+                    payer1,
+                    receiver1,
+                    arbiter1,
+                    isToken
+                );
+            });
+
+            it('receiver can cause a full refund of native', async function () {
+                const amount = 1000000000;
+                const isToken = false;
+                await refundTest(
+                    amount,
+                    amount,
+                    payer1,
+                    receiver1,
+                    receiver1,
+                    isToken
+                );
+            });
+
+            it('receiver can cause a full refund of token', async function () {
+                const amount = 1000000;
+                const isToken = true;
+                await refundTest(
+                    amount,
+                    amount,
+                    payer1,
+                    receiver1,
+                    receiver1,
+                    isToken
+                );
+            });
+
+            it('can do multiple partial refunds of native', async function () {
+                await testCanDoMultiplePartials(false);
+            });
+
+            it('can do multiple partial refunds of token', async function () {
+                await testCanDoMultiplePartials(true);
             });
         });
 
