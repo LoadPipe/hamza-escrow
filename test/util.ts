@@ -20,6 +20,17 @@ export interface IEscrow {
     payerReleased: boolean;
     receiverReleased: boolean;
     released: boolean;
+    arbitrationModule: string;
+}
+
+export interface IArbitrationProposal {
+    id: any;
+    escrowId: any;
+    proposalType: number;
+    status: number;
+    amount: any;
+    votesFor: number;
+    votesAgainst: number;
 }
 
 export function convertEscrow(rawData: any[]): IEscrow {
@@ -42,5 +53,18 @@ export function convertEscrow(rawData: any[]): IEscrow {
         payerReleased: rawData[15],
         receiverReleased: rawData[16],
         released: rawData[17],
+        arbitrationModule: rawData[18],
+    };
+}
+
+export function convertProposal(rawData: any[]): IArbitrationProposal {
+    return {
+        id: rawData[0],
+        escrowId: rawData[1],
+        proposalType: rawData[2],
+        status: rawData[3],
+        amount: rawData[4],
+        votesFor: rawData[5],
+        votesAgainst: rawData[6],
     };
 }

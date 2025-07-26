@@ -2,7 +2,13 @@ import { expect } from 'chai';
 import hre, { ethers } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { BigNumberish, keccak256 } from 'ethers';
-import { IEscrow, convertEscrow as convertEscrow } from './util';
+import {
+    IArbitrationProposal,
+    IEscrow,
+    convertEscrow as convertEscrow,
+    convertProposal,
+} from './util';
+import { create } from 'domain';
 
 describe('Arbitration', function () {
     let securityContext: any;
@@ -19,6 +25,61 @@ describe('Arbitration', function () {
     let vaultAddress: HardhatEthersSigner;
     let arbiter1: HardhatEthersSigner;
     let arbiter2: HardhatEthersSigner;
+
+    const PROPOSE_RELEASE = 1;
+    const PROPOSE_REFUND = 2;
+
+    async function createEscrow(
+        escrowId: string,
+        payerAccount: HardhatEthersSigner,
+        receiverAddress: string,
+        amount: BigNumberish,
+        isToken: boolean = false,
+        arbiters: string[] = [],
+        arbitersRequired: number = arbiters?.length ?? 0,
+        startTime: number = 0,
+        endTime: number = 0
+    ): Promise<IEscrow> {
+        if (isToken)
+            await testToken
+                .connect(payerAccount)
+                .approve(polyEscrow.target, amount);
+
+        await polyEscrow.connect(payerAccount).createEscrow({
+            currency: isToken ? testToken.target : ethers.ZeroAddress,
+            id: escrowId,
+            receiver: receiverAddress,
+            payer: payerAccount.address,
+            arbiters,
+            arbitersRequired,
+            amount,
+            startTime,
+            endTime,
+            arbitrationModule: ethers.ZeroAddress,
+        });
+
+        //return escrow
+        const escrow = convertEscrow(await polyEscrow.getEscrow(escrowId));
+        return escrow;
+    }
+
+    async function createProposal(
+        proposerAccount: HardhatEthersSigner,
+        escrowId: string,
+        proposalType: number,
+        amount: number
+    ): Promise<IArbitrationProposal> {
+        await polyEscrow
+            .connect(proposerAccount)
+            .proposeArbitration(escrowId, proposalType, amount);
+
+        //TODO: capture the event, and the id from it
+
+        //retrieve the proposal
+        const proposal = await arbitrationModule.getProposal();
+
+        return convertProposal(proposal);
+    }
 
     this.beforeEach(async () => {
         const [a1, a2, a3, a4, a5, a6, a7, a8, a9] =
@@ -74,10 +135,16 @@ describe('Arbitration', function () {
 
     describe('Deployment', function () {
         describe('Happy Paths', function () {
-            it.skip('can deploy with valid arbitration module', async function () {});
+            it('can deploy with valid arbitration module', async function () {
+                expect(await polyEscrow.defaultArbitrationModule()).to.equal(
+                    arbitrationModule.target
+                );
+            });
         });
+
         describe('Exceptions', function () {
             it.skip('cannot deploy with a zero-address arbitration module', async function () {});
+
             it.skip('cannot deploy with an invalid arbitration module', async function () {});
         });
     });
@@ -85,30 +152,90 @@ describe('Arbitration', function () {
     describe('Escrow Creation', function () {
         describe('Happy Paths', function () {
             it.skip('can create escrow with valid custom arbitration module', async function () {});
-            it.skip('can create escrow with valid default arbitration module', async function () {});
+
+            it('can create escrow with valid default arbitration module', async function () {
+                //create escrow
+                const escrowId = ethers.keccak256('0x01');
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    100,
+                    true
+                );
+
+                //check arbitration module
+                expect(escrow.arbitrationModule).to.equal(
+                    arbitrationModule.target
+                );
+            });
         });
+
         describe('Exceptions', function () {
             it.skip('cannot create escrow with a zero-address arbitration module', async function () {});
+
             it.skip('cannot create escrow with an invalid arbitration module', async function () {});
         });
+
         describe('Events', function () {});
     });
 
     describe('Proposing Arbitration', function () {
         describe('Happy Paths', function () {
-            it.skip('payer can propose arbitration', async function () {});
+            it.skip('payer can propose arbitration', async function () {
+                //create the escrow
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 1000000;
+                const isToken = true;
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken
+                );
+
+                //propose arbitration as payer
+                const proposalType = PROPOSE_REFUND;
+                const proposalAmount = 1000;
+                const proposal = await createProposal(
+                    payer1,
+                    escrowId,
+                    proposalType,
+                    proposalAmount
+                );
+
+                //verify proposal
+                expect(proposal.amount).to.equal(proposalAmount);
+                expect(proposal.escrowId).to.equal(escrowId);
+                expect(proposal.proposalType).to.equal(proposalType);
+            });
+
             it.skip('receiver can propose arbitration', async function () {});
+
             it.skip('proposal is accepted when votes over threshold', async function () {});
+
             it.skip('proposal is rejected when votes under threshold', async function () {});
+
             it.skip('single-arbiter proposal is voted, accepted automatically on proposal creation', async function () {});
         });
+
         describe('Exceptions', function () {
             it.skip('stranger cannot propose arbitration', async function () {});
+
             it.skip('arbiter cannot propose arbitration', async function () {});
+
             it.skip('cannot propose arbitration on invalid escrow id', async function () {});
+
             it.skip('cannot vote on invalid proposal id', async function () {});
+
             it.skip('cannot vote on inactive proposal', async function () {});
+
+            it.skip('cannot exceed max number of open proposals', async function () {});
+
+            it.skip('cannot create arbitration for more than the remaining amount of escrow', async function () {});
         });
+
         describe('Events', function () {
             it.skip('arbitration proposal emits ArbitrationProposed', async function () {});
         });
@@ -117,13 +244,18 @@ describe('Arbitration', function () {
     describe('Voting on Arbitration', function () {
         describe('Happy Paths', function () {
             it.skip('arbiters can vote yes on arbitration', async function () {});
+
             it.skip('arbiters can vote no on arbitration', async function () {});
         });
+
         describe('Exceptions', function () {
             it.skip('payer cannot vote on arbitration', async function () {});
+
             it.skip('receiver cannot vote on arbitration', async function () {});
+
             it.skip('stranger cannot vote on arbitration', async function () {});
         });
+
         describe('Events', function () {
             it.skip('voting emits VoteRecorded', async function () {});
         });
@@ -131,16 +263,21 @@ describe('Arbitration', function () {
 
     describe('Cancelling Arbitration', function () {
         describe('Happy Paths', function () {});
+
         describe('Exceptions', function () {
             it.skip('cannot cancel invalid proposal', async function () {});
+
             it.skip('cannot cancel inactive proposal', async function () {});
         });
+
         describe('Events', function () {});
     });
 
     describe('Executing Arbitration', function () {
         describe('Happy Paths', function () {});
+
         describe('Exceptions', function () {});
+
         describe('Events', function () {});
     });
 });
