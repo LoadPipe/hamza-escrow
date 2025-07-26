@@ -6,7 +6,6 @@ import "./IPolyEscrow.sol";
 
 enum ArbitrationType {
     REFUND,
-    CANCEL,
     RELEASE
 }
 
@@ -23,7 +22,6 @@ struct ArbitrationProposal {
     bytes32 escrowId;
     ArbitrationType proposalType;
     ArbitrationStatus status;
-    mapping(address => bool) votes;
     uint256 amount;
     uint8 votesFor;
     uint8 votesAgainst;
@@ -31,11 +29,13 @@ struct ArbitrationProposal {
 
 interface IArbitrationModule
 {
+    function getProposal(bytes32 proposalId) external view returns (ArbitrationProposal memory) ; 
+
     function proposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, ArbitrationType proposalType, uint256 amount) external;
 
-    function voteArbitration(IPolyEscrow polyEscrow, bytes32 arbitrationId, bool vote) external;
+    function voteArbitration(IPolyEscrow polyEscrow, bytes32 proposalId, bool vote) external;
 
-    function cancelArbitration(bytes32 arbitrationId) external;
+    function cancelArbitration(bytes32 proposalId) external;
 
-    function executeArbitration(IPolyEscrow polyEscrow, bytes32 arbitrationId) external;
+    function executeArbitration(IPolyEscrow polyEscrow, bytes32 proposalId) external;
 }

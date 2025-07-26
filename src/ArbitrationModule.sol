@@ -17,6 +17,7 @@ import "./interfaces/IArbitrationModule.sol";
 contract ArbitrationModule is IArbitrationModule
 {
     mapping(bytes32 => ArbitrationProposal) private proposals;
+    mapping(bytes32 => mapping(address => bool)) proposalVotes;
     uint8 public proposalCount;
 
     //EVENTS 
@@ -41,7 +42,11 @@ contract ArbitrationModule is IArbitrationModule
     constructor() {
     }
 
-    function proposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, ArbitrationType proposalType, uint256 amount) public virtual {
+    function getProposal(bytes32 proposalId) external virtual view returns (ArbitrationProposal memory) {
+        return proposals[proposalId];
+    }
+
+    function proposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, ArbitrationType proposalType, uint256 amount) external virtual {
 
         /*
         WHO can propose arbitration? 
@@ -54,30 +59,30 @@ contract ArbitrationModule is IArbitrationModule
         //TODO: should there be a limit on number of open arbitration cases?
         
         //generate a unique id
-        bytes32 arbId = _generateUniqueProposalId(polyEscrow, escrowId);
-        proposals[arbId].id = arbId;
-        proposals[arbId].escrowId = escrowId;
-        proposals[arbId].proposalType = proposalType;
-        proposals[arbId].amount = amount;
-        proposals[arbId].status = ArbitrationStatus.ACTIVE;
-        proposals[arbId].votesAgainst = 0;
+        bytes32 propId = _generateUniqueProposalId(polyEscrow, escrowId);
+        proposals[propId].id = propId;
+        proposals[propId].escrowId = escrowId;
+        proposals[propId].proposalType = proposalType;
+        proposals[propId].amount = amount;
+        proposals[propId].status = ArbitrationStatus.ACTIVE;
+        proposals[propId].votesAgainst = 0;
 
         //TODO: validate the amount (should be realistic and related to amount in escrow)
 
         //record proposer as an automatic yes vote
-        proposals[arbId].votesFor = 1;
-        proposals[arbId].votes[msg.sender] = true;
+        proposals[propId].votesFor = 1;
+        proposalVotes[propId][msg.sender] = true;
 
         //raise event 
-        emit ArbitrationProposed(proposals[arbId].id, proposals[arbId].escrowId, msg.sender);
+        emit ArbitrationProposed(proposals[propId].id, proposals[propId].escrowId, msg.sender);
     }
 
-    function voteArbitration(IPolyEscrow polyEscrow, bytes32 arbitrationId, bool vote) external {
+    function voteArbitration(IPolyEscrow polyEscrow, bytes32 proposalId, bool vote) external virtual {
         
         // WHO can vote on arbitration?  arbiters only
 
         //get the arbitration proposal
-        ArbitrationProposal storage proposal = proposals[arbitrationId];
+        ArbitrationProposal storage proposal = proposals[proposalId];
         require(proposal.id != bytes32(0), "InvalidProposal");
 
         //get the escrow id
@@ -95,7 +100,7 @@ contract ArbitrationModule is IArbitrationModule
         } else {
             proposal.votesAgainst += 1;
         }
-        proposal.votes[msg.sender] = vote;
+        proposalVotes[proposalId][msg.sender] = vote;
 
         //change the status; are there enough votes to execute?
         Escrow memory escrow = polyEscrow.getEscrow(proposal.escrowId);
@@ -114,14 +119,14 @@ contract ArbitrationModule is IArbitrationModule
         //TODO: auto-execute?
     }
 
-    function cancelArbitration(bytes32 arbitrationId) external {
+    function cancelArbitration(bytes32 proposalId) external virtual {
 
         //TODO: WHO can cancel arbitration?
         //TODO: all arbitration on an escrow should be cancelled if the seller takes any action
 
         //get the arbitration proposal
         //TODO: this code is repeated alot; can it be put into its own function
-        ArbitrationProposal storage proposal = proposals[arbitrationId];
+        ArbitrationProposal storage proposal = proposals[proposalId];
         require(proposal.id != bytes32(0), "InvalidProposal");
 
         //TODO: can only cancel if status is ACTIVE
@@ -129,10 +134,10 @@ contract ArbitrationModule is IArbitrationModule
         proposal.status = ArbitrationStatus.CANCELED;
     }
 
-    function executeArbitration(IPolyEscrow polyEscrow, bytes32 arbitrationId) external view {
+    function executeArbitration(IPolyEscrow polyEscrow, bytes32 proposalId) external virtual view {
 
         //get the arbitration proposal
-        ArbitrationProposal storage proposal = proposals[arbitrationId];
+        ArbitrationProposal storage proposal = proposals[proposalId];
         require(proposal.id != bytes32(0), "InvalidProposal");
 
         //proposal must be accepted 
@@ -145,6 +150,7 @@ contract ArbitrationModule is IArbitrationModule
 
         //TODO: emit event
     }
+
 
     function _canProposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, address account) internal view returns (bool) {
         Escrow memory escrow = polyEscrow.getEscrow(escrowId);
