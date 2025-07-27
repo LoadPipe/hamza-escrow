@@ -54,7 +54,7 @@ contract ArbitrationModule is IArbitrationModule
         2. the receiver 
         3. arbiters? 
         */
-        require (_canProposeArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
+        //require (_canProposeArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
 
         //TODO: should there be a limit on number of open arbitration cases?
         

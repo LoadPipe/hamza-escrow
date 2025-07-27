@@ -10,7 +10,7 @@ import {
 } from './util';
 import { create } from 'domain';
 
-describe('Arbitration', function () {
+describe.only('Arbitration', function () {
     let securityContext: any;
     let systemSettings: any;
     let polyEscrow: any;
@@ -26,8 +26,8 @@ describe('Arbitration', function () {
     let arbiter1: HardhatEthersSigner;
     let arbiter2: HardhatEthersSigner;
 
-    const PROPOSE_RELEASE = 1;
-    const PROPOSE_REFUND = 2;
+    const PROPOSE_RELEASE = 0;
+    const PROPOSE_REFUND = 1;
 
     async function createEscrow(
         escrowId: string,
@@ -69,14 +69,16 @@ describe('Arbitration', function () {
         proposalType: number,
         amount: number
     ): Promise<IArbitrationProposal> {
-        await polyEscrow
+        const tx = await polyEscrow
             .connect(proposerAccount)
             .proposeArbitration(escrowId, proposalType, amount);
 
-        //TODO: capture the event, and the id from it
+        //capture the event, and the id from it
+        const receipt = await tx.wait();
+        const id = receipt.logs[0].topics[1];
 
         //retrieve the proposal
-        const proposal = await arbitrationModule.getProposal();
+        const proposal = await arbitrationModule.getProposal(id);
 
         return convertProposal(proposal);
     }
@@ -161,7 +163,9 @@ describe('Arbitration', function () {
                     payer1,
                     receiver1.address,
                     100,
-                    true
+                    true,
+                    [arbiter1.address, arbiter2.address],
+                    1
                 );
 
                 //check arbitration module
@@ -182,24 +186,26 @@ describe('Arbitration', function () {
 
     describe('Proposing Arbitration', function () {
         describe('Happy Paths', function () {
-            it.skip('payer can propose arbitration', async function () {
+            async function canProposeArbitration(account: HardhatEthersSigner) {
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 1000000;
                 const isToken = true;
-                const escrow = await createEscrow(
+                await createEscrow(
                     escrowId,
                     payer1,
                     receiver1.address,
                     amount,
-                    isToken
+                    isToken,
+                    [(arbiter1.address, arbiter2.address)],
+                    1
                 );
 
                 //propose arbitration as payer
                 const proposalType = PROPOSE_REFUND;
                 const proposalAmount = 1000;
                 const proposal = await createProposal(
-                    payer1,
+                    account,
                     escrowId,
                     proposalType,
                     proposalAmount
@@ -209,9 +215,15 @@ describe('Arbitration', function () {
                 expect(proposal.amount).to.equal(proposalAmount);
                 expect(proposal.escrowId).to.equal(escrowId);
                 expect(proposal.proposalType).to.equal(proposalType);
+            }
+
+            it('payer can propose arbitration', async function () {
+                await canProposeArbitration(payer1);
             });
 
-            it.skip('receiver can propose arbitration', async function () {});
+            it('receiver can propose arbitration', async function () {
+                await canProposeArbitration(receiver1);
+            });
 
             it.skip('proposal is accepted when votes over threshold', async function () {});
 
@@ -221,11 +233,53 @@ describe('Arbitration', function () {
         });
 
         describe('Exceptions', function () {
-            it.skip('stranger cannot propose arbitration', async function () {});
+            async function cannotProposeArbitrationUnauthorized(
+                proposerAccount: HardhatEthersSigner
+            ) {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
 
-            it.skip('arbiter cannot propose arbitration', async function () {});
+                //create escrow
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [(arbiter1.address, arbiter2.address)],
+                    1
+                );
 
-            it.skip('cannot propose arbitration on invalid escrow id', async function () {});
+                //propose arbitration
+                await expect(
+                    polyEscrow
+                        .connect(proposerAccount)
+                        .proposeArbitration(escrowId, PROPOSE_REFUND, 1)
+                ).to.be.revertedWith('Unauthorized');
+            }
+
+            it.skip('stranger cannot propose arbitration', async function () {
+                await cannotProposeArbitrationUnauthorized(receiver2);
+            });
+
+            it.skip('arbiter cannot propose arbitration', async function () {
+                await cannotProposeArbitrationUnauthorized(arbiter1);
+                await cannotProposeArbitrationUnauthorized(arbiter2);
+            });
+
+            it.skip('cannot propose arbitration on invalid escrow id', async function () {
+                const escrowId = ethers.keccak256('0x01');
+
+                //propose arbitration
+                await expect(
+                    polyEscrow
+                        .connect(receiver1)
+                        .proposeArbitration(escrowId, PROPOSE_REFUND, 1)
+                ).to.be.revertedWith('InvalidEscrow');
+            });
+
+            it.skip('cannot propose arbitration on escrow that has no arbiters assigned', async function () {});
 
             it.skip('cannot vote on invalid proposal id', async function () {});
 
@@ -243,17 +297,38 @@ describe('Arbitration', function () {
 
     describe('Voting on Arbitration', function () {
         describe('Happy Paths', function () {
-            it.skip('arbiters can vote yes on arbitration', async function () {});
+            async function canVote(
+                account: HardhatEthersSigner,
+                vote: boolean
+            ) {}
 
-            it.skip('arbiters can vote no on arbitration', async function () {});
+            it.skip('arbiters can vote yes on arbitration', async function () {
+                await canVote(arbiter1, true);
+                await canVote(arbiter2, true);
+            });
+
+            it.skip('arbiters can vote no on arbitration', async function () {
+                await canVote(arbiter1, false);
+                await canVote(arbiter2, false);
+            });
         });
 
         describe('Exceptions', function () {
-            it.skip('payer cannot vote on arbitration', async function () {});
+            async function cannotVoteUnauthorized(
+                account: HardhatEthersSigner
+            ) {}
 
-            it.skip('receiver cannot vote on arbitration', async function () {});
+            it.skip('payer cannot vote on arbitration', async function () {
+                await cannotVoteUnauthorized(payer1);
+            });
 
-            it.skip('stranger cannot vote on arbitration', async function () {});
+            it.skip('receiver cannot vote on arbitration', async function () {
+                await cannotVoteUnauthorized(receiver1);
+            });
+
+            it.skip('stranger cannot vote on arbitration', async function () {
+                await cannotVoteUnauthorized(receiver2);
+            });
         });
 
         describe('Events', function () {
