@@ -233,9 +233,10 @@ describe('Arbitration', function () {
 
         describe('Exceptions', function () {
             async function cannotProposeArbitrationUnauthorized(
+                escrowId: string,
                 proposerAccount: HardhatEthersSigner
             ) {
-                const escrowId = ethers.keccak256('0x01');
+                escrowId = ethers.keccak256(escrowId);
                 const amount = 10000;
                 const isToken = true;
 
@@ -263,13 +264,13 @@ describe('Arbitration', function () {
                 ).to.be.revertedWith('Unauthorized');
             }
 
-            it.skip('stranger cannot propose arbitration', async function () {
-                await cannotProposeArbitrationUnauthorized(receiver2);
+            it('stranger cannot propose arbitration', async function () {
+                await cannotProposeArbitrationUnauthorized('0x01', receiver2);
             });
 
-            it.skip('arbiter cannot propose arbitration', async function () {
-                await cannotProposeArbitrationUnauthorized(arbiter1);
-                await cannotProposeArbitrationUnauthorized(arbiter2);
+            it('arbiter cannot propose arbitration', async function () {
+                await cannotProposeArbitrationUnauthorized('0x01', arbiter1);
+                await cannotProposeArbitrationUnauthorized('0x02', arbiter2);
             });
 
             it.skip('cannot propose arbitration on invalid escrow id', async function () {
