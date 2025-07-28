@@ -54,9 +54,11 @@ contract ArbitrationModule is IArbitrationModule
         2. the receiver 
         3. arbiters? 
         */
-        //require (_canProposeArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
+        require (_canProposeArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
 
         //TODO: should there be a limit on number of open arbitration cases?
+
+        //TODO: ensure that escrow is in correct state to be arbitrated
         
         //generate a unique id
         bytes32 propId = _generateUniqueProposalId(polyEscrow, escrowId);
@@ -87,6 +89,11 @@ contract ArbitrationModule is IArbitrationModule
 
         //get the escrow id
         bytes32 escrowId = proposal.escrowId;
+
+        //ensure that escrowId is valid with escrow
+        require(polyEscrow.getEscrow(escrowId).id == escrowId, "InvalidEscrow");
+
+        //TODO: ensure that escrow is in correct state to be voted on
 
         //validate rights of voter
         require(_canVoteArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
@@ -144,6 +151,14 @@ contract ArbitrationModule is IArbitrationModule
         require(proposal.status == ArbitrationStatus.ACCEPTED, "InvalidEscrowState");
 
         //TODO: re-validate the amount (adjust it if necessary)
+
+        //get the escrow id
+        bytes32 escrowId = proposal.escrowId;
+
+        //ensure that escrowId is valid with escrow
+        require(polyEscrow.getEscrow(escrowId).id == escrowId, "InvalidEscrow");
+
+        //TODO: ensure that escrow is in correct state to have arbitration executed
 
         //execute 
         _executeArbitration(polyEscrow, proposal);

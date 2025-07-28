@@ -298,21 +298,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
 
     // --- Arbitration ---
 
-    function proposeArbitration(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) public whenNotPaused {
-        IArbitrationModule arbitrationModule = escrows[escrowId].arbitrationModule;
-        arbitrationModule.proposeArbitration(this, escrowId, proposalType, amount);
-    }
-
-    function voteArbitration(bytes32 escrowId, bytes32 proposalId, bool vote) public whenNotPaused {
-        IArbitrationModule arbitrationModule = escrows[escrowId].arbitrationModule;
-        arbitrationModule.voteArbitration(this, proposalId, vote);
-    }
-
-    function executeArbitration(bytes32 escrowId, bytes32 proposalId) public whenNotPaused {
-        IArbitrationModule arbitrationModule = escrows[escrowId].arbitrationModule;
-        arbitrationModule.executeArbitration(this, proposalId);
-        //TODO: execute arbitration locally
-    }
+    
 
     // --- HasSecurityContext ---
 
