@@ -8,9 +8,8 @@ import {
     convertEscrow as convertEscrow,
     convertProposal,
 } from './util';
-import { create } from 'domain';
 
-describe.only('Arbitration', function () {
+describe('Arbitration', function () {
     let securityContext: any;
     let systemSettings: any;
     let polyEscrow: any;
@@ -69,9 +68,9 @@ describe.only('Arbitration', function () {
         proposalType: number,
         amount: number
     ): Promise<IArbitrationProposal> {
-        const tx = await polyEscrow
+        const tx = await arbitrationModule
             .connect(proposerAccount)
-            .proposeArbitration(escrowId, proposalType, amount);
+            .proposeArbitration(polyEscrow, escrowId, proposalType, amount);
 
         //capture the event, and the id from it
         const receipt = await tx.wait();
@@ -253,9 +252,14 @@ describe.only('Arbitration', function () {
 
                 //propose arbitration
                 await expect(
-                    polyEscrow
+                    arbitrationModule
                         .connect(proposerAccount)
-                        .proposeArbitration(escrowId, PROPOSE_REFUND, 1)
+                        .proposeArbitration(
+                            polyEscrow,
+                            escrowId,
+                            PROPOSE_REFUND,
+                            1
+                        )
                 ).to.be.revertedWith('Unauthorized');
             }
 
@@ -273,9 +277,14 @@ describe.only('Arbitration', function () {
 
                 //propose arbitration
                 await expect(
-                    polyEscrow
+                    arbitrationModule
                         .connect(receiver1)
-                        .proposeArbitration(escrowId, PROPOSE_REFUND, 1)
+                        .proposeArbitration(
+                            polyEscrow,
+                            escrowId,
+                            PROPOSE_REFUND,
+                            1
+                        )
                 ).to.be.revertedWith('InvalidEscrow');
             });
 
