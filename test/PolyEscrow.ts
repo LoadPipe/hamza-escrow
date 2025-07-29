@@ -597,6 +597,8 @@ describe('PolyEscrow', function () {
                     })
                 ).to.be.revertedWith('InvalidReceiver');
             });
+
+            it.skip('cannot create escrow with more required arbiters than arbiters', async function () {});
         });
 
         describe('Events', function () {

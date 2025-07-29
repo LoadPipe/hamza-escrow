@@ -433,11 +433,37 @@ describe('Arbitration', function () {
                 ).to.be.revertedWith('InvalidEscrow');
             });
 
-            it.skip('cannot propose arbitration on escrow that has no arbiters assigned', async function () {});
+            it('cannot propose arbitration on escrow that has no arbiters assigned', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
 
-            it.skip('cannot vote on invalid proposal id', async function () {});
+                //create escrow with no arbiters
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [],
+                    0
+                );
 
-            it.skip('cannot vote on inactive proposal', async function () {});
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
+                //propose arbitration
+                await expect(
+                    arbitrationModule
+                        .connect(receiver1)
+                        .proposeArbitration(
+                            polyEscrow,
+                            escrowId,
+                            PROPOSE_REFUND,
+                            1
+                        )
+                ).to.be.revertedWith('InvalidProposal');
+            });
 
             it.skip('cannot exceed max number of open proposals', async function () {});
 
@@ -506,19 +532,19 @@ describe('Arbitration', function () {
                 );
 
                 //vote on proposal
-                await voteProposal(proposal.id, arbiter1, true);
+                await voteProposal(arbiter1, proposal.id, true);
                 expect((await getProposal(proposal.id)).status).to.equal(
                     PROPOSAL_STATUS_ACTIVE
                 );
 
                 //vote on proposal
-                await voteProposal(proposal.id, arbiter2, true);
+                await voteProposal(arbiter2, proposal.id, true);
                 expect((await getProposal(proposal.id)).status).to.equal(
                     PROPOSAL_STATUS_ACTIVE
                 );
 
                 //vote on proposal
-                await voteProposal(proposal.id, arbiter3, true);
+                await voteProposal(arbiter3, proposal.id, true);
                 expect((await getProposal(proposal.id)).status).to.equal(
                     PROPOSAL_STATUS_ACCEPTED
                 );
@@ -551,6 +577,39 @@ describe('Arbitration', function () {
             it.skip('cannot vote on arbitration that is in the wrong state', async function () {});
 
             it.skip('cannot vote on proposal more than once', async function () {});
+
+            it('cannot vote on invalid proposal id', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
+
+                //create escrow with no arbiters
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address],
+                    1
+                );
+
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
+                //vote on invalid arbitration proposal
+                await expect(
+                    arbitrationModule
+                        .connect(arbiter1)
+                        .voteArbitration(
+                            polyEscrow,
+                            ethers.keccak256('0x01'),
+                            true
+                        )
+                ).to.be.revertedWith('InvalidProposal');
+            });
+
+            it.skip('cannot vote on inactive proposal', async function () {});
         });
 
         describe('Events', function () {
