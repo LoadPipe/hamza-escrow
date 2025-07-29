@@ -29,14 +29,22 @@ describe('Arbitration', function () {
     let arbiter4: HardhatEthersSigner;
     let arbiter5: HardhatEthersSigner;
 
+    //TODO: should be a util
     const PROPOSE_RELEASE = 0;
     const PROPOSE_REFUND = 1;
 
+    //TODO: should be a util
     const PROPOSAL_STATUS_ACTIVE = 0;
     const PROPOSAL_STATUS_REJECTED = 1;
     const PROPOSAL_STATUS_ACCEPTED = 2;
     const PROPOSAL_STATUS_EXECUTED = 3;
     const PROPOSAL_STATUS_CANCELLED = 4;
+
+    //TODO: should be a util
+    const ESCROW_STATUS_PENDING = 0;
+    const ESCROW_STATUS_ACTIVE = 1;
+    const ESCROW_STATUS_COMPLETED = 2;
+    const ESCROW_STATUS_ARBITRATION = 3;
 
     //TODO: should be a util function
     async function createEscrow(
@@ -350,6 +358,9 @@ describe('Arbitration', function () {
                     1
                 );
 
+                //pay into escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
                 //propose arbitration as payer
                 const proposalType = PROPOSE_REFUND;
                 const proposalAmount = 1000;
@@ -462,18 +473,138 @@ describe('Arbitration', function () {
                             PROPOSE_REFUND,
                             1
                         )
-                ).to.be.revertedWith('InvalidProposal');
+                ).to.be.revertedWith('InvalidProposalNoArbiters');
             });
 
             it.skip('cannot exceed max number of open proposals', async function () {});
 
-            it.skip('cannot propose arbitration on an escrow that is in the wrong state', async function () {});
+            it('cannot propose arbitration on an escrow that is in the wrong state', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
 
-            it.skip('cannot propose arbitration for more than the remaining amount of escrow', async function () {});
+                //create escrow with no arbiters
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [],
+                    0
+                );
+
+                //set state to Completed
+                escrow.status = ESCROW_STATUS_COMPLETED;
+
+                //try to propose arbitration
+                await expect(
+                    arbitrationModule
+                        .connect(receiver1)
+                        .proposeArbitration(
+                            polyEscrow,
+                            escrowId,
+                            PROPOSE_REFUND,
+                            1
+                        )
+                ).to.be.revertedWith('InvalidEscrowState');
+
+                //set state to Pending
+                escrow.status = ESCROW_STATUS_PENDING;
+
+                //try to propose arbitration
+                await expect(
+                    arbitrationModule
+                        .connect(receiver1)
+                        .proposeArbitration(
+                            polyEscrow,
+                            escrowId,
+                            PROPOSE_REFUND,
+                            1
+                        )
+                ).to.be.revertedWith('InvalidEscrowState');
+            });
+
+            it('cannot propose arbitration for more than the remaining amount of escrow', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
+
+                //create escrow with no arbiters
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [],
+                    0
+                );
+
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
+                //try to propose arbitration: Refund
+                await expect(
+                    arbitrationModule
+                        .connect(receiver1)
+                        .proposeArbitration(
+                            polyEscrow,
+                            escrowId,
+                            PROPOSE_REFUND,
+                            amount + 1
+                        )
+                ).to.be.revertedWith('InvalidProposalAmount');
+
+                //try to propose arbitration: Release
+                await expect(
+                    arbitrationModule
+                        .connect(receiver1)
+                        .proposeArbitration(
+                            polyEscrow,
+                            escrowId,
+                            PROPOSE_RELEASE,
+                            amount + 1
+                        )
+                ).to.be.revertedWith('InvalidProposalAmount');
+            });
         });
 
         describe('Events', function () {
-            it.skip('arbitration proposal emits ArbitrationProposed', async function () {});
+            it('arbitration proposal emits ArbitrationProposed', async function () {
+                //create the escrow
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 1000000;
+                const isToken = true;
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [(arbiter1.address, arbiter2.address)],
+                    1
+                );
+
+                //pay into escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
+                //propose arbitration as payer
+                const proposalType = PROPOSE_REFUND;
+                const proposalAmount = 1000;
+                await expect(
+                    arbitrationModule
+                        .connect(payer1)
+                        .proposeArbitration(
+                            polyEscrow,
+                            escrowId,
+                            proposalType,
+                            amount
+                        )
+                )
+                    .to.emit(arbitrationModule, 'ArbitrationProposed')
+                    .withArgs('', escrowId, payer1.address);
+            });
         });
     });
 
