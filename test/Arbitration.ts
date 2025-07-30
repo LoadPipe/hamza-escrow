@@ -480,7 +480,7 @@ describe('Arbitration', function () {
 
             it.skip('cannot exceed max number of open proposals', async function () {});
 
-            it.only('cannot propose arbitration on an escrow that is in the wrong state', async function () {
+            it('cannot propose arbitration on an escrow that is in the wrong state', async function () {
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 10000;
                 const isToken = true;
