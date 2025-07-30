@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import {PolyEscrow, PaymentInput} from "../src/PolyEscrow.sol";
 import {SecurityContext} from "../src/SecurityContext.sol";
 import {SystemSettings} from "../src/SystemSettings.sol";
+import {ArbitrationModule} from "../src/ArbitrationModule.sol";
 import {TestToken} from "../src/test-contracts/TestToken.sol";
 import {ISecurityContext} from "../src/interfaces/ISecurityContext.sol";
 import {console} from "forge-std/console.sol";
@@ -13,6 +14,7 @@ import {FailingToken} from "../src/test-contracts/FailingToken.sol";
 contract PaymentEscrowTest is Test {
     SecurityContext internal securityContext;
     SystemSettings internal systemSettings;
+    ArbitrationModule internal arbitrationModule;
     PolyEscrow internal escrow;
     TestToken internal testToken;
 
@@ -76,7 +78,8 @@ contract PaymentEscrowTest is Test {
         );
         
         testToken = new TestToken("XYZ", "ZYX");
-        escrow = new PolyEscrow(ISecurityContext(securityContext), systemSettings);
+        arbitrationModule = new ArbitrationModule();
+        escrow = new PolyEscrow(ISecurityContext(securityContext), systemSettings, arbitrationModule);
 
         testToken.mint(nonOwner, 10_000_000_000);
         testToken.mint(payer1, 10_000_000_000);

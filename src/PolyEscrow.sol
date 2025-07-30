@@ -526,6 +526,19 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     function _getEscrowAmountRemaining(Escrow memory escrow) internal pure returns (uint256) {
         return escrow.amountPaid - escrow.amountRefunded - escrow.amountReleased;
     }
+
+    function executeArbitrationProposal(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) external {
+        Escrow storage escrow = escrows[escrowId];
+        require(escrow.id != bytes32(0), "InvalidEscrow");
+        
+        require(msg.sender == address(escrow.arbitrationModule), "Unauthorized");
+        
+        if (proposalType == ArbitrationType.REFUND) {
+            _refund(escrowId, amount);
+        } else if (proposalType == ArbitrationType.RELEASE) {
+            _release(escrowId, amount);
+        }
+    }
     
 
     //TODO: no longer necessary?
