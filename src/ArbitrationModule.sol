@@ -78,9 +78,10 @@ contract ArbitrationModule is IArbitrationModule
 
         //TODO: validate the amount (should be realistic and related to amount in escrow)
 
-        //record proposer as an automatic yes vote
-        proposals[propId].votesFor = 1;
-        proposalVotes[propId][msg.sender] = true;
+        //record proposer as an automatic yes vote, if proposer is a voter
+        if (_canVoteArbitration(polyEscrow, escrowId, msg.sender)) {
+            _voteArbitration(polyEscrow, proposals[propId], true);
+        }
 
         //raise event 
         emit ArbitrationProposed(proposals[propId].id, proposals[propId].escrowId, msg.sender);
@@ -213,5 +214,35 @@ contract ArbitrationModule is IArbitrationModule
         return escrow.status != EscrowStatus.Completed;
 
         //TODO: should also include Pending?
+    }
+
+    function _voteArbitration(IPolyEscrow polyEscrow, ArbitrationProposal storage proposal, bool vote) internal {
+
+        //record vote 
+        if (vote) {
+            proposal.votesFor += 1;
+        } else {
+            proposal.votesAgainst += 1;
+        }
+        proposalVotes[proposal.id][msg.sender] = vote;
+
+        //change the status; are there enough votes to execute?
+        Escrow memory escrow = polyEscrow.getEscrow(proposal.escrowId);
+        uint256 arbiterCount = escrow.arbiters.length;
+        uint8 arbitersRequired = escrow.arbitersRequired;
+        if (proposal.votesFor >= arbitersRequired) {
+            proposal.status = ArbitrationStatus.ACCEPTED;
+            
+            // Auto-execute if autoExecute flag is true
+            if (proposal.autoExecute) {
+                _executeArbitration(polyEscrow, proposal);
+            }
+        }
+        else if (proposal.votesAgainst >= (arbiterCount - arbitersRequired)) {
+            proposal.status = ArbitrationStatus.REJECTED;
+        }
+
+        //raise event 
+        emit VoteRecorded(proposal.id, proposal.escrowId, msg.sender);
     }
 }

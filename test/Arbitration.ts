@@ -647,10 +647,10 @@ describe('Arbitration', function () {
                 proposal = await voteProposal(account, proposal.id, vote);
 
                 if (vote) {
-                    expect(proposal.votesFor).to.equal(2);
+                    expect(proposal.votesFor).to.equal(1);
                     expect(proposal.votesAgainst).to.equal(0);
                 } else {
-                    expect(proposal.votesFor).to.equal(1);
+                    expect(proposal.votesFor).to.equal(0);
                     expect(proposal.votesAgainst).to.equal(1);
                 }
             }
@@ -703,13 +703,20 @@ describe('Arbitration', function () {
 
                 //vote on proposal
                 await voteProposal(arbiter1, proposal.id, true);
-                //at this point, votes should be 2:0 for:against
+                //at this point, votes should be 1:0 for:against
                 expect((await getProposal(proposal.id)).status).to.equal(
                     PROPOSAL_STATUS_ACTIVE
                 );
 
                 //vote on proposal
                 await voteProposal(arbiter2, proposal.id, true);
+                //at this point, votes should be 2:0 for:against
+                expect((await getProposal(proposal.id)).status).to.equal(
+                    PROPOSAL_STATUS_ACTIVE
+                );
+
+                //vote on proposal
+                await voteProposal(arbiter3, proposal.id, true);
                 //at this point, votes should be 3:0 for:against, enough to win
                 expect((await getProposal(proposal.id)).status).to.equal(
                     PROPOSAL_STATUS_ACCEPTED
