@@ -28,6 +28,7 @@ export interface IArbitrationProposal {
     escrowId: any;
     proposalType: number;
     status: number;
+    proposer: string;
     amount: any;
     votesFor: number;
     votesAgainst: number;
@@ -63,8 +64,9 @@ export function convertProposal(rawData: any[]): IArbitrationProposal {
         escrowId: rawData[1],
         proposalType: rawData[2],
         status: rawData[3],
-        amount: rawData[4],
-        votesFor: rawData[5],
-        votesAgainst: rawData[6],
+        proposer: rawData[4],
+        amount: rawData[5],
+        votesFor: rawData[6],
+        votesAgainst: rawData[7],
     };
 }

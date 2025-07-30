@@ -56,10 +56,13 @@ contract ArbitrationModule is IArbitrationModule
         */
 
         //ensure that escrow is valid 
+        //EXCEPTION: InvalidEscrow
         require(polyEscrow.getEscrow(escrowId).id == escrowId, "InvalidEscrow");
 
+        //EXCEPTION: Unauthorized
         require (_canProposeArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
 
+        //EXCEPTION: InvalidEscrowState
         require(_escrowStateIsValid(polyEscrow, escrowId), "InvalidEscrowState");
 
         //TODO: should there be a limit on number of open arbitration cases?
@@ -75,6 +78,7 @@ contract ArbitrationModule is IArbitrationModule
         proposals[propId].status = ArbitrationStatus.ACTIVE;
         proposals[propId].votesAgainst = 0;
         proposals[propId].autoExecute = autoExecute;
+        proposals[propId].proposer = msg.sender;
 
         //TODO: validate the amount (should be realistic and related to amount in escrow)
 
@@ -92,6 +96,7 @@ contract ArbitrationModule is IArbitrationModule
         // WHO can vote on arbitration?  arbiters only
 
         //get the arbitration proposal
+        //EXCEPTION: InvalidProposal
         ArbitrationProposal storage proposal = proposals[proposalId];
         require(proposal.id != bytes32(0), "InvalidProposal");
 
@@ -99,14 +104,17 @@ contract ArbitrationModule is IArbitrationModule
         bytes32 escrowId = proposal.escrowId;
 
         //ensure that escrowId is valid with escrow
+        //EXCEPTION: InvalidEscrow
         require(polyEscrow.getEscrow(escrowId).id == escrowId, "InvalidEscrow");
 
         //TODO: ensure that escrow is in correct state to be voted on
 
         //validate rights of voter
+        //EXCEPTION: Unauthorized
         require(_canVoteArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
 
         //verify that the proposal is in a state in which it can be voted
+        //EXCEPTION: InvalidProposalState
         require(proposal.status == ArbitrationStatus.ACTIVE, "InvalidProposalState");
 
         //record vote 
@@ -138,16 +146,24 @@ contract ArbitrationModule is IArbitrationModule
     }
 
     function cancelArbitration(bytes32 proposalId) external virtual {
-
-        //TODO: WHO can cancel arbitration?
-        //TODO: all arbitration on an escrow should be cancelled if the seller takes any action
-
         //get the arbitration proposal
-        //TODO: this code is repeated alot; can it be put into its own function
+        //EXCEPTION: InvalidProposal 
         ArbitrationProposal storage proposal = proposals[proposalId];
         require(proposal.id != bytes32(0), "InvalidProposal");
 
-        //TODO: can only cancel if status is ACTIVE
+        //only the proposer can cancel 
+        //EXCEPTION: Unauthorized 
+        require(proposal.proposer == msg.sender, "Unauthorized");
+
+        //TODO: all arbitration on an escrow should be cancelled if the seller takes any action
+
+        //can only cancel if status is ACTIVE
+        //EXCEPTION: NotCancellable
+        require(proposal.status == ArbitrationStatus.ACTIVE, "NotCancellable");
+
+        //can only cancel if no votes have been cast
+        //EXCEPTION: NotCancellable
+        require(proposal.votesFor == 0 && proposal.votesAgainst == 0, "NotCancellable");
 
         proposal.status = ArbitrationStatus.CANCELED;
     }
@@ -155,10 +171,12 @@ contract ArbitrationModule is IArbitrationModule
     function executeArbitration(IPolyEscrow polyEscrow, bytes32 proposalId) external virtual {
 
         //get the arbitration proposal
+        //EXCEPTION: InvalidProposal 
         ArbitrationProposal storage proposal = proposals[proposalId];
         require(proposal.id != bytes32(0), "InvalidProposal");
 
         //proposal must be accepted 
+        //EXCEPTION: InvalidEscrowState 
         require(proposal.status == ArbitrationStatus.ACCEPTED, "InvalidEscrowState");
 
         //TODO: re-validate the amount (adjust it if necessary)
@@ -167,6 +185,7 @@ contract ArbitrationModule is IArbitrationModule
         bytes32 escrowId = proposal.escrowId;
 
         //ensure that escrowId is valid with escrow
+        //EXCEPTION: InvalidEscrow 
         require(polyEscrow.getEscrow(escrowId).id == escrowId, "InvalidEscrow");
 
         //TODO: ensure that escrow is in correct state to have arbitration executed

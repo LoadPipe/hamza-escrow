@@ -96,6 +96,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         settings = systemSettings;
         defaultArbitrationModule = arbitrationModule;
 
+        //EXCEPTION: InvalidArbitrationModule 
         require(address(arbitrationModule) != address(0), "InvalidArbitrationModule");
         require(arbitrationModule.isArbitrationModule(), "InvalidArbitrationModule");
     }
@@ -124,7 +125,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
 
         //TODO: validate input more 
 
-        // EXCEPTION: reject if existing escrow
+        // EXCEPTION: DuplicateEscrow if existing escrow
         require(escrows[input.id].id != input.id, "DuplicateEscrow");
 
         // Store the escrow
@@ -149,6 +150,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         escrow.status = EscrowStatus.Pending;
 
         if (address(input.arbitrationModule) != address(0)) {
+            //EXCEPTION: InvalidArbitrationModule
             require(input.arbitrationModule.isArbitrationModule(), "InvalidArbitrationModule");
             escrow.arbitrationModule = input.arbitrationModule;
         }
@@ -186,20 +188,20 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     function placePayment(PaymentInput calldata paymentInput) public payable whenNotPaused {
         _validatePaymentInput(paymentInput);
 
-        //EXCEPTION: reject if not existing payment
+        //EXCEPTION: InvalidEscrow if not existing payment
         require(escrows[paymentInput.escrowId].id == paymentInput.escrowId, "InvalidEscrow");
 
         //TODO: EXCEPTION: reject if escrow not in the correct state to accept payments
 
-        //EXCEPTION: reject the wrong currency
+        //EXCEPTION: InvalidCurrency reject the wrong currency
         require (paymentInput.currency == escrows[paymentInput.escrowId].currency, "InvalidCurrency");
 
         // Handle payment transfer
         if (paymentInput.currency == address(0)) {
-            //EXCEPTION: wrong amount rejected
+            //EXCEPTION: InvalidAmount amount rejected
             require(msg.value == paymentInput.amount, "InvalidAmount");
         } else {
-            //EXCEPTION: failed payment 
+            //EXCEPTION: TokenPaymentFailed failed payment 
             require(_handleTokenInflow(paymentInput.currency, msg.sender, paymentInput.amount), "TokenPaymentFailed");
         }
 
@@ -401,6 +403,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
      * @param input The payment input
      */
     function _validatePaymentInput(PaymentInput calldata input) internal pure {
+        //EXCEPTION: InvalidAmount
         require(input.amount > 0, "InvalidAmount");
     }
 
@@ -429,13 +432,18 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     }
 
     function _validateArbiters(address[] memory arbiters, address payer, address receiver) internal pure {
+        //EXCEPTION: MaxArbitersExceeded
         require(arbiters.length <= MAX_ARBITERS, "MaxArbitersExceeded");
 
         for (uint256 i = 0; i < arbiters.length; i++) {
+            //EXCEPTION: InvalidArbiter
             require(arbiters[i] != address(0), "InvalidArbiter");
             for (uint256 j = i + 1; j < arbiters.length; j++) {
+            //EXCEPTION: DuplicateArbiter
                 require(arbiters[i] != arbiters[j], "DuplicateArbiter");
             }
+
+            //EXCEPTION: InvalidArbiter
             require(arbiters[i] != payer, "InvalidArbiter");
             require(arbiters[i] != receiver, "InvalidArbiter");
         }
@@ -456,11 +464,13 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     function _refund(bytes32 escrowId, uint256 amount) internal {
         Escrow storage escrow = escrows[escrowId]; 
 
+        //EXCEPTION: AlreadyReleased
         require(escrow.released == false, "AlreadyReleased");
 
         uint256 activeAmount = _getEscrowAmountRemaining(escrow); 
 
         if (amount > activeAmount) 
+            //EXCEPTION: AmountExceeded
             revert("AmountExceeded");
 
         //transfer amount back to payer 
@@ -475,10 +485,12 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     function _release(bytes32 escrowId, uint256 amount) internal {
         Escrow storage escrow = escrows[escrowId]; 
 
+        //EXCEPTION: AlreadyReleased
         require(escrow.released == false, "AlreadyReleased");
 
         uint256 activeAmount = _getEscrowAmountRemaining(escrow);
 
+        //EXCEPTION: AmountExceeded
         if (amount > activeAmount) 
             revert("AmountExceeded");
 
@@ -529,8 +541,10 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
 
     function executeArbitrationProposal(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) external {
         Escrow storage escrow = escrows[escrowId];
+        //EXCEPTION: InvalidEscrow
         require(escrow.id != bytes32(0), "InvalidEscrow");
         
+        //EXCEPTION: Unauthorized 
         require(msg.sender == address(escrow.arbitrationModule), "Unauthorized");
         
         if (proposalType == ArbitrationType.REFUND) {
