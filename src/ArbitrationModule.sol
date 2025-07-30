@@ -54,7 +54,13 @@ contract ArbitrationModule is IArbitrationModule
         2. the receiver 
         3. arbiters? 
         */
+
+        //ensure that escrow is valid 
+        require(polyEscrow.getEscrow(escrowId).id == escrowId, "InvalidEscrow");
+
         require (_canProposeArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
+
+        require(_escrowStateIsValid(polyEscrow, escrowId), "InvalidEscrowState");
 
         //TODO: should there be a limit on number of open arbitration cases?
 
@@ -166,6 +172,13 @@ contract ArbitrationModule is IArbitrationModule
         //TODO: emit event
     }
 
+    function isArbitrationModule() external pure returns (bool) {
+        return true; 
+    }
+
+
+    // --- NON-PUBLIC METHODS --- 
+    
 
     function _canProposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, address account) internal view returns (bool) {
         Escrow memory escrow = polyEscrow.getEscrow(escrowId);
@@ -187,5 +200,12 @@ contract ArbitrationModule is IArbitrationModule
 
     function _generateUniqueProposalId(IPolyEscrow polyEscrow, bytes32 escrowId) internal view returns (bytes32) {
         return bytes32(keccak256(abi.encodePacked(address(polyEscrow), escrowId, proposalCount+1)));
+    }
+
+    function _escrowStateIsValid(IPolyEscrow polyEscrow, bytes32 escrowId) internal view returns (bool) {
+        Escrow memory escrow = polyEscrow.getEscrow(escrowId);
+        return escrow.status != EscrowStatus.Completed;
+
+        //TODO: should also include Pending?
     }
 }

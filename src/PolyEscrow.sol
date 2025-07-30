@@ -95,6 +95,9 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         _setSecurityContext(securityContext);
         settings = systemSettings;
         defaultArbitrationModule = arbitrationModule;
+
+        require(address(arbitrationModule) != address(0), "InvalidArbitrationModule");
+        require(arbitrationModule.isArbitrationModule(), "InvalidArbitrationModule");
     }
 
     // --- Escrow Management ---
@@ -145,8 +148,10 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         escrow.amountPaid = 0;
         escrow.status = EscrowStatus.Pending;
 
-        if (address(input.arbitrationModule) != address(0))
+        if (address(input.arbitrationModule) != address(0)) {
+            require(input.arbitrationModule.isArbitrationModule(), "InvalidArbitrationModule");
             escrow.arbitrationModule = input.arbitrationModule;
+        }
         else 
             escrow.arbitrationModule = defaultArbitrationModule;
 
@@ -307,7 +312,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     }
 
 
-    //NON-PUBLIC METHODS
+    // --- NON-PUBLIC METHODS --- 
 
     // Helper function to calculate fee and remaining amount
     function _calculateFeeAndAmount(uint256 amount) internal view returns (uint256 fee, uint256 amountToPay) {

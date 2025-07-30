@@ -29,7 +29,7 @@ struct ArbitrationProposal {
 
 interface IArbitrationModule
 {
-    function getProposal(bytes32 proposalId) external view returns (ArbitrationProposal memory) ; 
+    function getProposal(bytes32 proposalId) external view returns (ArbitrationProposal memory); 
 
     function proposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, ArbitrationType proposalType, uint256 amount) external;
 
@@ -38,4 +38,6 @@ interface IArbitrationModule
     function cancelArbitration(bytes32 proposalId) external;
 
     function executeArbitration(IPolyEscrow polyEscrow, bytes32 proposalId) external;
+
+    function isArbitrationModule() external returns (bool);
 }
