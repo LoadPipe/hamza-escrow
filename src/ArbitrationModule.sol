@@ -46,7 +46,7 @@ contract ArbitrationModule is IArbitrationModule
         return proposals[proposalId];
     }
 
-    function proposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, ArbitrationType proposalType, uint256 amount) external virtual {
+    function proposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, ArbitrationType proposalType, uint256 amount, bool autoExecute) external virtual {
 
         /*
         WHO can propose arbitration? 
@@ -74,6 +74,7 @@ contract ArbitrationModule is IArbitrationModule
         proposals[propId].amount = amount;
         proposals[propId].status = ArbitrationStatus.ACTIVE;
         proposals[propId].votesAgainst = 0;
+        proposals[propId].autoExecute = autoExecute;
 
         //TODO: validate the amount (should be realistic and related to amount in escrow)
 
@@ -121,6 +122,11 @@ contract ArbitrationModule is IArbitrationModule
         uint8 arbitersRequired = escrow.arbitersRequired;
         if (proposal.votesFor >= arbitersRequired) {
             proposal.status = ArbitrationStatus.ACCEPTED;
+            
+            // Auto-execute if autoExecute flag is true
+            if (proposal.autoExecute) {
+                _executeArbitration(polyEscrow, proposal);
+            }
         }
         else if (proposal.votesAgainst >= (arbiterCount - arbitersRequired)) {
             proposal.status = ArbitrationStatus.REJECTED;
@@ -128,8 +134,6 @@ contract ArbitrationModule is IArbitrationModule
 
         //raise event 
         emit VoteRecorded(proposal.id, proposal.escrowId, msg.sender);
-
-        //TODO: auto-execute?
     }
 
     function cancelArbitration(bytes32 proposalId) external virtual {
@@ -147,7 +151,7 @@ contract ArbitrationModule is IArbitrationModule
         proposal.status = ArbitrationStatus.CANCELED;
     }
 
-    function executeArbitration(IPolyEscrow polyEscrow, bytes32 proposalId) external virtual view {
+    function executeArbitration(IPolyEscrow polyEscrow, bytes32 proposalId) external virtual {
 
         //get the arbitration proposal
         ArbitrationProposal storage proposal = proposals[proposalId];
@@ -194,8 +198,10 @@ contract ArbitrationModule is IArbitrationModule
         return false;
     }
 
-    function _executeArbitration(IPolyEscrow /*polyEscrow*/, ArbitrationProposal storage /*proposal*/) internal pure {
-        revert("NotImplemented");
+    function _executeArbitration(IPolyEscrow polyEscrow, ArbitrationProposal storage proposal) internal {
+        polyEscrow.executeArbitrationProposal(proposal.escrowId, proposal.proposalType, proposal.amount);
+        proposal.status = ArbitrationStatus.EXECUTED;
+        emit ProposalExecuted(proposal.id, proposal.escrowId, msg.sender);
     }
 
     function _generateUniqueProposalId(IPolyEscrow polyEscrow, bytes32 escrowId) internal view returns (bytes32) {

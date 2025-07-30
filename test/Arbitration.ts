@@ -119,11 +119,12 @@ describe('Arbitration', function () {
         proposerAccount: HardhatEthersSigner,
         escrowId: string,
         proposalType: number,
-        amount: number
+        amount: number,
+        autoExecute: boolean = false
     ): Promise<IArbitrationProposal> {
         const tx = await arbitrationModule
             .connect(proposerAccount)
-            .proposeArbitration(polyEscrow, escrowId, proposalType, amount);
+            .proposeArbitration(polyEscrow, escrowId, proposalType, amount, autoExecute);
 
         //capture the event, and the id from it
         const receipt = await tx.wait();
@@ -416,7 +417,8 @@ describe('Arbitration', function () {
                             polyEscrow,
                             escrowId,
                             PROPOSE_REFUND,
-                            1
+                            1,
+                            false
                         )
                 ).to.be.revertedWith('Unauthorized');
             }
@@ -441,7 +443,8 @@ describe('Arbitration', function () {
                             polyEscrow,
                             escrowId,
                             PROPOSE_REFUND,
-                            1
+                            1,
+                            false
                         )
                 ).to.be.revertedWith('InvalidEscrow');
             });
@@ -473,7 +476,8 @@ describe('Arbitration', function () {
                             polyEscrow,
                             escrowId,
                             PROPOSE_REFUND,
-                            1
+                            1,
+                            false
                         )
                 ).to.be.revertedWith('InvalidProposalNoArbiters');
             });
@@ -507,7 +511,8 @@ describe('Arbitration', function () {
                             polyEscrow,
                             escrowId,
                             PROPOSE_REFUND,
-                            1
+                            1,
+                            false
                         )
                 ).to.be.revertedWith('InvalidEscrowState');
             });
@@ -539,7 +544,8 @@ describe('Arbitration', function () {
                             polyEscrow,
                             escrowId,
                             PROPOSE_REFUND,
-                            amount + 1
+                            amount + 1,
+                            false
                         )
                 ).to.be.revertedWith('InvalidProposalAmount');
 
@@ -551,7 +557,8 @@ describe('Arbitration', function () {
                             polyEscrow,
                             escrowId,
                             PROPOSE_RELEASE,
-                            amount + 1
+                            amount + 1,
+                            false
                         )
                 ).to.be.revertedWith('InvalidProposalAmount');
             });
@@ -586,7 +593,8 @@ describe('Arbitration', function () {
                             polyEscrow,
                             escrowId,
                             proposalType,
-                            amount
+                            amount,
+                            false
                         )
                 )
                     .to.emit(arbitrationModule, 'ArbitrationProposed')

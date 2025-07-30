@@ -25,13 +25,14 @@ struct ArbitrationProposal {
     uint256 amount;
     uint8 votesFor;
     uint8 votesAgainst;
+    bool autoExecute;
 }
 
 interface IArbitrationModule
 {
     function getProposal(bytes32 proposalId) external view returns (ArbitrationProposal memory); 
 
-    function proposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, ArbitrationType proposalType, uint256 amount) external;
+    function proposeArbitration(IPolyEscrow polyEscrow, bytes32 escrowId, ArbitrationType proposalType, uint256 amount, bool autoExecute) external;
 
     function voteArbitration(IPolyEscrow polyEscrow, bytes32 proposalId, bool vote) external;
 
