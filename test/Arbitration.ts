@@ -551,6 +551,8 @@ describe('Arbitration', function () {
                 ).to.be.revertedWith('MaxArbitrationCasesReached');
             });
 
+            //TODO: test that we can have more than 3 cases, if some of them are closed (no more than 3 active)
+
             it.skip('cannot propose arbitration on an escrow that is in the wrong state', async function () {
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 10000;
