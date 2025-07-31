@@ -16,7 +16,7 @@ import "./interfaces/IArbitrationModule.sol";
  */
 contract ArbitrationModule is IArbitrationModule
 {
-    uint8 public constant MAX_ARBITRATION_CASES = 10;
+    uint8 public constant MAX_ARBITRATION_CASES = 3;
     
     mapping(bytes32 => ArbitrationProposal) private proposals;
     mapping(bytes32 => mapping(address => bool)) proposalVotes;

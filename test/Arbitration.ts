@@ -488,7 +488,68 @@ describe('Arbitration', function () {
                 ).to.be.revertedWith('InvalidProposalNoArbiters');
             });
 
-            it.skip('cannot exceed max number of open proposals', async function () {});
+            it('cannot exceed max number of open proposals', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
+
+                //create escrow
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1
+                );
+
+                //propose arbitration 1
+                await arbitrationModule
+                    .connect(payer1)
+                    .proposeArbitration(
+                        polyEscrow,
+                        escrowId,
+                        PROPOSE_REFUND,
+                        1,
+                        false
+                    );
+
+                //propose arbitration 2
+                await arbitrationModule
+                    .connect(payer1)
+                    .proposeArbitration(
+                        polyEscrow,
+                        escrowId,
+                        PROPOSE_REFUND,
+                        1,
+                        false
+                    );
+
+                //propose arbitration 3
+                await arbitrationModule
+                    .connect(payer1)
+                    .proposeArbitration(
+                        polyEscrow,
+                        escrowId,
+                        PROPOSE_REFUND,
+                        1,
+                        false
+                    );
+
+                //propose arbitration 4
+                await expect(
+                    arbitrationModule
+                        .connect(payer1)
+                        .proposeArbitration(
+                            polyEscrow,
+                            escrowId,
+                            PROPOSE_REFUND,
+                            1,
+                            false
+                        )
+                ).to.be.revertedWith('MaxArbitrationCasesReached');
+            });
 
             it.skip('cannot propose arbitration on an escrow that is in the wrong state', async function () {
                 const escrowId = ethers.keccak256('0x01');
