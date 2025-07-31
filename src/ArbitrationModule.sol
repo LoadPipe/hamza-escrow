@@ -16,9 +16,12 @@ import "./interfaces/IArbitrationModule.sol";
  */
 contract ArbitrationModule is IArbitrationModule
 {
+    uint8 public constant MAX_ARBITRATION_CASES = 10;
+    
     mapping(bytes32 => ArbitrationProposal) private proposals;
     mapping(bytes32 => mapping(address => bool)) proposalVotes;
     uint8 public proposalCount;
+    uint8 public activeProposalCount;
 
     //EVENTS 
     event ArbitrationProposed (
@@ -62,7 +65,8 @@ contract ArbitrationModule is IArbitrationModule
 
         require(_escrowStateIsValid(polyEscrow, escrowId), "InvalidEscrowState");
 
-        //TODO: should there be a limit on number of open arbitration cases?
+        // Check if maximum number of active arbitration cases has been reached
+        require(activeProposalCount < MAX_ARBITRATION_CASES, "MaxArbitrationCasesReached");
 
         //TODO: ensure that escrow is in correct state to be arbitrated
         
@@ -81,6 +85,10 @@ contract ArbitrationModule is IArbitrationModule
         //record proposer as an automatic yes vote
         proposals[propId].votesFor = 1;
         proposalVotes[propId][msg.sender] = true;
+
+        // Increment counters
+        proposalCount++;
+        activeProposalCount++;
 
         //raise event 
         emit ArbitrationProposed(proposals[propId].id, proposals[propId].escrowId, msg.sender);
@@ -126,10 +134,14 @@ contract ArbitrationModule is IArbitrationModule
             // Auto-execute if autoExecute flag is true
             if (proposal.autoExecute) {
                 _executeArbitration(polyEscrow, proposal);
+            } else {
+                // If not auto-executing, decrement active count since proposal is no longer ACTIVE
+                activeProposalCount--;
             }
         }
         else if (proposal.votesAgainst >= (arbiterCount - arbitersRequired)) {
             proposal.status = ArbitrationStatus.REJECTED;
+            activeProposalCount--;
         }
 
         //raise event 
@@ -147,8 +159,10 @@ contract ArbitrationModule is IArbitrationModule
         require(proposal.id != bytes32(0), "InvalidProposal");
 
         //TODO: can only cancel if status is ACTIVE
+        require(proposal.status == ArbitrationStatus.ACTIVE, "InvalidProposalState");
 
         proposal.status = ArbitrationStatus.CANCELED;
+        activeProposalCount--;
     }
 
     function executeArbitration(IPolyEscrow polyEscrow, bytes32 proposalId) external virtual {
@@ -201,6 +215,7 @@ contract ArbitrationModule is IArbitrationModule
     function _executeArbitration(IPolyEscrow polyEscrow, ArbitrationProposal storage proposal) internal {
         polyEscrow.executeArbitrationProposal(proposal.escrowId, proposal.proposalType, proposal.amount);
         proposal.status = ArbitrationStatus.EXECUTED;
+        activeProposalCount--;
         emit ProposalExecuted(proposal.id, proposal.escrowId, msg.sender);
     }
 
