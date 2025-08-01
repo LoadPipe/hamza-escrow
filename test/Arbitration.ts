@@ -382,6 +382,7 @@ describe('Arbitration', function () {
 
                 //verify proposal
                 expect(proposal.amount).to.equal(proposalAmount);
+                expect(proposal.proposer).to.equal(account.address);
                 expect(proposal.escrowId).to.equal(escrowId);
                 expect(proposal.proposalType).to.equal(proposalType);
             }
@@ -710,10 +711,10 @@ describe('Arbitration', function () {
                 proposal = await voteProposal(account, proposal.id, vote);
 
                 if (vote) {
-                    expect(proposal.votesFor).to.equal(2);
+                    expect(proposal.votesFor).to.equal(1);
                     expect(proposal.votesAgainst).to.equal(0);
                 } else {
-                    expect(proposal.votesFor).to.equal(1);
+                    expect(proposal.votesFor).to.equal(0);
                     expect(proposal.votesAgainst).to.equal(1);
                 }
             }
@@ -766,13 +767,20 @@ describe('Arbitration', function () {
 
                 //vote on proposal
                 await voteProposal(arbiter1, proposal.id, true);
-                //at this point, votes should be 2:0 for:against
+                //at this point, votes should be 1:0 for:against
                 expect((await getProposal(proposal.id)).status).to.equal(
                     PROPOSAL_STATUS_ACTIVE
                 );
 
                 //vote on proposal
                 await voteProposal(arbiter2, proposal.id, true);
+                //at this point, votes should be 2:0 for:against
+                expect((await getProposal(proposal.id)).status).to.equal(
+                    PROPOSAL_STATUS_ACTIVE
+                );
+
+                //vote on proposal
+                await voteProposal(arbiter3, proposal.id, true);
                 //at this point, votes should be 3:0 for:against, enough to win
                 expect((await getProposal(proposal.id)).status).to.equal(
                     PROPOSAL_STATUS_ACCEPTED
@@ -937,12 +945,132 @@ describe('Arbitration', function () {
     });
 
     describe('Cancelling Arbitration', function () {
-        describe('Happy Paths', function () {});
+        async function createEscrowProposal(
+            escrowId: any
+        ): Promise<IArbitrationProposal> {
+            //create the escrow
+            const amount = 1000000;
+            const isToken = true;
+
+            //arbiters 2/3
+            await createEscrow(
+                escrowId,
+                payer1,
+                receiver1.address,
+                amount,
+                isToken,
+                [arbiter1.address, arbiter2.address, arbiter3.address],
+                2
+            );
+
+            //pay into escrow
+            await placePayment(escrowId, payer1, amount, isToken);
+
+            //propose arbitration as payer
+            const proposalType = PROPOSE_REFUND;
+            const proposalAmount = amount;
+            let proposal = await createProposal(
+                payer1,
+                escrowId,
+                proposalType,
+                proposalAmount
+            );
+
+            return proposal;
+        }
+
+        describe('Happy Paths', function () {
+            it('proposer can cancel proposal if no votes', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const proposal = await createEscrowProposal(escrowId);
+
+                await arbitrationModule
+                    .connect(payer1)
+                    .cancelArbitration(proposal.id);
+
+                const cancelledProposal = await getProposal(proposal.id);
+                expect(cancelledProposal.status == PROPOSAL_STATUS_CANCELLED);
+            });
+        });
 
         describe('Exceptions', function () {
-            it.skip('cannot cancel invalid proposal', async function () {});
+            it('cannot cancel invalid proposal', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const proposal = await createEscrowProposal(escrowId);
 
-            it.skip('cannot cancel inactive proposal', async function () {});
+                await expect(
+                    arbitrationModule
+                        .connect(payer1)
+                        .cancelArbitration(
+                            proposal.id
+                                .replace('3', '1')
+                                .replace('2', '4')
+                                .replace('a', 'b')
+                        )
+                ).to.be.revertedWith('InvalidProposal');
+            });
+
+            it('cannot cancel if not the proposer', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const proposal = await createEscrowProposal(escrowId);
+
+                await expect(
+                    arbitrationModule
+                        .connect(receiver1)
+                        .cancelArbitration(proposal.id)
+                ).to.be.revertedWith('Unauthorized');
+
+                await expect(
+                    arbitrationModule
+                        .connect(arbiter1)
+                        .cancelArbitration(proposal.id)
+                ).to.be.revertedWith('Unauthorized');
+
+                await expect(
+                    arbitrationModule
+                        .connect(arbiter2)
+                        .cancelArbitration(proposal.id)
+                ).to.be.revertedWith('Unauthorized');
+
+                await expect(
+                    arbitrationModule
+                        .connect(arbiter3)
+                        .cancelArbitration(proposal.id)
+                ).to.be.revertedWith('Unauthorized');
+            });
+
+            it('cannot cancel cancelled proposal', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const proposal = await createEscrowProposal(escrowId);
+
+                //cancel proposal
+                await arbitrationModule
+                    .connect(payer1)
+                    .cancelArbitration(proposal.id);
+
+                //try to cancel again; should fail
+                await expect(
+                    arbitrationModule
+                        .connect(payer1)
+                        .cancelArbitration(proposal.id)
+                ).to.be.revertedWith('NotCancellable');
+            });
+
+            it('cannot cancel if any votes have been cast', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const proposal = await createEscrowProposal(escrowId);
+
+                //cast a vote
+                await arbitrationModule
+                    .connect(arbiter1)
+                    .voteArbitration(polyEscrow, proposal.id, true);
+
+                await expect(
+                    arbitrationModule
+                        .connect(payer1)
+                        .cancelArbitration(proposal.id)
+                ).to.be.revertedWith('NotCancellable');
+            });
         });
 
         describe('Events', function () {});

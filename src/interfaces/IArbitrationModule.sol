@@ -22,6 +22,7 @@ struct ArbitrationProposal {
     bytes32 escrowId;
     ArbitrationType proposalType;
     ArbitrationStatus status;
+    address proposer;
     uint256 amount;
     uint8 votesFor;
     uint8 votesAgainst;
