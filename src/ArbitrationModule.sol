@@ -59,14 +59,9 @@ contract ArbitrationModule is IArbitrationModule
         */
 
        //get the relevant escrow
-        Escrow memory escrow = polyEscrow.getEscrow(escrowId);
-
-        //ensure that escrow is valid 
         //EXCEPTION: InvalidEscrow
-        require(escrow.id == escrowId, "InvalidEscrow");
-
-        //Check that this is the right arbitration module for the given escrow
-        require(address(escrow.arbitrationModule) == address(this), "InvalidArbitrationModule");
+        //EXCEPTION: InvalidArbitrationModule
+        _getAndCheckEscrow(polyEscrow, escrowId);
 
         //EXCEPTION: Unauthorized
         require (_canProposeArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
@@ -117,15 +112,10 @@ contract ArbitrationModule is IArbitrationModule
         //get the escrow id
         bytes32 escrowId = proposal.escrowId;
 
-        //get the relevant escrow
-        Escrow memory escrow = polyEscrow.getEscrow(escrowId);
-
-        //ensure that escrow is valid 
+       //get the relevant escrow
         //EXCEPTION: InvalidEscrow
-        require(escrow.id == escrowId, "InvalidEscrow");
-
-        //Check that this is the right arbitration module for the given escrow
-        require(address(escrow.arbitrationModule) == address(this), "InvalidArbitrationModule");
+        //EXCEPTION: InvalidArbitrationModule
+        Escrow memory escrow = _getAndCheckEscrow(polyEscrow, escrowId);
 
         //TODO: ensure that escrow is in correct state to be voted on
 
@@ -211,15 +201,10 @@ contract ArbitrationModule is IArbitrationModule
         //get the escrow id
         bytes32 escrowId = proposal.escrowId;
 
-        //get the relevant escrow
-        Escrow memory escrow = polyEscrow.getEscrow(escrowId);
-
-        //ensure that escrow is valid 
+       //get the relevant escrow
         //EXCEPTION: InvalidEscrow
-        require(escrow.id == escrowId, "InvalidEscrow");
-
-        //Check that this is the right arbitration module for the given escrow
-        require(address(escrow.arbitrationModule) == address(this), "InvalidArbitrationModule");
+        //EXCEPTION: InvalidArbitrationModule
+        _getAndCheckEscrow(polyEscrow, escrowId);
 
         //TODO: ensure that escrow is in correct state to have arbitration executed
 
@@ -297,5 +282,20 @@ contract ArbitrationModule is IArbitrationModule
 
         //raise event 
         emit VoteRecorded(proposal.id, proposal.escrowId, msg.sender);
+    }
+
+    function _getAndCheckEscrow(IPolyEscrow polyEscrow, bytes32 escrowId) internal view returns (Escrow memory) {
+
+       //get the relevant escrow
+        Escrow memory escrow = polyEscrow.getEscrow(escrowId);
+
+        //ensure that escrow is valid 
+        //EXCEPTION: InvalidEscrow
+        require(escrow.id == escrowId, "InvalidEscrow");
+
+        //Check that this is the right arbitration module for the given escrow
+        require(address(escrow.arbitrationModule) == address(this), "InvalidArbitrationModule");
+
+        return escrow;
     }
 }
