@@ -58,9 +58,15 @@ contract ArbitrationModule is IArbitrationModule
         3. arbiters? 
         */
 
+       //get the relevant escrow
+        Escrow memory escrow = polyEscrow.getEscrow(escrowId);
+
         //ensure that escrow is valid 
         //EXCEPTION: InvalidEscrow
-        require(polyEscrow.getEscrow(escrowId).id == escrowId, "InvalidEscrow");
+        require(escrow.id == escrowId, "InvalidEscrow");
+
+        //Check that this is the right arbitration module for the given escrow
+        require(address(escrow.arbitrationModule) == address(this), "InvalidArbitrationModule");
 
         //EXCEPTION: Unauthorized
         require (_canProposeArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
@@ -68,7 +74,7 @@ contract ArbitrationModule is IArbitrationModule
         //EXCEPTION: InvalidEscrowState
         require(_escrowStateIsValid(polyEscrow, escrowId), "InvalidEscrowState");
 
-        // Check if maximum number of active arbitration cases has been reached
+        //Check if maximum number of active arbitration cases has been reached
         require(activeProposalCount < MAX_ARBITRATION_CASES, "MaxArbitrationCasesReached");
 
         //TODO: ensure that escrow is in correct state to be arbitrated
@@ -111,9 +117,15 @@ contract ArbitrationModule is IArbitrationModule
         //get the escrow id
         bytes32 escrowId = proposal.escrowId;
 
-        //ensure that escrowId is valid with escrow
+        //get the relevant escrow
+        Escrow memory escrow = polyEscrow.getEscrow(escrowId);
+
+        //ensure that escrow is valid 
         //EXCEPTION: InvalidEscrow
-        require(polyEscrow.getEscrow(escrowId).id == escrowId, "InvalidEscrow");
+        require(escrow.id == escrowId, "InvalidEscrow");
+
+        //Check that this is the right arbitration module for the given escrow
+        require(address(escrow.arbitrationModule) == address(this), "InvalidArbitrationModule");
 
         //TODO: ensure that escrow is in correct state to be voted on
 
@@ -134,7 +146,6 @@ contract ArbitrationModule is IArbitrationModule
         proposalVotes[proposalId][msg.sender] = vote;
 
         //change the status; are there enough votes to execute?
-        Escrow memory escrow = polyEscrow.getEscrow(proposal.escrowId);
         uint256 arbiterCount = escrow.arbiters.length;
         uint8 arbitersRequired = escrow.arbitersRequired;
         if (proposal.votesFor >= arbitersRequired) {
@@ -200,9 +211,15 @@ contract ArbitrationModule is IArbitrationModule
         //get the escrow id
         bytes32 escrowId = proposal.escrowId;
 
-        //ensure that escrowId is valid with escrow
-        //EXCEPTION: InvalidEscrow 
-        require(polyEscrow.getEscrow(escrowId).id == escrowId, "InvalidEscrow");
+        //get the relevant escrow
+        Escrow memory escrow = polyEscrow.getEscrow(escrowId);
+
+        //ensure that escrow is valid 
+        //EXCEPTION: InvalidEscrow
+        require(escrow.id == escrowId, "InvalidEscrow");
+
+        //Check that this is the right arbitration module for the given escrow
+        require(address(escrow.arbitrationModule) == address(this), "InvalidArbitrationModule");
 
         //TODO: ensure that escrow is in correct state to have arbitration executed
 
