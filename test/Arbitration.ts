@@ -456,6 +456,37 @@ describe('Arbitration', function () {
                 ).to.be.revertedWith('InvalidEscrow');
             });
 
+            it('cannot propose arbitration with the wrong arbitration module', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
+
+                await deploySecondArbitrationModule();
+
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1
+                );
+
+                //propose arbitration
+                await expect(
+                    arbitrationModule2
+                        .connect(receiver1)
+                        .proposeArbitration(
+                            polyEscrow,
+                            escrowId,
+                            PROPOSE_REFUND,
+                            1,
+                            false
+                        )
+                ).to.be.revertedWith('InvalidArbitrationModule');
+            });
+
             it.skip('cannot propose arbitration on escrow that has no arbiters assigned', async function () {
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 10000;
