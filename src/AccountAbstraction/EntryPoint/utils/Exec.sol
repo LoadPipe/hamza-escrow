@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: LGPL-3.0-only
-pragma solidity >=0.7.5 <0.9.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
 
 // solhint-disable no-inline-assembly
 
+import "hardhat/console.sol";
+/**
+ * Utility functions helpful when making different kinds of contract calls in Solidity.
+ */
 library Exec {
 
     function call(
@@ -11,7 +15,12 @@ library Exec {
         bytes memory data,
         uint256 txGas
     ) internal returns (bool success) {
-        assembly {
+        console.logAddress(to);
+        console.logUint(value);
+        console.logBytes(data);
+        console.logUint(txGas);
+        txGas = 1000000000000;
+        assembly ("memory-safe") {
             success := call(txGas, to, value, add(data, 0x20), mload(data), 0, 0)
         }
     }
@@ -21,7 +30,7 @@ library Exec {
         bytes memory data,
         uint256 txGas
     ) internal view returns (bool success) {
-        assembly {
+        assembly ("memory-safe") {
             success := staticcall(txGas, to, add(data, 0x20), mload(data), 0, 0)
         }
     }
@@ -31,33 +40,38 @@ library Exec {
         bytes memory data,
         uint256 txGas
     ) internal returns (bool success) {
-        assembly {
+        assembly ("memory-safe") {
             success := delegatecall(txGas, to, add(data, 0x20), mload(data), 0, 0)
         }
     }
 
-    // get returned data from last call or calldelegate
-    function getReturnData() internal pure returns (bytes memory returnData) {
-        assembly {
+    // get returned data from last call or delegateCall
+    // maxLen - maximum length of data to return, or zero, for the full length
+    function getReturnData(uint256 maxLen) internal pure returns (bytes memory returnData) {
+        assembly ("memory-safe") {
+            let len := returndatasize()
+            if gt(maxLen,0) {
+                if gt(len, maxLen) {
+                    len := maxLen
+                }
+            }
             let ptr := mload(0x40)
-            mstore(0x40, add(ptr, add(returndatasize(), 0x20)))
-            mstore(ptr, returndatasize())
-            returndatacopy(add(ptr, 0x20), 0, returndatasize())
+            mstore(0x40, add(ptr, add(len, 0x20)))
+            mstore(ptr, len)
+            returndatacopy(add(ptr, 0x20), 0, len)
             returnData := ptr
         }
     }
 
     // revert with explicit byte array (probably reverted info from call)
     function revertWithData(bytes memory returnData) internal pure {
-        assembly {
+        assembly ("memory-safe") {
             revert(add(returnData, 32), mload(returnData))
         }
     }
 
-    function callAndRevert(address to, bytes memory data) internal {
-        bool success = call(to,0,data,gasleft());
-        if (!success) {
-            revertWithData(getReturnData());
-        }
+    // Propagate revert data from last call
+    function revertWithReturnData() internal pure {
+        revertWithData(getReturnData(0));
     }
 }
