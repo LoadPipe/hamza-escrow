@@ -7,6 +7,8 @@ import "hardhat/console.sol";
 contract AccountFactory {
     address public entryPoint; 
 
+    event AccountCreated(address indexed accountAddress);
+
     constructor(address _entryPoint) {
         entryPoint = _entryPoint;
     }
@@ -16,6 +18,7 @@ contract AccountFactory {
         console.log("createAccount, sender is");
         console.logAddress(msg.sender);
         Account acc = new Account(owner, entryPoint);
+        emit AccountCreated(address(acc));
         return address(acc); // Returns the address of the newly created Account contract
     }
 }

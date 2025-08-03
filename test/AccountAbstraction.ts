@@ -108,15 +108,18 @@ describe.only('AccountAbstraction', function () {
             //send the userop
             const tx = await entryPoint.handleOps([userOp], signer0.address);
             const receipt = await tx.wait();
-            //console.log(receipt);
+
+            //TODO: find a better way to get the address
+            console.log('ACCOUNT ADDY:', receipt.logs[1].args[1]);
 
             const account = await hre.ethers.getContractAt(
                 'Account',
-                '0xcafac3dd18ac6c6e92c921884f9e4176737c052c'
+                receipt.logs[1].args[1]
             );
 
             //await account.modifyState();
             console.log('counter:', await account.getCounter());
+            expect(await account.getCounter()).to.equal(1);
 
             const userOp2: any = {
                 sender,
@@ -134,9 +137,10 @@ describe.only('AccountAbstraction', function () {
 
             console.log(userOp2);
             const tx2 = await entryPoint.handleOps([userOp2], signer0.address);
-            const receipt2 = await tx.wait();
+            const receipt2 = await tx2.wait();
 
             console.log('counter:', await account.getCounter());
+            expect(await account.getCounter()).to.equal(2);
 
             const userOp3: any = {
                 sender,
@@ -154,9 +158,10 @@ describe.only('AccountAbstraction', function () {
 
             console.log(userOp3);
             const tx3 = await entryPoint.handleOps([userOp3], signer0.address);
-            const receipt3 = await tx.wait();
+            const receipt3 = await tx3.wait();
 
             console.log('counter:', await account.getCounter());
+            expect(await account.getCounter()).to.equal(3);
         });
     });
 });

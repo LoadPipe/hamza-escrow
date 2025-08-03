@@ -48,8 +48,6 @@ contract Account is BaseAccount {
         counter = counter+1;
         console.log('ModifyState: MY ADDRESS IS');
         console.logAddress(address(this));
-
-        emit StateModified(address(this), counter);
     }
 
     function entryPoint() public view override returns (IEntryPoint) {
