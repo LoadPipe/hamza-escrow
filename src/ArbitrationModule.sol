@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "./Types.sol";
 import "./interfaces/IPolyEscrow.sol";
 import "./interfaces/IArbitrationModule.sol";
+import "hardhat/console.sol";
 
 /**
  * @title ArbitrationModule
@@ -61,7 +62,7 @@ contract ArbitrationModule is IArbitrationModule
        //get the relevant escrow
         //EXCEPTION: InvalidEscrow
         //EXCEPTION: InvalidArbitrationModule
-        _getAndCheckEscrow(polyEscrow, escrowId);
+        Escrow memory escrow = _getAndCheckEscrow(polyEscrow, escrowId);
 
         //EXCEPTION: Unauthorized
         require (_canProposeArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
@@ -69,10 +70,13 @@ contract ArbitrationModule is IArbitrationModule
         //EXCEPTION: InvalidEscrowState
         require(_escrowStateIsValid(polyEscrow, escrowId), "InvalidEscrowState");
 
+        //EXCEPTION: MaxArbitrationCasesReached
         //Check if maximum number of active arbitration cases has been reached
         require(activeProposalCount < MAX_ARBITRATION_CASES, "MaxArbitrationCasesReached");
 
-        //TODO: ensure that escrow is in correct state to be arbitrated
+        //EXCEPTION: InvalidProposalAmount
+        //Validate the arbitration amount
+        require(amount <= escrow.amountPaid - escrow.amountRefunded - escrow.amountReleased, "InvalidProposalAmount");
         
         //generate a unique id
         bytes32 propId = _generateUniqueProposalId(polyEscrow, escrowId);
@@ -294,7 +298,11 @@ contract ArbitrationModule is IArbitrationModule
         require(escrow.id == escrowId, "InvalidEscrow");
 
         //Check that this is the right arbitration module for the given escrow
+        //EXCEPTION: InvalidArbitrationModule
         require(address(escrow.arbitrationModule) == address(this), "InvalidArbitrationModule");
+
+        //EXCEPTION: InvalidProposalNoArbiters
+        require(escrow.arbiters.length > 0, "InvalidProposalNoArbiters");
 
         return escrow;
     }

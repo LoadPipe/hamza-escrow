@@ -934,13 +934,30 @@ describe('PolyEscrow', function () {
                 ).to.be.revertedWith('InvalidCurrency');
             });
 
-            //cannot place payment if escrow is already released
+            it('cannot place payment if payer and receiver are the same', async function () {
+                const amount = 10000000;
+                const isToken = true;
 
-            //cannot place payment if escrow is in arbitration
+                //create the escrow
+                const escrowId = ethers.keccak256('0x01');
+                await expect(
+                    createEscrow(
+                        escrowId,
+                        payer1,
+                        payer1.address,
+                        amount,
+                        isToken
+                    )
+                ).to.revertedWith('InvalidReceiver');
+            });
 
-            //cannot place payment if escrow is not yet active
+            it.skip('cannot place payment if escrow is already released', async function () {});
 
-            //failed token payment
+            it.skip('cannot place payment if escrow is in arbitration', async function () {});
+
+            it.skip('cannot place payment if escrow is not yet active', async function () {});
+
+            it.skip('failed token payment', async function () {});
         });
 
         describe('Events', function () {
@@ -2028,52 +2045,5 @@ describe('PolyEscrow', function () {
         describe('Events', function () {});
     });
 
-    describe.skip('Edge Cases', function () {
-        it('payer and receiver are the same', async function () {
-            const amount = 10000000;
-            const isToken = true;
-            const initialPayerBalance = await getBalance(
-                payer1.address,
-                isToken
-            );
-
-            //create the escrow
-            const escrowId = ethers.keccak256('0x01');
-            await createEscrow(
-                escrowId,
-                payer1,
-                payer1.address,
-                amount,
-                isToken
-            );
-
-            //check the balance
-            const newPayerBalance = await getBalance(payer1.address, isToken);
-            expect(newPayerBalance).to.equal(
-                initialPayerBalance - BigInt(amount)
-            );
-
-            //try to release the payment
-            await polyEscrow.connect(payer1).releaseEscrow(escrowId);
-            await polyEscrow.connect(payer1).releaseEscrow(escrowId);
-
-            //ensure that payment has been released
-            const payment = convertEscrow(await polyEscrow.getEscrow(escrowId));
-            verifyEscrow(payment, {
-                id: escrowId,
-                payer: payer1.address,
-                receiver: payer1.address,
-                amount,
-                amountRefunded: 0,
-                payerReleased: true,
-                receiverReleased: true,
-                released: true,
-                currency: testToken.target,
-            });
-
-            //check the balance
-            const finalPayerBalance = await getBalance(payer1.address, isToken);
-            expect(finalPayerBalance).to.equal(initialPayerBalance);
-        });
-    });
+    describe('Edge Cases', function () {});
 });
