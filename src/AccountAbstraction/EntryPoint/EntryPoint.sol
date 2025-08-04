@@ -693,6 +693,11 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
             contextLength := mload(context)
         }
 
+        if (success) {
+            console.log("OPAYMESSTER WAS SUCCES");
+            console.log(contextOffset);
+            console.log(maxContextLength);
+        }
         unchecked {
             if (!success || contextOffset != 64 || contextLength + 31 < maxContextLength) {
                 revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));

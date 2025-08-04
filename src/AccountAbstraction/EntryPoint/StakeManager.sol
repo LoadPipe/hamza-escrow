@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "./interfaces/IStakeManager.sol";
+import "hardhat/console.sol";
 
 /* solhint-disable avoid-low-level-calls */
 /* solhint-disable not-rely-on-time */
@@ -66,6 +67,8 @@ abstract contract StakeManager is IStakeManager {
      * @return true if the decrement succeeded (that is, previous balance was at least that amount)
      */
     function _tryDecrementDeposit(address account, uint256 amount) internal returns(bool) {
+        console.log("_tryDecrementDeposit");
+        console.log(account);
         unchecked {
             DepositInfo storage info = deposits[account];
             uint256 currentDeposit = info.deposit;

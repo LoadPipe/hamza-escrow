@@ -15,9 +15,7 @@ library Exec {
         bytes memory data,
         uint256 txGas
     ) internal returns (bool success) {
-        console.logAddress(to);
-        console.logUint(value);
-        console.logBytes(data);
+        console.log("LOGGING CALL GAS");
         console.logUint(txGas);
         txGas = 1000000000000;
         assembly ("memory-safe") {
