@@ -17,6 +17,12 @@ enum ArbitrationStatus {
     CANCELED
 }
 
+enum VoteState { 
+    NULL, 
+    YEA, 
+    NAY 
+}
+
 struct ArbitrationProposal {
     bytes32 id;
     bytes32 escrowId;

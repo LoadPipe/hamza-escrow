@@ -823,7 +823,68 @@ describe('Arbitration', function () {
                 );
             });
 
-            it.skip('votes are counted correctly', async function () {});
+            it('votes are counted correctly', async function () {
+                //create an escrow with 3/5
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
+
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [
+                        arbiter1.address,
+                        arbiter2.address,
+                        arbiter3.address,
+                        arbiter4.address,
+                        arbiter5.address,
+                    ],
+                    3
+                );
+
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
+                //propose arbitration for full refund
+                let proposal = await createProposal(
+                    payer1,
+                    escrowId,
+                    PROPOSE_REFUND,
+                    amount
+                );
+
+                //at this point, votes should be 1:0 for:against (the proposal itself counts as a vote)
+                expect((await getProposal(proposal.id)).status).to.equal(
+                    PROPOSAL_STATUS_ACTIVE
+                );
+
+                //vote on proposal
+                await voteProposal(arbiter1, proposal.id, true);
+
+                //at this point, votes should be 1:0 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(1);
+                expect(proposal.votesAgainst).to.equal(0);
+
+                //vote on proposal
+                await voteProposal(arbiter2, proposal.id, true);
+
+                //at this point, votes should be 2:0 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(2);
+                expect(proposal.votesAgainst).to.equal(0);
+
+                //vote on proposal
+                await voteProposal(arbiter3, proposal.id, false);
+
+                //at this point, votes should be 2:1 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(2);
+                expect(proposal.votesAgainst).to.equal(1);
+            });
 
             it('proposal is rejected when votes under threshold', async function () {
                 //create an escrow with 3/5
@@ -876,6 +937,61 @@ describe('Arbitration', function () {
                 expect((await getProposal(proposal.id)).status).to.equal(
                     PROPOSAL_STATUS_REJECTED
                 );
+            });
+
+            it('voters can change votes before voting is complete', async function () {
+                //create an escrow with 3/5
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
+
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [
+                        arbiter1.address,
+                        arbiter2.address,
+                        arbiter3.address,
+                        arbiter4.address,
+                        arbiter5.address,
+                    ],
+                    3
+                );
+
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
+                //propose arbitration for full refund
+                let proposal = await createProposal(
+                    payer1,
+                    escrowId,
+                    PROPOSE_REFUND,
+                    amount
+                );
+
+                //at this point, votes should be 1:0 for:against (the proposal itself counts as a vote)
+                expect((await getProposal(proposal.id)).status).to.equal(
+                    PROPOSAL_STATUS_ACTIVE
+                );
+
+                //vote on proposal
+                await voteProposal(arbiter1, proposal.id, true);
+
+                //at this point, votes should be 1:0 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(1);
+                expect(proposal.votesAgainst).to.equal(0);
+
+                //arbiter 1 changes vote
+                await voteProposal(arbiter1, proposal.id, false);
+
+                //at this point, votes should be 0:1 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(0);
+                expect(proposal.votesAgainst).to.equal(1);
             });
 
             it.skip('single-arbiter proposal is proposed, accepted automatically on proposal creation', async function () {});
@@ -973,6 +1089,8 @@ describe('Arbitration', function () {
             });
 
             it.skip('cannot vote on inactive proposal', async function () {});
+
+            it.skip('voters cannot change votes after voting is complete', async function () {});
         });
 
         describe('Events', function () {

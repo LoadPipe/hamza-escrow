@@ -20,7 +20,7 @@ contract ArbitrationModule is IArbitrationModule
     uint8 public constant MAX_ARBITRATION_CASES = 3;
     
     mapping(bytes32 => ArbitrationProposal) private proposals;
-    mapping(bytes32 => mapping(address => bool)) proposalVotes;
+    mapping(bytes32 => mapping(address => VoteState)) proposalVotes; 
     uint8 public proposalCount;
     uint8 public activeProposalCount;
 
@@ -89,11 +89,10 @@ contract ArbitrationModule is IArbitrationModule
         proposals[propId].autoExecute = autoExecute;
         proposals[propId].proposer = msg.sender;
 
-        //TODO: validate the amount (should be realistic and related to amount in escrow)
-
         //record proposer as an automatic yes vote, if proposer is a voter
+        //TODO: especially test this case 
         if (_canVoteArbitration(polyEscrow, escrowId, msg.sender)) {
-            _voteArbitration(polyEscrow, proposals[propId], true);
+            _voteArbitration(polyEscrow, escrow, proposals[propId], true);
         }
 
         // Increment counters
@@ -121,8 +120,6 @@ contract ArbitrationModule is IArbitrationModule
         //EXCEPTION: InvalidArbitrationModule
         Escrow memory escrow = _getAndCheckEscrow(polyEscrow, escrowId);
 
-        //TODO: ensure that escrow is in correct state to be voted on
-
         //validate rights of voter
         //EXCEPTION: Unauthorized
         require(_canVoteArbitration(polyEscrow, escrowId, msg.sender), "Unauthorized");
@@ -132,34 +129,7 @@ contract ArbitrationModule is IArbitrationModule
         require(proposal.status == ArbitrationStatus.ACTIVE, "InvalidProposalState");
 
         //record vote 
-        if (vote) {
-            proposal.votesFor += 1;
-        } else {
-            proposal.votesAgainst += 1;
-        }
-        proposalVotes[proposalId][msg.sender] = vote;
-
-        //change the status; are there enough votes to execute?
-        uint256 arbiterCount = escrow.arbiters.length;
-        uint8 arbitersRequired = escrow.arbitersRequired;
-        if (proposal.votesFor >= arbitersRequired) {
-            proposal.status = ArbitrationStatus.ACCEPTED;
-            
-            // Auto-execute if autoExecute flag is true
-            if (proposal.autoExecute) {
-                _executeArbitration(polyEscrow, proposal);
-            } else {
-                // If not auto-executing, decrement active count since proposal is no longer ACTIVE
-                activeProposalCount--;
-            }
-        }
-        else if (proposal.votesAgainst >= (arbiterCount - arbitersRequired)) {
-            proposal.status = ArbitrationStatus.REJECTED;
-            activeProposalCount--;
-        }
-
-        //raise event 
-        emit VoteRecorded(proposal.id, proposal.escrowId, msg.sender);
+        _voteArbitration(polyEscrow, escrow, proposal, vote);
     }
 
     function cancelArbitration(bytes32 proposalId) external virtual {
@@ -258,18 +228,36 @@ contract ArbitrationModule is IArbitrationModule
         //TODO: should also include Pending?
     }
 
-    function _voteArbitration(IPolyEscrow polyEscrow, ArbitrationProposal storage proposal, bool vote) internal {
+    function _voteArbitration(IPolyEscrow polyEscrow, Escrow memory escrow, ArbitrationProposal storage proposal, bool vote) internal {
 
         //record vote 
-        if (vote) {
-            proposal.votesFor += 1;
-        } else {
-            proposal.votesAgainst += 1;
+        if (proposalVotes[proposal.id][msg.sender] == VoteState.NULL) {
+            //this voter has not yet voted on this proposal
+            if (vote) {
+                proposal.votesFor += 1;
+                proposalVotes[proposal.id][msg.sender] = VoteState.YEA;
+            } else {
+                proposal.votesAgainst += 1;
+                proposalVotes[proposal.id][msg.sender] = VoteState.NAY;
+            }
         }
-        proposalVotes[proposal.id][msg.sender] = vote;
+        else {
+            //this voter has voted before, may be changing vote 
+            if (vote && proposalVotes[proposal.id][msg.sender] == VoteState.NAY) {
+                //change vote from nay to yea
+                proposal.votesFor += 1;
+                proposal.votesAgainst -= 1;
+                proposalVotes[proposal.id][msg.sender] = VoteState.YEA;
+            } 
+            else if (!vote && proposalVotes[proposal.id][msg.sender] == VoteState.YEA) {
+                //change vote from yea to nay
+                proposal.votesFor -= 1;
+                proposal.votesAgainst += 1;
+                proposalVotes[proposal.id][msg.sender] = VoteState.NAY;
+            }
+        }
 
         //change the status; are there enough votes to execute?
-        Escrow memory escrow = polyEscrow.getEscrow(proposal.escrowId);
         uint256 arbiterCount = escrow.arbiters.length;
         uint8 arbitersRequired = escrow.arbitersRequired;
         if (proposal.votesFor >= arbitersRequired) {
@@ -278,10 +266,14 @@ contract ArbitrationModule is IArbitrationModule
             // Auto-execute if autoExecute flag is true
             if (proposal.autoExecute) {
                 _executeArbitration(polyEscrow, proposal);
+            } else {
+                // If not auto-executing, decrement active count since proposal is no longer ACTIVE
+                activeProposalCount--;
             }
         }
         else if (proposal.votesAgainst >= (arbiterCount - arbitersRequired)) {
             proposal.status = ArbitrationStatus.REJECTED;
+            activeProposalCount--;
         }
 
         //raise event 
