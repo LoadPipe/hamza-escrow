@@ -1847,7 +1847,7 @@ describe('PolyEscrow', function () {
                 const isToken = true;
                 const receiverInitialAmount = await getBalance(
                     receiver1.address,
-                    true
+                    isToken
                 );
 
                 //set fee bps
@@ -1865,21 +1865,23 @@ describe('PolyEscrow', function () {
                     isToken
                 );
 
+                //pay into the escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
                 //release the payment from escrow
                 await polyEscrow.connect(payer1).releaseEscrow(escrowId);
                 await polyEscrow.connect(receiver1).releaseEscrow(escrowId);
 
                 //fee should be in the vault
-                const feeBps = await systemSettings.feeBps();
-                const feeAmount = BigInt(amount) * (feeBps / BigInt(10000));
+                const feeBps = parseInt(await systemSettings.feeBps());
+                const feeAmount = amount * (feeBps / 10000);
                 expect(await getBalance(vaultAddress, isToken)).to.equal(
                     feeAmount
                 );
 
                 //remainder amount should have gone to the receiver
                 expect(await getBalance(receiver1.address, isToken)).to.equal(
-                    receiverInitialAmount +
-                        BigInt(BigInt(amount) - BigInt(feeAmount))
+                    receiverInitialAmount + BigInt(amount - feeAmount)
                 );
             });
 
@@ -1960,21 +1962,16 @@ describe('PolyEscrow', function () {
                 await polyEscrow.connect(receiver1).releaseEscrow(escrowId);
 
                 //fee should be in the vault
-                const feeBps = await systemSettings.feeBps();
-                const feeAmount =
-                    (BigInt(amount) - BigInt(refundAmount)) *
-                    (feeBps / BigInt(10000));
+                const feeBps = parseInt(await systemSettings.feeBps());
+                const feeAmount = (amount - refundAmount) * (feeBps / 10000);
                 expect(await getBalance(vaultAddress, isToken)).to.equal(
-                    (BigInt(amount) - BigInt(refundAmount)) *
-                        (feeBps / BigInt(10000))
+                    (amount - refundAmount) * (feeBps / 10000)
                 );
 
                 //remainder should have gone to receiver
                 expect(await getBalance(receiver1.address, isToken)).to.equal(
                     receiverInitialAmount +
-                        BigInt(
-                            BigInt(amount) - BigInt(refundAmount) - feeAmount
-                        )
+                        BigInt(amount - refundAmount - feeAmount)
                 );
             });
 
