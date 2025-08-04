@@ -100,7 +100,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
 
         //EXCEPTION: InvalidArbitrationModule 
         require(address(arbitrationModule) != address(0), "InvalidArbitrationModule");
-        require(arbitrationModule.isArbitrationModule(), "InvalidArbitrationModule");
+        require(_isValidArbitrationModule(arbitrationModule), "InvalidArbitrationModule");
     }
 
     // --- Escrow Management ---
@@ -153,7 +153,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
 
         if (address(input.arbitrationModule) != address(0)) {
             //EXCEPTION: InvalidArbitrationModule
-            require(input.arbitrationModule.isArbitrationModule(), "InvalidArbitrationModule");
+            require(_isValidArbitrationModule(input.arbitrationModule), "InvalidArbitrationModule");
             escrow.arbitrationModule = input.arbitrationModule;
         }
         else 
@@ -432,12 +432,34 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         if (tokenAddress == address(0)) {
             return false;
         }
-        // Check if the address supports the ERC-20 `totalSupply` function
-        try IERC20(tokenAddress).totalSupply() returns (uint256) {
-            return true; // It has the totalSupply function, likely an ERC-20 token
-        } catch {
-            return false; // The call failed, it's not a valid ERC-20 token
+
+        {
+            (bool success, bytes memory data) = tokenAddress.staticcall(
+                abi.encodeWithSelector(bytes4(keccak256("totalSupply()")))
+            );
+            if (!(success && data.length == 32)) return false;
         }
+        {
+            (bool success, bytes memory data) = tokenAddress.staticcall(
+                abi.encodeWithSelector(bytes4(keccak256("decimals()")))
+            );
+            if (!(success && data.length == 32)) return false;
+        }
+
+        return true;
+    }
+
+    function _isValidArbitrationModule(IArbitrationModule arbitrationModule) public view returns (bool) {
+        if (address(arbitrationModule) == address(0)) {
+            return false;
+        }
+
+        (bool success, bytes memory data) = address(arbitrationModule).staticcall(
+            abi.encodeWithSelector(bytes4(keccak256("isArbitrationModule()")))
+        );
+        if (!(success && data.length == 32)) return false;
+
+        return abi.decode(data, (bool)); 
     }
 
     function _refund(bytes32 escrowId, uint256 amount) internal {

@@ -244,7 +244,7 @@ describe('Arbitration', function () {
                 ).to.be.revertedWith('InvalidArbitrationModule');
             });
 
-            it.skip('cannot deploy with an invalid arbitration module', async function () {
+            it('cannot deploy with an invalid arbitration module', async function () {
                 //polyEscrow factory
                 const PolyEscrowFactory =
                     await hre.ethers.getContractFactory('PolyEscrow');
@@ -327,7 +327,7 @@ describe('Arbitration', function () {
         });
 
         describe('Exceptions', function () {
-            it.skip('cannot create escrow with an invalid arbitration module', async function () {
+            it('cannot create escrow with an invalid arbitration module', async function () {
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
                 await expect(

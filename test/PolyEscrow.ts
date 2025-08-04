@@ -407,7 +407,7 @@ describe('PolyEscrow', function () {
                 ).to.be.revertedWith('InvalidAmount');
             });
 
-            it.skip('cannot create a new escrow with invalid ERC20', async function () {
+            it('cannot create a new escrow with invalid ERC20', async function () {
                 const amount = 10000000;
                 const isToken = false;
 
@@ -425,6 +425,7 @@ describe('PolyEscrow', function () {
                         amount,
                         startTime: 0,
                         endTime: 0,
+                        arbitrationModule: arbitrationModule.target,
                     })
                 ).to.be.revertedWith('InvalidToken');
             });
