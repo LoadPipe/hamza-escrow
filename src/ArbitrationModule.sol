@@ -271,7 +271,7 @@ contract ArbitrationModule is IArbitrationModule
                 activeProposalCount--;
             }
         }
-        else if (proposal.votesAgainst >= (arbiterCount - arbitersRequired)) {
+        else if (proposal.votesAgainst > (arbiterCount - arbitersRequired)) {
             proposal.status = ArbitrationStatus.REJECTED;
             activeProposalCount--;
         }

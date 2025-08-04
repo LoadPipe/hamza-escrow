@@ -933,6 +933,13 @@ describe('Arbitration', function () {
 
                 //vote on proposal
                 await voteProposal(arbiter2, proposal.id, false);
+                //at this point, votes should be 1:1 for:against
+                expect((await getProposal(proposal.id)).status).to.equal(
+                    PROPOSAL_STATUS_ACTIVE
+                );
+
+                //vote on proposal
+                await voteProposal(arbiter3, proposal.id, false);
                 //at this point, votes should be 1:2 for:against
                 expect((await getProposal(proposal.id)).status).to.equal(
                     PROPOSAL_STATUS_REJECTED
@@ -991,6 +998,22 @@ describe('Arbitration', function () {
                 //at this point, votes should be 0:1 for:against
                 proposal = await getProposal(proposal.id);
                 expect(proposal.votesFor).to.equal(0);
+                expect(proposal.votesAgainst).to.equal(1);
+
+                //vote on proposal
+                await voteProposal(arbiter2, proposal.id, false);
+
+                //at this point, votes should be 0:2 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(0);
+                expect(proposal.votesAgainst).to.equal(2);
+
+                //arbiter 1 changes vote
+                await voteProposal(arbiter2, proposal.id, true);
+
+                //at this point, votes should be 1:1 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(1);
                 expect(proposal.votesAgainst).to.equal(1);
             });
 
