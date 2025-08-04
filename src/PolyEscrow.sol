@@ -9,6 +9,8 @@ import "./interfaces/IArbitrationModule.sol";
 import "./interfaces/IPolyEscrow.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import "hardhat/console.sol";
+
 //the properties needed to create a new escrow
 struct CreateEscrowInput {
     bytes32 id; // Unique identifier for the escrow
@@ -320,6 +322,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     function _calculateFeeAndAmount(uint256 amount) internal view returns (uint256 fee, uint256 amountToPay) {
         fee = 0;
         uint256 feeBps = _getFeeBps();
+        
         if (feeBps > 0) {
             fee = CarefulMath.mulDiv(amount, feeBps, 10000);
             if (fee > amount) {
@@ -333,30 +336,6 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     function _handleFeeTransfer(bytes32 escrowId, address currency, uint256 fee) internal returns (bool) {
         if (fee == 0) return true;
         return _transferAmount(escrowId, _getVaultAddress(), currency, fee);
-    }
-
-    //TODO: this method should be removed
-    function _releaseEscrowPayment(bytes32 escrowId) internal {
-        Escrow storage escrow = escrows[escrowId];
-        if (!escrow.payerReleased || !escrow.receiverReleased || escrow.released) {
-            return;
-        }
-
-        uint256 activeAmount = _getEscrowAmountRemaining(escrow); 
-        (uint256 fee, uint256 amountToPay) = _calculateFeeAndAmount(activeAmount);
-
-        // If there's no amount to pay but there is a fee, or if the transfer succeeds
-        if ((amountToPay == 0 && fee > 0) || 
-            _transferAmount(escrow.id, escrow.receiver, escrow.currency, amountToPay)) {
-            
-            // Handle fee transfer
-            if (_handleFeeTransfer(escrow.id, escrow.currency, fee)) {
-                escrow.released = true;
-                escrow.amountReleased += amountToPay;
-                escrow.status = EscrowStatus.Completed;
-                emit EscrowReleased(escrowId, amountToPay, fee);
-            }
-        }
     }
 
     function _transferAmount(bytes32 escrowId, address to, address tokenAddressOrZero, uint256 amount) internal returns (bool) {
@@ -495,7 +474,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
             revert("AmountExceeded");
 
         //calculate fee, and amount to release
-        (uint256 fee, uint256 amountToPay) = _calculateFeeAndAmount(amount);
+        (uint256 fee, uint256 amountToPay) = _calculateFeeAndAmount(activeAmount);
 
         // If there's no amount to pay but there is a fee, or if the transfer succeeds
         if ((amountToPay == 0 && fee > 0) || 
