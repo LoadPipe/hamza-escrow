@@ -42,6 +42,7 @@ struct Escrow {
     bool receiverReleased;
     bool released;
     IArbitrationModule arbitrationModule;
+    uint256 feeBps;
 }
 
 struct EscrowArbitrationProposal {

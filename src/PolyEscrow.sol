@@ -149,6 +149,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         escrow.amountRefunded = 0;
         escrow.amountReleased = 0;
         escrow.amountPaid = 0;
+        escrow.feeBps = _getFeeBps();
         escrow.status = EscrowStatus.Pending;
 
         if (address(input.arbitrationModule) != address(0)) {
@@ -319,9 +320,9 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     // --- NON-PUBLIC METHODS --- 
 
     // Helper function to calculate fee and remaining amount
-    function _calculateFeeAndAmount(uint256 amount) internal view returns (uint256 fee, uint256 amountToPay) {
+    function _calculateFeeAndAmount(Escrow memory escrow, uint256 amount) internal pure returns (uint256 fee, uint256 amountToPay) {
         fee = 0;
-        uint256 feeBps = _getFeeBps();
+        uint256 feeBps = escrow.feeBps;
         
         if (feeBps > 0) {
             fee = CarefulMath.mulDiv(amount, feeBps, 10000);
@@ -496,7 +497,7 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
             revert("AmountExceeded");
 
         //calculate fee, and amount to release
-        (uint256 fee, uint256 amountToPay) = _calculateFeeAndAmount(activeAmount);
+        (uint256 fee, uint256 amountToPay) = _calculateFeeAndAmount(escrow, activeAmount);
 
         // If there's no amount to pay but there is a fee, or if the transfer succeeds
         if ((amountToPay == 0 && fee > 0) || 

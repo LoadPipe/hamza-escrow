@@ -2038,6 +2038,53 @@ describe('PolyEscrow', function () {
                     receiverInitialAmount
                 );
             });
+
+            it('fee stays the same even if systemSettings is changed', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = true;
+                const receiverInitialAmount = await getBalance(
+                    receiver1.address,
+                    isToken
+                );
+
+                //set fee bps to 120
+                const initialFeeBps = 120;
+                await systemSettings.setFeeBps(initialFeeBps);
+
+                //ensure that dao balance at start is 0
+                expect(await getBalance(vaultAddress, isToken)).to.equal(0);
+
+                //place a payment
+                await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken
+                );
+
+                //now change the system fee bps to a much higher value
+                await systemSettings.setFeeBps(500);
+
+                //pay into the escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
+                //release the payment from escrow
+                await polyEscrow.connect(payer1).releaseEscrow(escrowId);
+                await polyEscrow.connect(receiver1).releaseEscrow(escrowId);
+
+                //fee should be in the vault
+                const feeAmount = amount * (initialFeeBps / 10000);
+                expect(await getBalance(vaultAddress, isToken)).to.equal(
+                    feeAmount
+                );
+
+                //remainder amount should have gone to the receiver
+                expect(await getBalance(receiver1.address, isToken)).to.equal(
+                    receiverInitialAmount + BigInt(amount - feeAmount)
+                );
+            });
         });
 
         describe('Exceptions', function () {});
