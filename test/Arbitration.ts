@@ -244,7 +244,7 @@ describe('Arbitration', function () {
                 ).to.be.revertedWith('InvalidArbitrationModule');
             });
 
-            it.skip('cannot deploy with an invalid arbitration module', async function () {
+            it('cannot deploy with an invalid arbitration module', async function () {
                 //polyEscrow factory
                 const PolyEscrowFactory =
                     await hre.ethers.getContractFactory('PolyEscrow');
@@ -259,7 +259,7 @@ describe('Arbitration', function () {
                 ).to.be.revertedWith('InvalidArbitrationModule');
             });
 
-            it.skip('cannot deploy with a nonexistent arbitration module', async function () {
+            it('cannot deploy with a nonexistent arbitration module', async function () {
                 //polyEscrow factory
                 const PolyEscrowFactory =
                     await hre.ethers.getContractFactory('PolyEscrow');
@@ -327,7 +327,7 @@ describe('Arbitration', function () {
         });
 
         describe('Exceptions', function () {
-            it.skip('cannot create escrow with an invalid arbitration module', async function () {
+            it('cannot create escrow with an invalid arbitration module', async function () {
                 //create escrow
                 const escrowId = ethers.keccak256('0x01');
                 await expect(
@@ -487,7 +487,7 @@ describe('Arbitration', function () {
                 ).to.be.revertedWith('InvalidArbitrationModule');
             });
 
-            it.skip('cannot propose arbitration on escrow that has no arbiters assigned', async function () {
+            it('cannot propose arbitration on escrow that has no arbiters assigned', async function () {
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 10000;
                 const isToken = true;
@@ -535,6 +535,9 @@ describe('Arbitration', function () {
                     [arbiter1.address, arbiter2.address],
                     1
                 );
+
+                //pay into escrow
+                await placePayment(escrowId, payer1, amount, isToken);
 
                 //propose arbitration 1
                 await arbitrationModule
@@ -585,24 +588,28 @@ describe('Arbitration', function () {
 
             //TODO: test that we can have more than 3 cases, if some of them are closed (no more than 3 active)
 
-            it.skip('cannot propose arbitration on an escrow that is in the wrong state', async function () {
+            it('cannot propose arbitration on an escrow that is in the wrong state', async function () {
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 10000;
                 const isToken = true;
 
                 //create escrow with no arbiters
-                const escrow = await createEscrow(
+                await createEscrow(
                     escrowId,
                     payer1,
                     receiver1.address,
                     amount,
                     isToken,
-                    [],
+                    [arbiter1.address],
                     0
                 );
 
+                //pay into escrow
+                await placePayment(escrowId, payer1, 1, isToken);
+
                 //set status to Completed
                 await polyEscrow.connect(payer1).releaseEscrow(escrowId);
+                await polyEscrow.connect(receiver1).releaseEscrow(escrowId);
 
                 //try to propose arbitration
                 await expect(
@@ -618,7 +625,7 @@ describe('Arbitration', function () {
                 ).to.be.revertedWith('InvalidEscrowState');
             });
 
-            it.skip('cannot propose arbitration for more than the remaining amount of escrow', async function () {
+            it('cannot propose arbitration for more than the remaining amount of escrow', async function () {
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 10000;
                 const isToken = true;
@@ -630,8 +637,8 @@ describe('Arbitration', function () {
                     receiver1.address,
                     amount,
                     isToken,
-                    [],
-                    0
+                    [arbiter1.address, arbiter2.address],
+                    1
                 );
 
                 //fully pay the escrow
@@ -666,7 +673,7 @@ describe('Arbitration', function () {
         });
 
         describe('Events', function () {
-            it.skip('arbitration proposal emits ArbitrationProposed', async function () {
+            it('arbitration proposal emits ArbitrationProposed', async function () {
                 //create the escrow
                 const escrowId = ethers.keccak256('0x01');
                 const amount = 1000000;
@@ -694,12 +701,10 @@ describe('Arbitration', function () {
                             polyEscrow,
                             escrowId,
                             proposalType,
-                            amount,
+                            proposalAmount,
                             false
                         )
-                )
-                    .to.emit(arbitrationModule, 'ArbitrationProposed')
-                    .withArgs('', escrowId, payer1.address);
+                ).to.emit(arbitrationModule, 'ArbitrationProposed');
             });
         });
     });
@@ -818,7 +823,68 @@ describe('Arbitration', function () {
                 );
             });
 
-            it.skip('votes are counted correctly', async function () {});
+            it('votes are counted correctly', async function () {
+                //create an escrow with 3/5
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
+
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [
+                        arbiter1.address,
+                        arbiter2.address,
+                        arbiter3.address,
+                        arbiter4.address,
+                        arbiter5.address,
+                    ],
+                    3
+                );
+
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
+                //propose arbitration for full refund
+                let proposal = await createProposal(
+                    payer1,
+                    escrowId,
+                    PROPOSE_REFUND,
+                    amount
+                );
+
+                //at this point, votes should be 1:0 for:against (the proposal itself counts as a vote)
+                expect((await getProposal(proposal.id)).status).to.equal(
+                    PROPOSAL_STATUS_ACTIVE
+                );
+
+                //vote on proposal
+                await voteProposal(arbiter1, proposal.id, true);
+
+                //at this point, votes should be 1:0 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(1);
+                expect(proposal.votesAgainst).to.equal(0);
+
+                //vote on proposal
+                await voteProposal(arbiter2, proposal.id, true);
+
+                //at this point, votes should be 2:0 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(2);
+                expect(proposal.votesAgainst).to.equal(0);
+
+                //vote on proposal
+                await voteProposal(arbiter3, proposal.id, false);
+
+                //at this point, votes should be 2:1 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(2);
+                expect(proposal.votesAgainst).to.equal(1);
+            });
 
             it('proposal is rejected when votes under threshold', async function () {
                 //create an escrow with 3/5
@@ -867,10 +933,88 @@ describe('Arbitration', function () {
 
                 //vote on proposal
                 await voteProposal(arbiter2, proposal.id, false);
+                //at this point, votes should be 1:1 for:against
+                expect((await getProposal(proposal.id)).status).to.equal(
+                    PROPOSAL_STATUS_ACTIVE
+                );
+
+                //vote on proposal
+                await voteProposal(arbiter3, proposal.id, false);
                 //at this point, votes should be 1:2 for:against
                 expect((await getProposal(proposal.id)).status).to.equal(
                     PROPOSAL_STATUS_REJECTED
                 );
+            });
+
+            it('voters can change votes before voting is complete', async function () {
+                //create an escrow with 3/5
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000;
+                const isToken = true;
+
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [
+                        arbiter1.address,
+                        arbiter2.address,
+                        arbiter3.address,
+                        arbiter4.address,
+                        arbiter5.address,
+                    ],
+                    3
+                );
+
+                //fully pay the escrow
+                await placePayment(escrowId, payer1, amount, isToken);
+
+                //propose arbitration for full refund
+                let proposal = await createProposal(
+                    payer1,
+                    escrowId,
+                    PROPOSE_REFUND,
+                    amount
+                );
+
+                //at this point, votes should be 1:0 for:against (the proposal itself counts as a vote)
+                expect((await getProposal(proposal.id)).status).to.equal(
+                    PROPOSAL_STATUS_ACTIVE
+                );
+
+                //vote on proposal
+                await voteProposal(arbiter1, proposal.id, true);
+
+                //at this point, votes should be 1:0 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(1);
+                expect(proposal.votesAgainst).to.equal(0);
+
+                //arbiter 1 changes vote
+                await voteProposal(arbiter1, proposal.id, false);
+
+                //at this point, votes should be 0:1 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(0);
+                expect(proposal.votesAgainst).to.equal(1);
+
+                //vote on proposal
+                await voteProposal(arbiter2, proposal.id, false);
+
+                //at this point, votes should be 0:2 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(0);
+                expect(proposal.votesAgainst).to.equal(2);
+
+                //arbiter 1 changes vote
+                await voteProposal(arbiter2, proposal.id, true);
+
+                //at this point, votes should be 1:1 for:against
+                proposal = await getProposal(proposal.id);
+                expect(proposal.votesFor).to.equal(1);
+                expect(proposal.votesAgainst).to.equal(1);
             });
 
             it.skip('single-arbiter proposal is proposed, accepted automatically on proposal creation', async function () {});
@@ -968,6 +1112,8 @@ describe('Arbitration', function () {
             });
 
             it.skip('cannot vote on inactive proposal', async function () {});
+
+            it.skip('voters cannot change votes after voting is complete', async function () {});
         });
 
         describe('Events', function () {
