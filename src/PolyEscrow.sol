@@ -125,7 +125,10 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         //EXCEPTION: InvalidReceiver
         require(input.receiver != input.payer, "InvalidReceiver");
 
-        //TODO: validate input more 
+        //EXCEPTION: InvalidEndDate
+        if (input.endTime > 0) {
+            require((input.endTime > block.timestamp + 3600) && (input.endTime > input.startTime), 'InvalidEndDate');
+        }
 
         // EXCEPTION: DuplicateEscrow if existing escrow
         require(escrows[input.id].id != input.id, "DuplicateEscrow");
@@ -191,10 +194,14 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
     function placePayment(PaymentInput calldata paymentInput) public payable whenNotPaused {
         _validatePaymentInput(paymentInput);
 
-        //EXCEPTION: InvalidEscrow if not existing payment
-        require(escrows[paymentInput.escrowId].id == paymentInput.escrowId, "InvalidEscrow");
+        //get the escrow 
+        Escrow storage escrow = escrows[paymentInput.escrowId];
 
-        //TODO: EXCEPTION: reject if escrow not in the correct state to accept payments
+        //EXCEPTION: InvalidEscrow if not existing payment
+        require(escrow.id == paymentInput.escrowId, "InvalidEscrow");
+
+        //EXCEPTION: EscrowNotActive
+        _enforceEscrowDates(escrow);
 
         //EXCEPTION: InvalidCurrency reject the wrong currency
         require (paymentInput.currency == escrows[paymentInput.escrowId].currency, "InvalidCurrency");
@@ -207,9 +214,6 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
             //EXCEPTION: TokenPaymentFailed failed payment 
             require(_handleTokenInflow(paymentInput.currency, msg.sender, paymentInput.amount), "TokenPaymentFailed");
         }
-
-        //get the escrow 
-        Escrow storage escrow = escrows[paymentInput.escrowId];
 
         escrow.amountPaid += paymentInput.amount;
         if (escrow.amountPaid >= escrow.amount) {
@@ -253,6 +257,9 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         {
             revert("Unauthorized");
         }
+
+        //EXCEPTION: EscrowNotActive
+        _enforceEscrowDates(escrow);
 
         //TODO: must escrow be fully paid before releasing? 
         //TODO: revert if escrow already released? 
@@ -299,6 +306,8 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         Escrow storage escrow = escrows[escrowId]; 
 
         //TODO: check for invalid escrow
+        //EXCEPTION: EscrowNotActive
+        _enforceEscrowDates(escrow);
 
         //who has permission to refund? either the receiver or the arbiter
         require (escrow.receiver == msg.sender, "Unauthorized");
@@ -314,6 +323,21 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
 
     function getSecurityContext() external override(IPolyEscrow, HasSecurityContext) view returns (ISecurityContext) {
         return this.getSecurityContext();
+    }
+
+    function executeArbitrationProposal(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) external {
+        Escrow storage escrow = escrows[escrowId];
+        //EXCEPTION: InvalidEscrow
+        require(escrow.id != bytes32(0), "InvalidEscrow");
+        
+        //EXCEPTION: Unauthorized 
+        require(msg.sender == address(escrow.arbitrationModule), "Unauthorized");
+        
+        if (proposalType == ArbitrationType.REFUND) {
+            _refund(escrowId, amount);
+        } else if (proposalType == ArbitrationType.RELEASE) {
+            _release(escrowId, amount);
+        }
     }
 
 
@@ -541,18 +565,12 @@ contract PolyEscrow is HasSecurityContext, Pausable, IPolyEscrow
         return escrow.amountPaid - escrow.amountRefunded - escrow.amountReleased;
     }
 
-    function executeArbitrationProposal(bytes32 escrowId, ArbitrationType proposalType, uint256 amount) external {
-        Escrow storage escrow = escrows[escrowId];
-        //EXCEPTION: InvalidEscrow
-        require(escrow.id != bytes32(0), "InvalidEscrow");
-        
-        //EXCEPTION: Unauthorized 
-        require(msg.sender == address(escrow.arbitrationModule), "Unauthorized");
-        
-        if (proposalType == ArbitrationType.REFUND) {
-            _refund(escrowId, amount);
-        } else if (proposalType == ArbitrationType.RELEASE) {
-            _release(escrowId, amount);
+    function _enforceEscrowDates(Escrow memory escrow) internal view {
+        if (escrow.startTime > 0) {
+            require (block.timestamp >= escrow.startTime, 'EscrowNotActive');
+        }
+        if (escrow.endTime > 0) {
+            require (block.timestamp <= escrow.endTime, 'EscrowNotActive');
         }
     }
     

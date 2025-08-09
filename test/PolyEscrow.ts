@@ -3,6 +3,10 @@ import hre, { ethers } from 'hardhat';
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { BigNumberish, keccak256 } from 'ethers';
 import { IEscrow, convertEscrow as convertEscrow } from './util';
+import { time } from '@nomicfoundation/hardhat-network-helpers';
+
+const ONE_HOUR = 3600;
+const ONE_DAY = 86400;
 
 describe('PolyEscrow', function () {
     let securityContext: any;
@@ -25,6 +29,10 @@ describe('PolyEscrow', function () {
         return isToken
             ? await await testToken.balanceOf(address)
             : await admin.provider.getBalance(address);
+    }
+
+    async function getEscrow(escrowId: string) {
+        return convertEscrow(await polyEscrow.getEscrow(escrowId));
     }
 
     async function createEscrow(
@@ -57,8 +65,7 @@ describe('PolyEscrow', function () {
         });
 
         //return escrow
-        const escrow = convertEscrow(await polyEscrow.getEscrow(escrowId));
-        return escrow;
+        return await getEscrow(escrowId);
     }
 
     async function placePayment(
@@ -325,51 +332,6 @@ describe('PolyEscrow', function () {
                     amountReleased: 0,
                     startTime: 0,
                     endTime: 0,
-                    status: 0,
-                    fullyPaid: false,
-                    payerReleased: false,
-                    receiverReleased: false,
-                    released: false,
-                });
-            });
-
-            it('can create an escrow with start & end dates', async function () {
-                const amount = 10000000;
-                const isToken = false;
-
-                //create the escrow
-                const escrowId = ethers.keccak256('0x01');
-
-                const arbiters: string[] = [];
-                const arbitersRequired = 0;
-                const startTime = 100;
-                const endTime = 200;
-
-                //escrow is created in contract with right values
-                const escrow = await createEscrow(
-                    escrowId,
-                    payer1,
-                    receiver1.address,
-                    amount,
-                    false,
-                    arbiters,
-                    arbitersRequired,
-                    startTime,
-                    endTime
-                );
-                verifyEscrow(escrow, {
-                    id: escrowId,
-                    payer: payer1.address,
-                    receiver: receiver1.address,
-                    arbiters,
-                    arbitersRequired,
-                    amount,
-                    currency: ethers.ZeroAddress,
-                    amountPaid: 0,
-                    amountRefunded: 0,
-                    amountReleased: 0,
-                    startTime,
-                    endTime,
                     status: 0,
                     fullyPaid: false,
                     payerReleased: false,
@@ -2090,6 +2052,522 @@ describe('PolyEscrow', function () {
         describe('Exceptions', function () {});
 
         describe('Events', function () {});
+    });
+
+    describe('Start and End Dates', function () {
+        it('can set start and end dates', async function () {
+            const escrowId = ethers.keccak256('0x01');
+            const amount = 10000000;
+            const isToken = true;
+
+            const currentTime = await time.latest();
+            const startTime = currentTime - ONE_HOUR;
+            const endTime = currentTime + ONE_DAY;
+
+            //place a payment
+            await createEscrow(
+                escrowId,
+                payer1,
+                receiver1.address,
+                amount,
+                isToken,
+                [arbiter1.address, arbiter2.address],
+                1,
+                startTime,
+                endTime
+            );
+
+            const escrow = await getEscrow(escrowId);
+
+            expect(escrow.startTime).to.equal(startTime);
+            expect(escrow.endTime).to.equal(endTime);
+        });
+
+        describe('Escrows will not operate before the prescribed start date', function () {
+            it('escrow will not accept payment before the prescribed start date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime + ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await expect(
+                    polyEscrow.connect(payer1).placePayment(
+                        {
+                            escrowId: escrowId,
+                            currency: ethers.ZeroAddress,
+                            amount,
+                        },
+                        { value: amount }
+                    )
+                ).to.be.revertedWith('EscrowNotActive');
+            });
+
+            it('escrow will not allow refunds before the prescribed start date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime + ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await expect(
+                    polyEscrow.connect(receiver1).refundPayment(escrowId, 1)
+                ).to.be.revertedWith('EscrowNotActive');
+            });
+
+            it('escrow will not allow release before the prescribed start date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime + ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await expect(
+                    polyEscrow.connect(receiver1).releaseEscrow(escrowId)
+                ).to.be.revertedWith('EscrowNotActive');
+            });
+
+            it('escrow will accept payment after the prescribed start date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await expect(
+                    polyEscrow.connect(payer1).placePayment(
+                        {
+                            escrowId: escrowId,
+                            currency: ethers.ZeroAddress,
+                            amount,
+                        },
+                        { value: amount }
+                    )
+                ).to.not.be.reverted;
+            });
+
+            it('escrow will allow refunds after the prescribed start date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await expect(
+                    polyEscrow.connect(receiver1).refundPayment(escrowId, 1)
+                ).to.be.revertedWith('AmountExceeded');
+            });
+
+            it('escrow will allow release after the prescribed start date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await expect(
+                    polyEscrow.connect(receiver1).releaseEscrow(escrowId)
+                ).to.not.be.reverted;
+            });
+        });
+
+        describe('Escrows will not operate after the prescribed end date', function () {
+            it('escrow will not accept payment after the prescribed end date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await time.increase(ONE_DAY * 2);
+
+                await expect(
+                    polyEscrow.connect(payer1).placePayment(
+                        {
+                            escrowId: escrowId,
+                            currency: ethers.ZeroAddress,
+                            amount,
+                        },
+                        { value: amount }
+                    )
+                ).to.be.revertedWith('EscrowNotActive');
+            });
+
+            it('escrow will not allow refunds after the prescribed end date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await time.increase(ONE_DAY * 2);
+
+                await expect(
+                    polyEscrow.connect(receiver1).refundPayment(escrowId, 1)
+                ).to.be.revertedWith('EscrowNotActive');
+            });
+
+            it('escrow will not allow release after the prescribed end date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await time.increase(ONE_DAY * 2);
+
+                await expect(
+                    polyEscrow.connect(receiver1).releaseEscrow(escrowId)
+                ).to.be.revertedWith('EscrowNotActive');
+            });
+
+            it('escrow will accept payment before the prescribed end date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await expect(
+                    polyEscrow.connect(payer1).placePayment(
+                        {
+                            escrowId: escrowId,
+                            currency: ethers.ZeroAddress,
+                            amount,
+                        },
+                        { value: amount }
+                    )
+                ).to.not.be.reverted;
+            });
+
+            it('escrow will allow refunds before the prescribed end date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await expect(
+                    polyEscrow.connect(receiver1).refundPayment(escrowId, 1)
+                ).to.be.revertedWith('AmountExceeded');
+            });
+
+            it('escrow will allow release before the prescribed end date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                const escrow = await createEscrow(
+                    escrowId,
+                    payer1,
+                    receiver1.address,
+                    amount,
+                    isToken,
+                    [arbiter1.address, arbiter2.address],
+                    1,
+                    startTime,
+                    endTime
+                );
+
+                expect(escrow.startTime).to.equal(startTime);
+                expect(escrow.endTime).to.equal(endTime);
+
+                await expect(
+                    polyEscrow.connect(receiver1).releaseEscrow(escrowId)
+                ).to.not.be.reverted;
+            });
+        });
+
+        describe('Exceptions', function () {
+            it('cannot create escrow with an end date that is in the past', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR * 2;
+                const endTime = currentTime - ONE_HOUR;
+
+                //create escrow
+                await expect(
+                    polyEscrow.connect(payer1).createEscrow({
+                        currency: isToken
+                            ? testToken.target
+                            : ethers.ZeroAddress,
+                        id: escrowId,
+                        receiver: receiver1,
+                        payer: payer1.address,
+                        arbiters: [],
+                        arbitersRequired: 0,
+                        amount,
+                        startTime,
+                        endTime,
+                        arbitrationModule: ethers.ZeroAddress,
+                    })
+                ).to.be.revertedWith('InvalidEndDate');
+            });
+
+            it('cannot create escrow with an end date that is less than start date', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime + ONE_DAY * 2;
+                const endTime = currentTime + ONE_DAY;
+
+                //create escrow
+                await expect(
+                    polyEscrow.connect(payer1).createEscrow({
+                        currency: isToken
+                            ? testToken.target
+                            : ethers.ZeroAddress,
+                        id: escrowId,
+                        receiver: receiver1,
+                        payer: payer1.address,
+                        arbiters: [],
+                        arbitersRequired: 0,
+                        amount,
+                        startTime,
+                        endTime,
+                        arbitrationModule: ethers.ZeroAddress,
+                    })
+                ).to.be.revertedWith('InvalidEndDate');
+            });
+
+            it('cannot create escrow with an end date that is too soon', async function () {
+                const escrowId = ethers.keccak256('0x01');
+                const amount = 10000000;
+                const isToken = false;
+
+                const currentTime = await time.latest();
+                const startTime = currentTime - ONE_HOUR;
+                const endTime = currentTime + ONE_HOUR;
+
+                //create escrow
+                await expect(
+                    polyEscrow.connect(payer1).createEscrow({
+                        currency: isToken
+                            ? testToken.target
+                            : ethers.ZeroAddress,
+                        id: escrowId,
+                        receiver: receiver1,
+                        payer: payer1.address,
+                        arbiters: [],
+                        arbitersRequired: 0,
+                        amount,
+                        startTime,
+                        endTime,
+                        arbitrationModule: ethers.ZeroAddress,
+                    })
+                ).to.be.revertedWith('InvalidEndDate');
+            });
+        });
+
+        //TODO: test that arbitration still works outside of start & end dates
     });
 
     describe('Edge Cases', function () {});

@@ -4,7 +4,15 @@ import '@nomicfoundation/hardhat-toolbox';
 require('dotenv').config();
 
 const config: HardhatUserConfig = {
-    solidity: '0.8.24',
+    solidity: {
+        version: '0.8.28',
+        settings: {
+            optimizer: {
+                enabled: true,
+                runs: 1000,
+            },
+        },
+    },
     paths: {
         sources: './src', // Directory for your Solidity contracts
         tests: './test', // Directory for your Hardhat tests
